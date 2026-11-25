@@ -15,7 +15,7 @@
  * measured in the same flush, and shown where its own box says; the constants are only the guess of that one
  * unpainted pass.
  */
-import {computed, ComputedRef, onMounted, ref, watch} from 'vue';
+import {computed, ComputedRef, onMounted, onScopeDispose, ref, watch} from 'vue';
 
 export type PreviewSize = {width: number, height: number};
 export type PreviewAnchor = {left: number, right: number, top: number, height: number};
@@ -47,6 +47,12 @@ export function previewPlacement(anchor: PreviewAnchor, size: PreviewSize, viewp
  *  · `guess`  — the size assumed for the one pass before the measure (that pass is not painted: `visibility: hidden`).
  * The measure runs POST-flush on the edge that shows the popover or moves its anchor — the node is in the DOM by then —
  * and once on the mount (a popover born shown has no such edge).
+ *
+ * …AND WHENEVER THE BOX ITSELF CHANGES SIZE (CI #152 — the colony's preview stood 24 px from its chip instead of 14).
+ * One measure on the show was one sample of a box that is still settling: its face's fonts and its planet's art arrive
+ * after the first pass (the self-hosted faces began to load at all on 2026-11-25), the box narrowed by ten pixels, and
+ * the preview stayed where the wider box had put it. A `ResizeObserver` on the box re-measures it — the place follows
+ * the box it really has, at every size it takes, for as long as it is shown.
  */
 export function useMeasuredPreviewStyle(
   box: {readonly value: HTMLElement | null},
@@ -67,6 +73,20 @@ export function useMeasuredPreviewStyle(
   };
   watch(() => (shown() ? anchor() : undefined), measure, {flush: 'post'});
   onMounted(measure);
+  if (typeof ResizeObserver === 'function') {
+    const observer = new ResizeObserver(() => measure());
+    let observed: HTMLElement | null = null;
+    watch(() => box.value, (el) => {
+      if (observed !== null) {
+        observer.unobserve(observed);
+      }
+      observed = el;
+      if (el !== null) {
+        observer.observe(el);
+      }
+    }, {flush: 'post', immediate: true});
+    onScopeDispose(() => observer.disconnect());
+  }
   return computed((): Record<string, string> => {
     const a = anchor();
     if (a === undefined) {

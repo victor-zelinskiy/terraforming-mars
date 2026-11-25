@@ -109,6 +109,31 @@ describe('PlayerInput', () => {
     expect(res.statusCode).eq(statusCode.badRequest);
     expect(JSON.parse(res.content)).deep.eq({message: 'You cannot overspend heat'});
   });
+  it('a REFUSED answer changes nothing — the batches on the seat\'s screen stay open (the intake seal is an accepted answer\'s)', async () => {
+    const player = TestPlayer.BLUE.newPlayer({beginner: true});
+    scaffolding.url = '/player/input?id=' + player.id;
+    const game = Game.newInstance('gameid-seal', [player], player, 'spectatorid');
+    await scaffolding.ctx.gameLoader.add(game);
+    player.drawCard(1);
+    expect(player.cardDrawReveals.length, 'a batch stands on the seat\'s screen').to.be.greaterThan(0);
+    const openBefore = player.cardDrawReveals.map((reveal) => reveal.sealed === true);
+
+    const options = cast(player.getWaitingFor(), OrOptions);
+    options.options.push(new SelectOption('Throw').andThen(() => {
+      throw new Error('You cannot overspend heat');
+    }));
+    const post = scaffolding.post(PlayerInput.INSTANCE, res);
+    const emit = Promise.resolve().then(() => {
+      const orOptionsResponse: OrOptionsResponse = {type: 'or', index: options.options.length - 1, response: {type: 'option'}};
+      scaffolding.req.emitter.emit('data', JSON.stringify(orOptionsResponse));
+      scaffolding.req.emitter.emit('end');
+    });
+    await Promise.all(([emit, post]));
+
+    expect(res.statusCode).eq(statusCode.badRequest);
+    expect(player.cardDrawReveals.map((reveal) => reveal.sealed === true), 'nothing was sealed by a refused answer').deep.eq(openBefore);
+  });
+
   it('sends 400 on server error', async () => {
     const player = TestPlayer.BLUE.newPlayer();
     scaffolding.url = `/player/input?id=${player.id}`;

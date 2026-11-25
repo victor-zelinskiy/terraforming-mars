@@ -2403,6 +2403,8 @@ type WirePrompt = {
   include?: Array<string>,
   /** A production to lose (`SelectProductionToLoseModel`): how many steps, and what the seat produces. */
   payProduction?: {cost: number, units: Record<string, number>},
+  /** Delta Project — the steps the server allows on the track (`DeltaProjectInputModel`). */
+  validSteps?: Array<number>,
   startGamePrompt?: {kind: string},
 };
 
@@ -2703,6 +2705,10 @@ export function answerPrompt(prompt: WirePrompt, plan: SeedPlan): WireResponse {
     expect(owed, `a production loss the seat cannot pay: ${describePrompt(prompt)}`).toBe(0);
     return {type: 'productionToLose', units};
   }
+  case 'deltaProject':
+    // Delta Project's track: the fewest steps the server allows, and its target-bearing reward waived (no follow-up
+    // pick to answer — the seat's choice, which the server honours by contract).
+    return {type: 'deltaProject', amount: (prompt.validSteps ?? [0])[0], waiveReward: true} as unknown as WireResponse;
   default:
     // NAME what it could not answer. A seeder that silently guesses is worse
     // than one that stops: the spec would fail somewhere else entirely.

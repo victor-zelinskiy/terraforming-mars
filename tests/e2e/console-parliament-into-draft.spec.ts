@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixtureSeats, pressUntil, reloadConsole} from './consoleStart';
+import {bootFixtureSeats, cinematicBeat, press, pressUntil, reloadConsole} from './consoleStart';
 import {closeSitting, enterSittingByPass, parliament, parliamentWire, turnTo} from './parliamentDrive';
 import {armWitness, pageNow, witnessOf} from './witness';
 
@@ -213,6 +213,35 @@ test.describe(`the Parliament → draft handover · ${TV.id}`, () => {
     expect(waited, `the entry waited for the screen (${waited} ms)`).toBeGreaterThan(2500);
     await expect(page.locator('.con-mandatory'), 'no plate: the press already opened it').toHaveCount(0);
     await shoot(page, '07-long-handover-draft');
+  });
+
+  /*
+   * A LEAVING SURFACE ANSWERS NOTHING (FREEZE ZERO — the fifth hundred's game 1401). The Parliament leaves painting the
+   * view it stood with (its leave latch), and that view's gate is no longer the server's question: the close was
+   * answered, the draft's pick stands. «К драфту» came back on it at the submit's 6 s safety, and every press posted
+   * an option against the live card pick — 400, «Error with input», thirteen times. A hand-over held PAST the safety:
+   * the frozen Parliament offers no verb, and a press posts nothing.
+   */
+  test('a handover held past the submit safety — the leaving Parliament posts NOTHING, whatever is pressed', async ({page, request}) => {
+    test.setTimeout(600_000);
+    const {playerId: blue} = await bootFixtureSeats(page, request, 'parliament-architecture-assembly-draft', {query: `${TV.query}&screenControl=1`});
+    await walkAndClose(page, request, blue, /К драфту|To the draft/i, async () => {
+      await page.evaluate(() => (window as unknown as {__conScreenControl: {holdScreen: (ms: number) => void}}).__conScreenControl.holdScreen(14_000));
+    });
+    const posts: Array<string> = [];
+    page.on('request', (r) => {
+      if (r.method() === 'POST' && /\/player\/input/.test(r.url())) {
+        posts.push(r.postData() ?? '');
+      }
+    });
+    // Past the submit's safety (6 s) — where the close used to come back — the Parliament still stands frozen.
+    await cinematicBeat(page, 7_500, 'past the submit safety — where «К драфту» used to re-arm on the leaving surface');
+    await expect(page.locator('.con-draftws'), 'the hand-over is still held').toHaveCount(0);
+    await press(page, 'Enter', 400);
+    await press(page, 'Enter', 400);
+    expect(posts, 'a leaving surface posts nothing').toEqual([]);
+    await expect(page.locator('.con-draftws'), 'the draft takes the screen once the hold ends').toHaveCount(1, {timeout: 30_000});
+    expect(posts, 'nothing was posted on the way').toEqual([]);
   });
 
   test('a reload right after the close presents the packet at once — no deal plays twice (PL-924)', async ({page, request}) => {

@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {createManualClock, ManualFlowClock, setFlowClock} from '@/client/console/kernel/flowClock';
 import {beginAnimationHold, resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
 import {consoleParliamentUi, parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
-import {openRulingChangePark, resetRulingChangeDraw, rulingChangeDrawState, rulingChangeParksReveal} from '@/client/console/parliament/rulingChangeDraw';
+import {letRulingChangeParkGo, openRulingChangePark, resetRulingChangeDraw, rulingChangeDrawState, rulingChangeParksReveal} from '@/client/console/parliament/rulingChangeDraw';
 import {causeOf} from '@/common/diagnostics/cause';
 
 /**
@@ -86,6 +86,23 @@ describe('rulingChangeDraw — the park waits for the player, and is bounded on 
     expect(cause?.cls).to.eq('net-ended/ended/ruling-change-draw:untold-enactment');
     expect(cause?.tier).to.eq('info');
     expect(clock.pending(), 'the clock is gone with the park').to.eq(0);
+  });
+
+  /*
+   * THE ENACTMENT TOLD WITHOUT ITS TAIL (FREEZE ZERO — the fifth hundred's game 1401): its page cut mid-play
+   * («свернуть» landed inside it), a reopening past it, the sitting's close — nothing will deliver the card into the
+   * draw stage now. It takes the ordinary road AT ONCE: never the thirty seconds of the net under a results page.
+   */
+  it('a park whose enactment was told without its tail lets the card go AT ONCE — no net, nothing said', () => {
+    openRulingChangePark(key);
+    expect(rulingChangeParksReveal(ruling)).to.equal(true);
+    letRulingChangeParkGo('9:9');
+    expect(rulingChangeDrawState.owedKey, 'another sitting\'s word changes nothing').to.equal(key);
+    letRulingChangeParkGo(key);
+    expect(rulingChangeDrawState.owedKey).to.equal(undefined);
+    expect(rulingChangeParksReveal(ruling), 'the card takes the ordinary road').to.equal(false);
+    clock.advance(60_000);
+    expect(said.filter((line) => line.includes('untold-enactment')), 'no net ever spoke').to.deep.equal([]);
   });
 
   it('THE SESSION ENDING UNDER THE PARK lets it go unsaid — nothing of it stands into the next game', () => {

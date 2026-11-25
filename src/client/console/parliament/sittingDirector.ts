@@ -112,6 +112,7 @@ import {runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
 import {externalDrawState, isExternalDrawBusy} from '@/client/console/externalDraw/consoleExternalDraw';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
 import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {letRulingChangeParkGo} from '@/client/console/parliament/rulingChangeDraw';
 
 // ── the storyboard's budget (base ms; §6, v2) ───────────────────────────────
 const VERDICT_LIGHT_MS = 220;
@@ -2450,6 +2451,8 @@ export function killSittingMotion(): void {
   // enactment, the reopened walk started past it, and the government read «Starting rule» for the rest of the sitting).
   if (cut?.stage === 'enact') {
     tellEnactmentAtRest('stage-cut');
+    // …and its TAIL (TR62): the card it would have handed to the draw stage takes the ordinary road now.
+    letRulingChangeParkGo();
   }
   for (const wait of Array.from(pendingGaps)) {
     wait.beat.kill();

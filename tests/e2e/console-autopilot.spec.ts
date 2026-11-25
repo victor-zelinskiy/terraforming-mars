@@ -109,10 +109,14 @@ const BOARDS = ['tharsis', 'hellas', 'elysium', 'utopia planitia', 'terra cimmer
  * in-scope expansions under their dependencies (Redux needs Colonies, Prelude 2 needs Prelude), Solar Phase with Venus
  * and without the bot, no pre-game draft. Not `testMode`: a real game's economy and its real length.
  */
-function tableOf(n: number): {config: Record<string, unknown>, word: string} {
+function tableOf(n: number): {config: Record<string, unknown>, word: string, duo: boolean} {
   const r = rng(`${NAME}:${n}:table`);
   const flip = (p: number) => r() < p;
   const bot = flip(0.75);
+  // A SECOND HUMAN (stage 6 — the autopilot widened, 2026-11-25): one table in two without the bot seats another
+  // player, answered over the API — its turns, its tiles, its delegates, its draft are FOREIGN to this console, the
+  // classes the solo tables never walk (a rival's landing behind the viewer's screen, a rival's vote in a sitting).
+  const duo = !bot && flip(0.5);
   const prelude = flip(0.6);
   const venus = flip(0.5);
   const redux = flip(0.4);
@@ -123,11 +127,15 @@ function tableOf(n: number): {config: Record<string, unknown>, word: string} {
   const board = BOARDS[Math.floor(r() * BOARDS.length)];
   const draft = flip(0.5);
   const config = soloGameConfig({
+    ...(duo ? {players: [
+      {name: 'ConsoleTester', color: 'red', beginner: false, handicap: 0, first: true},
+      {name: 'Rival', color: 'blue', beginner: false, handicap: 0, first: false},
+    ]} : {}),
     expansions, board, seed: r(), testMode: false, draftVariant: draft, solarPhaseOption: venus && !bot, altVenusBoard: venus && flip(0.4),
     ...(bot ? {automa: {difficulty: (['easy', 'normal', 'hard'] as const)[Math.floor(r() * 3)], secondShift: flip(0.6), extraCorporations: flip(0.5)}} : {}),
   });
   const on = Object.entries(expansions).filter(([, v]) => v).map(([k]) => k);
-  return {config, word: `${bot ? 'vs MarsBot' : 'solo'} · ${board} · ${on.join('+') || 'base'}${draft ? ' · draft' : ''}`};
+  return {config, duo, word: `${bot ? 'vs MarsBot' : duo ? 'duo' : 'solo'} · ${board} · ${on.join('+') || 'base'}${draft ? ' · draft' : ''}`};
 }
 
 type Wire = {
@@ -295,8 +303,84 @@ function logKey(type: string, text: string): string {
   return `${type} ${text.replace(/https?:\/\/[^/\s]+/g, '').replace(/#?\b[0-9a-f]{6,}\b/gi, '#').replace(/\d+/g, 'N').replace(/\s+/g, ' ').trim().slice(0, LOG_KEY_MAX)}`;
 }
 
-async function playGame(page: Page, request: APIRequestContext, viewer: string, seed: string, log: Array<string>, ears?: SoakEars, where?: {stood: string}): Promise<Played> {
+/**
+ * THE OPENING OF ANOTHER HUMAN SEAT (a duo table): its corporation, preludes and research answered over the API, until
+ * nothing is asked of it in the action phase — its first turn comes after the viewer's (the shared seeder waits for
+ * the seat's own action menu, which here only the viewer's pilot can bring).
+ */
+async function seedRivalOpening(request: APIRequestContext, rival: string): Promise<void> {
+  for (let round = 0; round < 40; round++) {
+    let model = await fetchPlayerModel(request, rival) as unknown as Wire;
+    for (let waited = 0; model.waitingFor === undefined && model.game.phase !== 'action' && waited < 120; waited++) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      model = await fetchPlayerModel(request, rival) as unknown as Wire;
+    }
+    const asked = model.waitingFor;
+    if (asked === undefined || asked.options?.some((o) => o.type === 'option' && o.warnings?.includes('pass') === true) === true) {
+      return;
+    }
+    await sendPlayerInput(request, rival, {...answerPrompt(asked as never, {buy: 2}), promptId: asked.promptId} as never);
+  }
+}
+
+async function playGame(page: Page, request: APIRequestContext, viewer: string, seed: string, log: Array<string>, ears?: SoakEars, where?: {stood: string},
+  rivals: ReadonlyArray<string> = []): Promise<Played> {
   const g = rng(`${seed}:pilot`);
+  const rivalRng = rng(`${seed}:rival`);
+  /**
+   * THE OTHER HUMAN SEATS (a duo table): each answered over the API whenever it is asked — a pass now and then, else the
+   * answer the harness knows for its question (`answerPrompt`), the pass when it knows none; a few in a row (a follow-up
+   * asks the same seat again). Its moves reach this console as another player's: the foreign classes of the console.
+   */
+  const rivalStuck = new Set<number>();
+  const rivalsMove = async (): Promise<number> => {
+    let moves = 0;
+    for (const rival of rivals) {
+      for (let i = 0; i < 6; i++) {
+        const asked = (await fetchPlayerModel(request, rival) as unknown as Wire).waitingFor;
+        if (asked === undefined) {
+          break;
+        }
+        const options = asked.type === 'or' ? asked.options ?? [] : [];
+        const pass = options.findIndex((o) => o.type === 'option' && o.warnings?.includes('pass') === true);
+        // The answers to try, in order: a pass now and then, the harness's own answer, and — for a menu — every plain
+        // option of it (an «end», a «skip», a «do nothing»): a seat must never stand on a question it cannot answer.
+        const tries: Array<unknown> = [];
+        if (pass >= 0 && rivalRng() < 0.3) {
+          tries.push({type: 'or', index: pass, response: {type: 'option'}});
+        }
+        try {
+          tries.push(answerPrompt(asked as never, {}));
+        } catch {
+          // (no answer the harness knows — the plain options below)
+        }
+        options.forEach((o, index) => {
+          if (o.type === 'option') {
+            tries.push({type: 'or', index, response: {type: 'option'}});
+          }
+        });
+        let answered = false;
+        for (const response of tries) {
+          try {
+            await sendPlayerInput(request, rival, {...(response as object), promptId: asked.promptId} as never);
+            answered = true;
+            break;
+          } catch {
+            // the server refused this one — the next
+          }
+        }
+        if (!answered) {
+          if (asked.promptId !== undefined && !rivalStuck.has(asked.promptId)) {
+            rivalStuck.add(asked.promptId);
+            log.push(`[RIVAL-STUCK ${asked.type} «${typeof asked.title === 'string' ? asked.title : (asked.title as {message?: string} | undefined)?.message ?? ''}» options ${options.map((o) => o.type).join(',')}]`);
+          }
+          break;
+        }
+        moves++;
+      }
+    }
+    return moves;
+  };
   const started = Date.now();
   const played: Played = {end: 'capped', presses: 0, generation: 0, phase: '', byUi: {}, byApi: {}, passes: {ui: 0, api: 0}, doors: [], tookMs: 0, soak: [], spells: []};
   const bump = (into: Record<string, number>, key: string): void => {
@@ -382,6 +466,14 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       if (Date.now() - moved.at > 10 * 60_000) {
         played.end = 'stuck';
         break;
+      }
+      // (A duo table: the other human's turn — it moves, and the pilot looks on at what it did.)
+      if (rivals.length > 0) {
+        const moves = await rivalsMove();
+        if (moves > 0) {
+          log.push(`[RIVAL×${moves}]`);
+          continue;
+        }
       }
       await press(g() < 0.5 ? pilotPick(await look(page), g, lastKey) : 'ArrowDown', 500 + Math.round(g() * 700));
       continue;
@@ -536,6 +628,15 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       continue;
     }
     standing.presses++;
+    // (A duo table in a SIMULTANEOUS phase — the draft, the research: the other human is asked while this question
+    // stands; a repick waits on it. It moves every few presses, as a player at the next seat would.)
+    if (rivals.length > 0 && standing.presses % 4 === 0) {
+      const moves = await rivalsMove();
+      if (moves > 0) {
+        log.push(`[RIVAL×${moves}]`);
+        continue;
+      }
+    }
     // HALF THE QUESTION's BUDGET SPENT AND IT STILL STANDS: a player asked something the screen in front of them does
     // not answer GOES HOME — the board, where the question's plate or its way back stands. (The passes of
     // 2026-11-24: the pilot browsed the Parliament's delegate stage for four questions in a row, and the door
@@ -594,6 +695,12 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         continue;
       }
     }
+    // THE HEAT SPENT AS M€ (pilot 3 — the fifth hundred's first doors, thirteen of them on one question): the composite
+    // asks «how much heat»: RT takes the most it may, X pays — a player reads both off the bar.
+    if (PILOT >= 3 && (wf as {spendHeatPrompt?: unknown}).spendHeatPrompt !== undefined && seen.look === '' && !seen.zoom && seen.frames.length === 0) {
+      await press((['Period', 'KeyX'] as const)[standing.presses % 2], pause());
+      continue;
+    }
     // THE DISTRIBUTION OF RESOURCES (pilot 3): a unit onto the focused row, the next row, another — and the take.
     if (PILOT >= 3 && wf.type === 'resources' && seen.bar.startsWith('Распределение ресурсов') && seen.look === '' && !seen.zoom) {
       await press((['Enter', 'ArrowDown', 'Enter', 'KeyX'] as const)[standing.presses % 4], pause());
@@ -632,8 +739,10 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       expect(created.ok(), `create-game refused the table (${table.word}): ${created.status()}`).toBeTruthy();
       const {players} = await created.json() as {players: Array<{id: string, name: string}>};
       const viewer = (players.find((p) => !/marsbot/i.test(p.name)) ?? players[0]).id;
+      const rivals = players.filter((p) => p.id !== viewer && !/marsbot/i.test(p.name)).map((p) => p.id);
       // THE OPENING, over the API (see the header): the corporation, the preludes, the first action — to the first turn.
-      await seedGameOverApi(request, viewer, {buy: 4});
+      // (Every human seat at once: the opening is simultaneous, and a seat seeded alone waits for the other one.)
+      await Promise.all([seedGameOverApi(request, viewer, {buy: 4}), ...rivals.map((rival) => seedRivalOpening(request, rival))]);
       const log: Array<string> = [];
       const consoleTail: Array<string> = [];
       const ears: SoakEars = {longFrames: 0, warnings: 0, lastWarnings: []};
@@ -680,12 +789,12 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       await openConsole(page, viewer);
       let played: Played | undefined;
       try {
-        played = await playGame(page, request, viewer, seed, log, ears, where);
+        played = await playGame(page, request, viewer, seed, log, ears, where, rivals);
         // THE LAST WORD: past the arbiter's grace and the loop's twenty looks — the screen the game left is judged whole.
         await cinematicBeat(page, 25_000, 'the last word — a quiet spell past the liveness grace, so the screen the game left is judged');
       } finally {
         causeHarvest.note({
-          monkey: {seed, fixture: `game-${n}`, mode: 'autopilot', landing: 'boot', duo: false, reload: false, hidden: false, presses: played?.presses ?? log.filter((l) => !l.startsWith('[')).length,
+          monkey: {seed, fixture: `game-${n}`, mode: 'autopilot', landing: 'boot', duo: table.duo, reload: false, hidden: false, presses: played?.presses ?? log.filter((l) => !l.startsWith('[')).length,
             perturb: {netMs: 0, cpu: Number(process.env.TM_E2E_CPU_THROTTLE ?? 0), motion: process.env.TM_E2E_MOTION ?? ''}},
           autopilot: {
             ...played, table: table.word, pilot: PILOT,

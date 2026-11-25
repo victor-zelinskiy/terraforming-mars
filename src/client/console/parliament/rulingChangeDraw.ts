@@ -343,6 +343,22 @@ function releaseUntoldPark(key: string, why: string | undefined): void {
   }
 }
 
+/**
+ * THE ENACTMENT WAS TOLD WITHOUT ITS TAIL — its page cut mid-play and told at rest (`sittingDirector` — «свернуть» landed
+ * inside it), a reopening that starts past it, the sitting's close answered: nothing will ever deliver the parked card
+ * into the draw stage now. It takes the ordinary road AT ONCE (FREEZE ZERO — the fifth hundred's game 1401: the park
+ * stood its thirty seconds of net under a results page, holding the screen's hand-over into the draft with it), and a
+ * rating owed to the same tail ticks with it. `key` — the sitting the walk knows (`undefined`: whichever is owed).
+ */
+export function letRulingChangeParkGo(key?: string): void {
+  if (rulingChangeDrawState.owedKey === undefined || rulingChangeDrawState.delivering || (key !== undefined && rulingChangeDrawState.owedKey !== key)) {
+    return;
+  }
+  clearNet();
+  rulingChangeDrawState.owedKey = undefined;
+  releaseOrphanRulingRatings('enact-told');
+}
+
 /** The park lets go with nothing delivered (the sitting left, the game switched): the ordinary road takes the batch. */
 export function closeRulingChangePark(): void {
   clearNet();

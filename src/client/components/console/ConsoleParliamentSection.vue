@@ -313,7 +313,7 @@ import {
   parliamentRewardPending, parliamentRewardState, releaseParliamentRewards, takeTileReceipt,
 } from '@/client/console/parliament/parliamentRewardBeat';
 import {TableReceipt, tableReceiptState, tableReceiptsOwed} from '@/client/console/parliament/tableReceiptBeat';
-import {deliverRulingChangeDraws, openRulingChangePark, releaseOrphanRulingRatings, releaseUntoldRulingRatings} from '@/client/console/parliament/rulingChangeDraw';
+import {deliverRulingChangeDraws, letRulingChangeParkGo, openRulingChangePark, releaseOrphanRulingRatings, releaseUntoldRulingRatings} from '@/client/console/parliament/rulingChangeDraw';
 import ConsoleParliamentDrawStage from '@/client/components/console/parliament/ConsoleParliamentDrawStage.vue';
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
@@ -1037,7 +1037,11 @@ const payoutDetailsDoor = computed((): boolean => {
 /** The sitting's A verb (undefined = A does nothing here). */
 const sittingPrimary = computed((): string | undefined => {
   const p = sitting.value;
-  if (p === undefined || sittingStepOpen.value) {
+  // A LEAVING SURFACE ANSWERS NOTHING (FREEZE ZERO — the fifth hundred's game 1401): it paints the frozen view it left
+  // with, and that view's gate is not the server's question any more (the close was answered; the draft's pick stands).
+  // «К драфту» stood on it: every press posted an option against the live card pick — 400, «Error with input», the
+  // safety re-armed the verb, thirteen times.
+  if (p === undefined || sittingStepOpen.value || frozenView.value !== undefined) {
     return undefined;
   }
   const key = sittingPrimaryKey(p, parliamentFlow.sittingPage);
@@ -2165,6 +2169,8 @@ function handleSittingIntent(intent: GamepadIntent): void {
       return;
     }
     if (stage === 'results' && position.gateStanding) {
+      // (The close ends the sitting: a card still parked for its enactment's tail takes the ordinary road now.)
+      letRulingChangeParkGo(sittingKey.value);
       // «К ДРАФТУ»: the shell takes the press's answer as the door into the next workspace (its falling edge).
       consoleParliamentUi.closeInto = sittingCloseLeadsTo.value;
       send({type: 'option'}, 'sitting');
@@ -2917,8 +2923,9 @@ function planOpening(position: SittingPosition): void {
     // moves) must not hold it hidden for ever.
     sittingMotion.resultsRevealed = true;
     resetParliamentHolds();
-    // …and a rating owed to the enactment's tail (TR63) has no tail left to ride: it ticks now.
+    // …and a rating owed to the enactment's tail (TR63) has no tail left to ride: it ticks now — the card too (TR62).
     releaseUntoldRulingRatings('re-read');
+    letRulingChangeParkGo(key);
     parliamentRewardState.receiptShowing = false;
     parliamentFlow.sittingPage = position.pages.length - 1;
     return;
@@ -2926,6 +2933,7 @@ function planOpening(position: SittingPosition): void {
   // Past an enactment this session already told: the tail will not replay — an owed rating ticks now.
   if (played('enact')) {
     releaseUntoldRulingRatings('enact-told');
+    letRulingChangeParkGo(key);
   }
   const receipt = takeTileReceipt(key);
   // …and the WORLD's own receipt: the frame is back from the board and the
@@ -3329,6 +3337,11 @@ function submitSeat(from: Rect | undefined): void {
   send(seatResponse(bridge.value, slot.party), 'seat');
 }
 function send(response: InputResponse | undefined, from: ParliamentStage): void {
+  // (A surface reading its FROZEN view — leaving — composes against a question that is gone: the press is absorbed,
+  // never posted against whatever the server asks now.)
+  if (frozenView.value !== undefined) {
+    return;
+  }
   if (response === undefined) {
     emit('notice', translateText('This option is no longer offered'));
     if (from === 'vote') {

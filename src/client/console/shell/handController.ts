@@ -992,6 +992,37 @@ export function createHandController(shell: HandPort) {
    * `overlay` is the client PICK BRIDGE: the hand takes the screen while the
    * asking composer waits underneath with its captures intact.
    */
+  /**
+   * THE HOSTED HAND STEP LIVES FOR ITS QUESTION (FREEZE ZERO, CI #148 — game 1125). A hand pushed as a STEP of another
+   * workspace (the Reds' discard inside «Действия карт», the colony resolution's discard) left only through its own
+   * answer (`leaveHandAfterAnswer`). Answered any other way (another device, a reload, the autopilot's door) the step
+   * stayed — serving the NEXT turn's menu inside the old flow, the host's conclusion held «nested-step» for good:
+   * «overdue conclusion:card-actions … standing 33 s». The question that opened the step is remembered; a question of
+   * the step's own kind keeps it (a second discard), and any other question takes it down by the same verb.
+   */
+  let hostedStepPrompt: number | undefined;
+
+  /** The server's question identity — a part of its ONE reaction (`startController.whenPlayerViewWaitingForPromptIdChanges`, after the start's strand). */
+  function whenHostedHandQuestionChanges(id: number | undefined): void {
+    if (hostedStepPrompt === undefined) {
+      return;
+    }
+    if (workspaceFrameIndex('hand') === -1 || workspaceFrameHost('hand') === undefined) {
+      hostedStepPrompt = undefined;
+      return;
+    }
+    if (id === undefined || id === hostedStepPrompt) {
+      return; // nobody asks yet — the next question decides
+    }
+    const task = taskFor(shell.playerView);
+    if (task?.kind === 'handSelect' || task?.kind === 'projectCard') {
+      hostedStepPrompt = id; // the step's own kind of question: it stays for it
+      return;
+    }
+    hostedStepPrompt = undefined;
+    leaveHandAfterAnswer();
+  }
+
   function openHandWorkspace(opts?: {overlay?: boolean}): void {
     if (shell.restoreParkedWorkspace('hand') || workspaceFrameIndex('hand') !== -1) {
       return;
@@ -1015,6 +1046,7 @@ export function createHandController(shell: HandPort) {
       serves: ['projectCard', 'handSelect'], anchor: {type: 'always'},
       overlay: host === undefined,
     });
+    hostedStepPrompt = host !== undefined ? shell.playerView.waitingFor?.promptId : undefined;
   }
 
   /**
@@ -1356,6 +1388,7 @@ export function createHandController(shell: HandPort) {
   }
 
   return {
+    whenHostedHandQuestionChanges,
     handDissolveArmed,
     handClosePreparing,
     dockHover,

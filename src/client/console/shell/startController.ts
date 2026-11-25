@@ -60,6 +60,7 @@ import {takeUpQuestion} from '@/client/console/setAside';
  */
 export type StartPort = {
   $nextTick(fn?: () => void): Promise<void>,
+  whenHostedHandQuestionChanges(id: number | undefined): void,
   surfaces: SurfaceRegistry,
   readonly activeTaskSummary: ConsoleTaskSummary | undefined,
   readonly admissionSignals: AdmissionSignals,
@@ -1213,6 +1214,8 @@ export function createStartController(shell: StartPort) {
       startStrandYield.value = false;
       startStrandPrompt.value = undefined;
     }
+    // …and the hosted hand step lives for its question (`handController` — CI #148): ONE reaction of the edge, in order.
+    shell.whenHostedHandQuestionChanges(id);
   }
 
   /**

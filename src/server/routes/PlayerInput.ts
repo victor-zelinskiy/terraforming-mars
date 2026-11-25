@@ -116,8 +116,18 @@ export class PlayerInput extends Handler {
             // THE CARD-INTAKE LAW'S SEAL (R3): the player's own LIVE answer
             // stands between every batch already on their screen and whatever
             // this answer draws — those batches close here, structurally.
+            // …and only an answer the server ACCEPTS seals them (FREEZE ZERO — a refused answer changes nothing: the
+            // console's leaving Parliament posted thirteen invalid ones, each sealing the batches of the seat).
+            const seals = player.cardDrawReveals.map((reveal) => [reveal, reveal.sealed] as const);
             player.sealCardDrawReveals();
-            player.process(entity);
+            try {
+              player.process(entity);
+            } catch (error) {
+              for (const [reveal, sealed] of seals) {
+                reveal.sealed = sealed;
+              }
+              throw error;
+            }
             // A prompt that jumped AHEAD of a pre-collected batch response
             // (Olympus Conference on the science tag of the card being played)
             // has just been answered — so the answer the player already gave in
