@@ -2116,6 +2116,17 @@ stopped by a class that is closed now, and each record read with «what did the 
   longer takes a press while a wheel is open; `console-final-greenery-trigger.spec.ts` step ②½, red without it.
   Three findings of one green-looking rerun, three real defects of the product — the measure of stage 2 earning its
   keep on whole games.
+- **THE SECOND HUNDRED — games 801 – 900 on `687f5742ef` (run 45508027092, read off the shards): 100 to the final
+  scoring, 0 capped, 0 STUCK, 0 rebuilds, 0 episodes; the one-owner law at zero on every line (MISS · EXTRA · ANOTHER
+  RUNG · APART · QUIET · LATCH); 101 416 presses, 1 267 minutes. AND ITS GATE IS RED, by ONE class:
+  `presentation-ledger/story-due/board-beat-park` — 15 records, 13 planned, TWO at defect tier** (games 805 and 856):
+  «degraded after 30s — the release edge never came», the scales held (temperature · oxygen · Venus / oceans) under
+  `sitting-rise`. In 856 the rise was the board's ONLY cover for all 119 looks of the story's thirty seconds — a cover
+  whose own net is fifteen; in 805 the board was seen once, a drain opened, and the rise covered it again. So the
+  class #112 was closed too early: the first hundred happened not to meet it. What the player has is a scale that
+  stands on its old value and then snaps. NOT read to its cause yet — why a fifteen-second cover stood thirty is the
+  next reading, before anything else of stage 6. The count is therefore: one hundred clean on `b724622738`, one
+  hundred with one class on `687f5742ef`; the exit's «0» is not reached on the newer build.
 - **«PER MAP SET», COUNTED.** The pilot's tables are spread over eleven boards; the box's passes so far hold 13 – 35
   games a board (295 in all, on five builds). A hundred on EVERY board is ≈ 1 100 games — nights of the box, not one:
   the number is reported per build and per board, and the gate must be green on the build that is released.
