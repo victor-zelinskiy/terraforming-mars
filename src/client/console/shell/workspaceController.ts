@@ -11,7 +11,7 @@ import {consoleCardActionsUi, resetCardActionsFilter} from '@/client/console/con
 import {terraformedSceneState} from '@/client/console/terraformedScene/terraformedScene';
 import {ConsoleSheetRow} from '@/client/components/console/consoleSheetTypes';
 import {maFocusState} from '@/client/console/consoleMaFocus';
-import {collapseWorkspaceStack, workspaceKindSpec, enterWorkspace, leaveWorkspace, pushWorkspaceFrame, workspaceFrameIndex, workspaceFrameRenders, workspaceFrameKnown, workspaceFrameParked, workspaceReturnsFromBoard, workspaceStackCollapsed, workspaceStackState, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {collapseWorkspaceStack, workspaceKindSpec, enterWorkspace, leaveWorkspace, pushWorkspaceFrame, workspaceFrameIndex, workspaceFrameRenders, workspaceFrameAnywhere, workspaceFrameParked, workspaceReturnsFromBoard, workspaceStackCollapsed, workspaceStackState, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {resetStdProjectsFlow} from '@/client/console/consoleStdProjects';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
 import {isHandRevealEpisodeRunning} from '@/client/console/handDock/handRevealDirector';
@@ -472,7 +472,11 @@ export function createWorkspaceController(shell: WorkspacePort) {
    * finds the entry pending and adds nothing. Immediate when nothing is owed — the ordinary case.
    */
   function enterWorkspaceAfterHandoff(kind: WorkspaceFrameKind, opts: {anchor: FrameAnchor}): void {
-    if (workspaceFrameKnown(kind) || handoffPendingEntries.has(kind)) {
+    // (ANYWHERE — the live stack, the park, or ASIDE FOR THE BOARD: the third home was not asked here either. An entry
+    // deferred to the director's quiet fired after the sitting had been entered by its plate and had stepped aside for
+    // the winner's tile, and stood a second Parliament up beside the one that was coming back — with no press at all:
+    // the one-owner law's EXTRA of the autopilot's game 64, finding #138.)
+    if (workspaceFrameAnywhere(kind) || handoffPendingEntries.has(kind)) {
       return;
     }
     // THE SITTING OWNS THE BOARD'S STORIES (its world beat steps aside for the planet and for another seat's tile;
@@ -489,7 +493,7 @@ export function createWorkspaceController(shell: WorkspacePort) {
     void waitScreenHandoff(`enter:${kind}`, {...handoff, alive: () => shell.playerView?.game !== undefined}).then((outcome) => {
       handoffPendingEntries.delete(kind);
       setConsoleTaskHandoffPending(handoffPendingEntries.size > 0);
-      if (outcome !== 'dead' && !workspaceFrameKnown(kind)) {
+      if (outcome !== 'dead' && !workspaceFrameAnywhere(kind)) {
         enterWorkspace(kind, opts);
       }
     });
