@@ -261,6 +261,18 @@ export function registerBoardCoverReasons(probe: (() => ReadonlyArray<string>) |
   coverReasonsProbe = probe;
 }
 
+/**
+ * WHO OF THE GAME WAITS FOR THE BOARD's STORY — a question of the server's whose surface stands behind the scales'
+ * telling (the Venus bonus band, a placement held for the story): the shell's word, `undefined` when nobody does.
+ * While somebody waits the story's debt AGES as it always did, wherever the board is: a question of the game is never
+ * held for a board the player may not come back to (`boardOutOfView`).
+ */
+let storyWaiterProbe: (() => string | undefined) | undefined;
+
+export function registerBoardStoryWaiter(probe: (() => string | undefined) | undefined): void {
+  storyWaiterProbe = probe;
+}
+
 /** Who covers the board right now — for every board story's degrade diagnose (`coveredBy`; empty when watchable / no shell). */
 export function boardCoverReasonsNow(): Array<string> {
   return [...(coverReasonsProbe?.() ?? [])];
@@ -360,6 +372,42 @@ export function noteBoardBeatDrainGated(reasons: ReadonlyArray<string>): void {
   }
   parkWindow.gatedAt = Date.now();
   parkWindow.gateEndsByItself = !reasons.includes('reveal-open') && !reasons.includes('reveal-pending');
+}
+
+/** The covers that take the board OUT OF THE PLAYER's VIEW: another screen, a sheet, a workspace (the shell's names). */
+const OUT_OF_VIEW_COVERS: ReadonlySet<string> = new Set(['section', 'sheet', 'workspace']);
+
+/**
+ * THE BOARD IS OUT OF THE PLAYER's VIEW — by a screen of the player's own (named), and the park holds nothing the
+ * player is owed in their HAND. The story then waits for its stage and its debt does not age (`OwedStory.waitsOn`):
+ * the held values lie to nobody — the board is not on screen, and every instrument outside it reads the truth (the
+ * top strip, the validations: state delivery) — and the scales glide when the player comes back, however long that
+ * takes. `undefined` — the debt runs:
+ *  · the board is in view (watchable, or behind a cover that leaves it VISIBLE: the player's aim, the camera, a
+ *    sitting on its way up) — a lie on a board the player is looking at is bounded, as it always was;
+ *  · a BATCH is parked (a card the player has drawn and does not hold yet) — a hidden card is a worse lie than a
+ *    missed animation, so its safety keeps the wall's clock;
+ *  · a SCENE holds the values (TR70) — the scene's own stage releases them, with its own bound;
+ *  · A QUESTION OF THE GAME WAITS FOR THE STORY (`registerBoardStoryWaiter`) — the debt is somebody's then.
+ */
+function boardOutOfView(): string | undefined {
+  if (parkedBatchPending() || boardBeatParkState.sceneHeld) {
+    return undefined;
+  }
+  return boardOutOfViewForStory();
+}
+
+/**
+ * The same answer for EVERY story owed on the board (the park's own, a scale step's token, a cell's resource, a
+ * city's payout — each an `OwedStory` with this as its `waitsOn`): the board is out of the player's view by a screen
+ * of their own, and nothing of the game waits for the story. `undefined` — the story's debt runs.
+ */
+export function boardOutOfViewForStory(): string | undefined {
+  if (storyWaiterProbe?.() !== undefined) {
+    return undefined;
+  }
+  const covers = (coverReasonsProbe?.() ?? []).filter((cover) => OUT_OF_VIEW_COVERS.has(cover));
+  return covers.length > 0 ? `the board out of view: ${covers.join(' + ')}` : undefined;
 }
 
 /**
@@ -538,6 +586,9 @@ function armSafety(): void {
     // …AND SO IS A BOARD ABOUT TO BE GIVEN BACK (`boardGivenBackSoon` — a sitting on its way up, inside its bound):
     // the story waits for the board it is owed on instead of snapping seconds before it.
     telling: () => boardBeatParkState.draining || drainStandsAtItsGate() || boardGivenBackSoon() !== undefined,
+    // THE STORY IS OWED ON THE BOARD, AND THE BOARD IS OUT OF THE PLAYER's VIEW (`boardOutOfView`): it waits for its
+    // stage — the debt does not age behind a screen the player chose to look at.
+    waitsOn: () => boardOutOfView(),
     degrade: () => releaseBoardBeatPark(),
     // The degrade names WHICH gate never opened: `watchable: false` is the
     // honest multiplayer wait (the viewer sat in a screen while an opponent
@@ -940,8 +991,21 @@ export function releaseBoardBeatPark(): void {
  * are about to cover instead of dying behind them. Never a term of the
  * drain's own gate (self-wait) or of the watchable probe (reactivity cycle).
  */
-export function boardBeatStoryPending(): boolean {
+/**
+ * THE SCALES' STORY IS OWED — wherever the board is. The term of whoever TAKES THE BOARD for the story (the sitting's
+ * world beat steps aside for the planet; a placement held for the scales takes the board first): for them a story
+ * parked under their own cover is exactly the debt they are about to pay. Everybody else asks `boardBeatStoryPending`.
+ */
+export function boardBeatStoryOwed(): boolean {
   return boardBeatParkPending() || boardBeatParkState.draining;
+}
+
+export function boardBeatStoryPending(): boolean {
+  // …AND ONLY A STORY THAT CAN BE TOLD: one that waits for a board out of the player's view (`boardOutOfView`) is
+  // nobody's to wait for — no drain can run there, and a transition that waited on it waited for the player to come
+  // back to a board it was not taking from them (the endgame held behind a hand left open; a door held to its
+  // ceiling). The story is not lost by it: it stands parked and glides when the board is next in view.
+  return boardBeatParkState.draining || (boardBeatParkPending() && boardOutOfView() === undefined);
 }
 
 /** Full reset (game switch / shell unmount / tests). Also drops the probe —
@@ -951,6 +1015,7 @@ export function resetBoardBeatPark(): void {
   setBoardSwingDisplay(undefined);
   watchableProbeRef.value = undefined;
   coverReasonsProbe = undefined;
+  storyWaiterProbe = undefined;
   resetParkWindow();
   surfaceLeavingProbe = undefined;
   redriveHook = undefined;

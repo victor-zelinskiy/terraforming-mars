@@ -97,7 +97,7 @@ export type ConsoleReadinessSnapshot = {
    * beat's phase, and every owed presentation story with the reason it still waits — a late token names its cause.
    */
   scaleStory: {camera: string, storyReady: boolean, draining: boolean, held: string, rating: string,
-    owed: Array<{id: string, ageMs: number, why: string}>};
+    owed: Array<{id: string, ageMs: number, why: string, waitsOn?: string}>};
   at: number;
 };
 
@@ -130,7 +130,7 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
       camera: planetFocusState.phase, storyReady: planetFocusState.storyReady,
       draining: boardBeatParkState.draining, held: Object.keys(boardBeatParkState.heldParams ?? {}).join(','),
       rating: scaleStepRatingState.phase,
-      owed: presentationLedgerSnapshot().stories.map((s) => ({id: s.id, ageMs: s.ageMs, why: s.why})),
+      owed: presentationLedgerSnapshot().stories.map((s) => ({id: s.id, ageMs: s.ageMs, why: s.why, ...(s.waitsOn !== undefined ? {waitsOn: s.waitsOn} : {})})),
     },
     at: Date.now(),
   };

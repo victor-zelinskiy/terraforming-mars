@@ -770,6 +770,18 @@ export function createPlacementController(shell: PlacementPort) {
       (planetFocusState.phase === 'entering' || planetFocusState.phase === 'active');
   }
 
+  /**
+   * WHO OF THE GAME WAITS FOR THE BOARD's STORY (`boardBeatPark.registerBoardStoryWaiter` — a plain read, asked by the
+   * ledger's beat): the alternative Venus board's bonus band behind the step's story, a placement held for the scales.
+   * While one waits, a story parked under a screen of the player's ages as before — its safety is that question's bound.
+   */
+  function boardStoryWaiter(): string | undefined {
+    if (shell.playerView.waitingFor?.venusBonusPrompt !== undefined && scaleBonusOwesStory.value) {
+      return 'the Venus bonus';
+    }
+    return placementHeldForBoardStory.value ? 'a placement' : undefined;
+  }
+
   function boardCoverReasons(): ReadonlyArray<string> {
     const reasons: Array<string> = [];
     if (consoleState.section !== 'board') {
@@ -1607,6 +1619,7 @@ export function createPlacementController(shell: PlacementPort) {
     placementWorldVersion,
     boardBeatsWatchable,
     boardCoverReasons,
+    boardStoryWaiter,
     onConvertPlantsSpacePicked,
     armBoardBonusIfCardCell,
     cancelPlacement: ownCancelPlacement,

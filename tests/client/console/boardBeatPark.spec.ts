@@ -22,7 +22,7 @@ import {
   boardBeatParkState, boardBeatParksReveal, boardBeatStoryPending, boardStoryHeldByPlayer, boardStoryWaitsUnderACover,
   changedGlobalParams, drainBoardBeatsIfDue,
   noteBoardBeatDrainGated, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatStoryMember,
-  registerBoardCoverReasons, registerBoardWatchableProbe, releaseBoardBeatPark,
+  registerBoardCoverReasons, registerBoardStoryWaiter, registerBoardWatchableProbe, releaseBoardBeatPark,
   resetBoardBeatPark,
 } from '@/client/console/boardBeatPark';
 import {
@@ -483,7 +483,9 @@ describe('boardBeatPark', function() {
     const said: Array<string> = [];
     console.warn = (...args: Array<unknown>) => said.push(args.map(String).join(' '));
     try {
-      registerBoardCoverReasons(() => (watchable ? [] : ['workspace']));
+      // (The thirty seconds are spent with the board IN VIEW — under the player's own aim: a cover that leaves the
+      // board on screen ages the debt; a screen of the player's over it does not — the rows of the law below.)
+      registerBoardCoverReasons(() => (watchable ? [] : ['placement']));
       let gate = ['scene-settling', 'settling:remote-placement'];
       registerBoardBeatRedrive(() => noteBoardBeatDrainGated(gate));
       const parkAndComeBackLate = (from: number) => {
@@ -531,6 +533,128 @@ describe('boardBeatPark', function() {
   });
 
   /*
+   * THE STORY IS OWED ON THE BOARD — ITS DEBT DOES NOT AGE WHILE THE BOARD IS OUT OF THE PLAYER's VIEW (the second
+   * hundred of whole games, 2026-11-25 — games 805 · 856 at defect tier and thirteen «planned» records beside them:
+   * every one a story LOST — the scales snapped under a hand the player was reading, or a second after they came
+   * back). A screen of the player's over the board is the player's time; the held values lie to nobody there (the
+   * board is not on screen, every instrument outside it reads the truth) and the scales glide when the board is back.
+   */
+  describe('the debt ages only while the board is in the player\'s view', () => {
+    const withClock = (run: (clock: {advance: (ms: number) => void, said: Array<string>}) => void): void => {
+      const realNow = Date.now;
+      let t = realNow();
+      Date.now = () => t;
+      const warn = console.warn;
+      const said: Array<string> = [];
+      console.warn = (...args: Array<unknown>) => said.push(args.map(String).join(' '));
+      try {
+        run({advance: (ms) => {
+          // (The heartbeat's looks, a second apart — the ledger samples whose time it is at every one.)
+          for (let left = ms; left > 0; left -= 1_000) {
+            t += Math.min(1_000, left);
+            settlePresentationDue();
+          }
+        }, said});
+      } finally {
+        Date.now = realNow;
+        console.warn = warn;
+      }
+    };
+    const degrades = (said: ReadonlyArray<string>): Array<string> => said.filter((line) => line.includes('degraded after'));
+
+    it('five minutes behind a workspace, a sheet or another section: nothing degrades, the values stay held — and the board, back, is told', () => {
+      for (const cover of ['workspace', 'sheet', 'section']) {
+        withClock(({advance, said}) => {
+          releaseBoardBeatPark();
+          registerBoardCoverReasons(() => (watchable ? [] : [cover]));
+          let drained = 0;
+          registerBoardBeatRedrive(() => {
+            drained++;
+          });
+          watchable = false;
+          noteBoardScaleAdvance(gameWith({oceans: 0}), gameWith({oceans: 1}));
+          advance(5 * 60_000);
+          expect(degrades(said), `${cover}: no due behind the player's own screen`).to.deep.eq([]);
+          expect(boardBeatParkState.heldParams, `${cover}: the story is still owed`).to.deep.equal({oceans: 0});
+          expect(presentationLedgerSnapshot().stories.find((s) => s.id === 'board-beat-park')?.waitsOn, `${cover}: the ledger says on whom it waits`)
+            .to.contain(cover);
+          expect(drained, `${cover}: nothing is driven on a board out of view`).to.equal(0);
+          watchable = true;
+          advance(1_000);
+          expect(drained, `${cover}: the board is back — the drain is driven`).to.be.greaterThan(0);
+          expect(degrades(said)).to.deep.eq([]);
+        });
+      }
+    });
+
+    it('…and nobody waits for a story that cannot be told: the transitions\' gate reads it only once the board is in view', () => {
+      registerBoardCoverReasons(() => (watchable ? [] : ['workspace']));
+      watchable = false;
+      noteBoardScaleAdvance(gameWith({oceans: 0}), gameWith({oceans: 1}));
+      expect(boardBeatParkPending(), 'the story is owed').to.equal(true);
+      expect(boardBeatStoryPending(), 'out of view: no transition waits for it').to.equal(false);
+      watchable = true;
+      expect(boardBeatStoryPending(), 'in view: it is told before the board is taken').to.equal(true);
+    });
+
+    it('the time in view adds up across the screens between: ten seconds, a minute in the hand, twenty more — the due', () => {
+      withClock(({advance, said}) => {
+        let covers: Array<string> = ['placement'];
+        registerBoardCoverReasons(() => (watchable ? [] : covers));
+        registerBoardBeatRedrive(() => {});
+        watchable = false;
+        noteBoardScaleAdvance(gameWith({oceans: 0}), gameWith({oceans: 1}));
+        advance(10_000);
+        covers = ['workspace'];
+        advance(60_000);
+        covers = ['placement'];
+        advance(19_000);
+        expect(degrades(said), 'twenty-nine seconds in view').to.deep.eq([]);
+        advance(2_000);
+        expect(degrades(said), 'the thirty-first second in view').to.have.length(1);
+        expect(degrades(said)[0], 'the line says how long the story waited on somebody else').to.match(/beside 60s it waited on somebody else/);
+        expect(boardBeatParkState.heldParams).to.equal(undefined);
+      });
+    });
+
+    it('a cover that leaves the board ON SCREEN ages it as before — the player\'s aim, the camera, a sitting on its way up', () => {
+      for (const cover of ['placement', 'planet-focus']) {
+        withClock(({advance, said}) => {
+          releaseBoardBeatPark();
+          registerBoardCoverReasons(() => (watchable ? [] : [cover]));
+          registerBoardBeatRedrive(() => {});
+          watchable = false;
+          noteBoardScaleAdvance(gameWith({oceans: 0}), gameWith({oceans: 1}));
+          advance(BOARD_BEAT_PARK_SAFETY_MS + 1_000);
+          expect(degrades(said), `${cover}: a lie on a board in view is bounded`).to.have.length(1);
+        });
+      }
+    });
+
+    it('a parked BATCH keeps the wall\'s clock: a card the player has drawn is never held for a board they are not looking at', () => {
+      withClock(({advance, said}) => {
+        registerBoardCoverReasons(() => (watchable ? [] : ['workspace']));
+        watchable = false;
+        noteBoardScaleAdvance(gameWith({venusScaleLevel: 6}), gameWith({venusScaleLevel: 8}));
+        drawnCardsState.events.push(venusEntry(91));
+        advance(BOARD_BEAT_PARK_SAFETY_MS + 1_000);
+        expect(degrades(said), 'the safety releases the batch').to.have.length(1);
+      });
+    });
+
+    it('…and so does a QUESTION OF THE GAME that waits for the story: its surface is never held for a board that may not come back', () => {
+      withClock(({advance, said}) => {
+        registerBoardCoverReasons(() => (watchable ? [] : ['workspace']));
+        registerBoardStoryWaiter(() => 'the Venus bonus');
+        watchable = false;
+        noteBoardScaleAdvance(gameWith({venusScaleLevel: 6}), gameWith({venusScaleLevel: 8}));
+        advance(BOARD_BEAT_PARK_SAFETY_MS + 1_000);
+        expect(degrades(said), 'the story\'s safety is that question\'s bound').to.have.length(1);
+      });
+    });
+  });
+
+  /*
    * A BOARD ABOUT TO BE GIVEN BACK (the autopilot's browser half on CI, 2026-11-24 — game 58: a bot's ocean parked
    * under its turn, then the sitting began and covered the board for its rise; the story's thirty seconds ran out
    * inside the rise — «coveredBy: [sitting-rise]» — and the scale snapped seconds before the board came back).
@@ -543,7 +667,8 @@ describe('boardBeatPark', function() {
     const said: Array<string> = [];
     console.warn = (...args: Array<unknown>) => said.push(args.map(String).join(' '));
     try {
-      let covers: Array<string> = ['section'];
+      // (`placement` — the player's own aim: the board is on screen under it, so the debt ages there.)
+      let covers: Array<string> = ['placement'];
       registerBoardCoverReasons(() => (watchable ? [] : covers));
       let drained = 0;
       registerBoardBeatRedrive(() => {
@@ -551,7 +676,7 @@ describe('boardBeatPark', function() {
       });
       watchable = false;
       noteBoardScaleAdvance(gameWith({oceans: 0}), gameWith({oceans: 1}));
-      // Twenty-four seconds behind the player's own screen, then the sitting begins: the rise is the ONE cover.
+      // Twenty-four seconds under the player's aim, then the sitting begins: the rise is the ONE cover.
       t += BOARD_BEAT_PARK_SAFETY_MS - 6_000;
       settlePresentationDue();
       covers = ['sitting-rise'];
@@ -572,7 +697,7 @@ describe('boardBeatPark', function() {
       releaseBoardBeatPark();
       said.length = 0;
       watchable = false;
-      covers = ['section'];
+      covers = ['placement'];
       noteBoardScaleAdvance(gameWith({oceans: 1}), gameWith({oceans: 2}));
       t += BOARD_BEAT_PARK_SAFETY_MS - 500;
       settlePresentationDue();
@@ -589,7 +714,7 @@ describe('boardBeatPark', function() {
 
       // A cover of the game's that has NO bound of its own gets no grace.
       said.length = 0;
-      covers = ['section'];
+      covers = ['placement'];
       noteBoardScaleAdvance(gameWith({oceans: 2}), gameWith({oceans: 3}));
       t += BOARD_BEAT_PARK_SAFETY_MS - 500;
       settlePresentationDue();

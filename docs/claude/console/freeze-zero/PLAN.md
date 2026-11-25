@@ -2221,6 +2221,34 @@ stopped by a class that is closed now, and each record read with «what did the 
   from its click): every block inside the screen, none over the card, a rule under the pointer lights the card's own
   element, and a window narrowed and restored under it lays them out again. 28 flows on the ledger.
 
+**STAGE 6, STEP 10 — «LIKE A CLOCK, NOT ON ITS NETS» (the owner, 2026-11-25).** The second hundred's report was
+answered with the program's bar restated: stage 4 to a real 100 %, and stage 6 — the stage that finds the most —
+deepened until whole games meet EVERY case, so that a player meets neither a freeze nor a false alarm; «the nets and
+the watchmen may stand only as insurance — in 99 % of cases everything must work by architecture». What that changes
+in how the passes are read:
+
+- **A «planned» fire of a net is DEBT, not a norm.** The two hundreds named two planned classes in a third of the
+  games: `presentation-ledger/story-due/board-beat-park` and `wait-graph/ceiling/remote-placement:watchable-board`.
+  Each planned line is a story the player did NOT get (a scale that snapped, a tile that appeared without its flight)
+  — ended by a clock because nothing in the flow knew how to end it. The measure is «fires of every net per thousand
+  presses», planned ones counted; the target is zero by changing the flow, never by re-reading the line.
+- **THE BOARD's STORY — the first of them, changed at its root (#112).** The park held the scales for the board and
+  gave the story thirty seconds of the WALL: a player reading their hand for half a minute lost it, and a player who
+  came back in the last second watched the scales snap (games 805 · 856 — and in 856 the «defect» was a race of the
+  grace's own bookkeeping with the due, one look apart). The law now: **the debt ages only while the board is in the
+  player's view** (`OwedStory.waitsOn` — the ledger's new term; `boardBeatPark.boardOutOfView`: another screen, a
+  sheet, a workspace). Behind a screen of the player's the story waits for its stage, however long; the held values
+  lie to nobody there (the board is not on screen and every instrument outside it reads the truth), and the scales
+  glide when the board is back. Three things keep the wall's clock, each for a reason: a cover that leaves the board
+  ON SCREEN (the player's aim, the camera, a sitting on its way up — a lie in view is bounded), a parked BATCH (a card
+  the player has drawn and does not hold), and a QUESTION OF THE GAME that waits for the story (the Venus bonus band,
+  a placement held for the scales — `registerBoardStoryWaiter`). And nobody waits for a story that cannot be told:
+  the transitions' gate (`boardBeatStoryPending`) reads a parked story only once the board is in view — the endgame
+  is no longer held behind a hand left open.
+- **Still to change the same way:** the remote landing's wait for the board (a tile «revealed without its flight» at
+  its ceiling — 44 records in the second hundred), and the scale step's rail members, whose rating stands held on the
+  RAIL (an instrument in view) for up to thirty-two seconds under a workspace.
+
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick
 the safety came due) or at 43 %. The arc ran late on a starved clock and the safety met the chip ON its destination, a

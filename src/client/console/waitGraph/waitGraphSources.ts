@@ -46,7 +46,8 @@ export function storyWaitNodes(): Array<WaitNodeInput> {
   const now = Date.now();
   return presentationLedgerSnapshot().stories.map((st) => ({
     id: `story:${st.id}`, family: 'story' as const, owner: 'presentationLedger',
-    since: now - st.ageMs, targets: [{kind: 'motion', what: st.why || st.id}] as Array<WaitTarget>,
+    // (A story that waits on somebody else's time — the board's under a screen of the player's — stands on the PLAYER.)
+    since: now - st.ageMs, targets: [st.waitsOn !== undefined ? {kind: 'player', what: st.waitsOn} : {kind: 'motion', what: st.why || st.id}] as Array<WaitTarget>,
     boundMs: st.dueMs, recovery: 'story-degrade',
   }));
 }
@@ -63,6 +64,13 @@ export function parkWaitNodes(): Array<WaitNodeInput> {
     [{kind: 'node', id: `surface:${top.kind}`}] :
     top !== undefined ? [{kind: 'player', what: `leave «${top.kind}» for the board`}] :
       [{kind: 'motion', what: 'the board becomes watchable'}];
+  // THE STORY WAITS FOR A BOARD OUT OF THE PLAYER's VIEW (`OwedStory.waitsOn` — the ledger's own word): the wait is the
+  // player's then, and it has no bound of the wall's — the debt does not age behind a screen they chose to look at.
+  // In view, or behind a cover of the game's, the park's bound is the node's as before.
+  const waitsOn = presentationLedgerSnapshot().stories.find((story) => story.id === 'board-beat-park')?.waitsOn;
+  if (waitsOn !== undefined) {
+    return [{id: 'park:board-beat', family: 'park', owner: 'boardBeatPark', targets: [{kind: 'player', what: waitsOn}], recovery: 'park-release'}];
+  }
   return [{id: 'park:board-beat', family: 'park', owner: 'boardBeatPark', targets, boundMs: PARK_BOUND_MS, recovery: 'park-release'}];
 }
 

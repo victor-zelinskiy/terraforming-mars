@@ -83,7 +83,7 @@ import {reactive} from 'vue';
 import {sittingBaselineOf} from './sittingBaseline';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentEnactOutcomeModel, ParliamentPhaseModel} from '@/common/models/ParliamentModel';
-import {boardBeatParkLive, boardBeatParkState, boardBeatStoryPending, drainBoardBeatsIfDue} from '@/client/console/boardBeatPark';
+import {boardBeatParkLive, boardBeatParkState, boardBeatStoryOwed, drainBoardBeatsIfDue} from '@/client/console/boardBeatPark';
 import {flowClock} from '@/client/console/kernel/flowClock';
 import {motionCeilingMs} from '@/client/components/motion/motionTokens';
 import {
@@ -331,7 +331,7 @@ function waitForStoryQuiet(): Promise<void> {
       // the moment the frame steps aside — the frame waits it out like a glide.
       // …as is ANOTHER SEAT'S LANDING (PL-764), owed from the moment it is QUEUED (a landing parked for the board is
       // not yet «active» — waiting only for the flight, the frame came straight back over a board still empty).
-      if (!boardBeatStoryPending() && !isRemotePlacementActive() && !remoteLandingOwed()) {
+      if (!boardBeatStoryOwed() && !isRemotePlacementActive() && !remoteLandingOwed()) {
         wait?.met();
         resolve();
         return;
@@ -398,7 +398,9 @@ export async function runWorldMoveBeat(sitting: string, opts: {
   // …and a PLANET story the park no longer holds (the scales already tell the truth on the board — a sitting that came
   // up past its own net, a reload) owes no trip either: the yield would be a blink of the board and straight back,
   // with the section caught mid-leave. Its line is still read on the results.
-  if (story.length === 0 || (story.every(isPlanetRecord) && boardBeatParkLive() && !boardBeatStoryPending())) {
+  // (`boardBeatStoryOwed` — the RAW debt: this beat is the one that takes the board for it; a story parked under the
+  // sitting's own frame is exactly what the trip is for.)
+  if (story.length === 0 || (story.every(isPlanetRecord) && boardBeatParkLive() && !boardBeatStoryOwed())) {
     return false;
   }
   if (!yieldStackToBoard()) {

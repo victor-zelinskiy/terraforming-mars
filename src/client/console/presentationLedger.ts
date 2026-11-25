@@ -62,6 +62,17 @@ export type OwedStory = {
    * «watchable: true, draining: true, drains: 1».)
    */
   telling?: () => boolean,
+  /**
+   * THE STORY WAITS ON SOMEBODY ELSE's TIME — and names whose (`undefined` — it is the owner's to tell now). While it
+   * waits, its DEBT DOES NOT AGE: `dueMs` counts the time the story could have been told and was not, never the time
+   * its stage was away. The board's story is owed ON THE BOARD; thirty seconds of the player reading their hand are
+   * not thirty seconds of a release edge that «never came» — and a due that fell there SNAPPED the scales the story
+   * existed to move, a second or two before the board came back (the second hundred of whole games, 2026-11-25 —
+   * games 805 · 856, and thirteen «planned» records beside them: every one a story lost, none a wait that failed).
+   * The wait is the holder's own to bound (a screen of the player's is the player's time; a cover of the game's has
+   * its own net); the story is re-asked every beat and its clock runs again the moment the holder lets go.
+   */
+  waitsOn?: () => string | undefined,
   /** The honest degrade. Optional — some owners keep their own bounded
    *  safety and only want the redrive net + diagnostics. */
   degrade?: () => void,
@@ -101,7 +112,37 @@ export type TruthWitness = {
  * `dueMs`), and it ENDS WITH ITS SESSION — a debt of a game screen that left is not re-driven into the next one. The
  * book (`stories`) is that scope's mirror in the ledger's vocabulary: redrive, due, degrade.
  */
-type StoryEntry = OwedStory & {since: number, lastRedriveAt: number, owner: object, scope: FlowScope<'story'>, painted: FrameWatch};
+type StoryEntry = OwedStory & {
+  since: number, lastRedriveAt: number, owner: object, scope: FlowScope<'story'>, painted: FrameWatch,
+  /** The time the story has spent waiting on somebody else (`waitsOn`) — closed spells; the open one counts from `waitingSince`. */
+  waitedMs: number, waitingSince: number | undefined, waitingOn: string,
+};
+
+/** How long the story has been the OWNER's to tell — its age less the time it waited on somebody else. */
+function owedAgeOf(story: StoryEntry, t: number): number {
+  return t - story.since - story.waitedMs - (story.waitingSince === undefined ? 0 : t - story.waitingSince);
+}
+
+/** One look at whose time the story stands on (`waitsOn`) — the spell opened, kept or closed. Returns the holder. */
+function noteWaiting(story: StoryEntry, t: number): string | undefined {
+  let on: string | undefined;
+  try {
+    on = story.waitsOn?.();
+  } catch (err) {
+    console.error(`[presentation-ledger] waitsOn() of «${story.id}» failed`, err);
+  }
+  if (on !== undefined) {
+    if (story.waitingSince === undefined) {
+      story.waitingSince = t;
+    }
+    story.waitingOn = on;
+  } else if (story.waitingSince !== undefined) {
+    story.waitedMs += t - story.waitingSince;
+    story.waitingSince = undefined;
+    story.waitingOn = '';
+  }
+  return on;
+}
 
 /*
  * A STORY's DUE IS JUDGED AGAINST THE FRAMES THE PAGE PAINTED (freeze zero, stage 1 — CI `fz1` · duo,
@@ -219,14 +260,21 @@ export function owePresentation(story: OwedStory): OwedStoryHandle {
   const {scope, painted} = existing !== undefined && existing.scope.ended === undefined ? existing :
     // (The scope's bound is the latest the story can end: its due, and the telling's grace where it has one.)
     openStoryScope(story.id, story.dueMs + (story.telling !== undefined ? STORY_TELLING_GRACE_MS : 0));
-  stories.set(story.id, {
+  const entry: StoryEntry = {
     ...story,
     since: existing?.since ?? now(),
     lastRedriveAt: existing?.lastRedriveAt ?? 0,
+    waitedMs: existing?.waitedMs ?? 0,
+    waitingSince: existing?.waitingSince,
+    waitingOn: existing?.waitingOn ?? '',
     owner,
     scope,
     painted,
-  });
+  };
+  stories.set(story.id, entry);
+  // (Whose time the story is born on is asked AT ONCE: a story owed under a screen of the player's waits from its
+  // first moment — never from the heartbeat's next look.)
+  noteWaiting(entry, now());
   ensureHeartbeat();
   return {
     // THIS owe only (wait graph inventory H1): an older handle of the same id — a wait that already ended — never settles
@@ -282,10 +330,17 @@ export function settlePresentationDue(): void {
   const t = now();
   let oldest = 0;
   for (const story of stories.values()) {
-    oldest = Math.max(oldest, t - story.since);
-    if (t - story.since >= story.dueMs) {
+    // WHOSE TIME IS IT? A story that waits on somebody else does not age (`waitsOn`) — it is looked at all the same:
+    // its `ready` is the owner's look at its stage, and the beat that finds the stage back re-drives it at once.
+    if (noteWaiting(story, t) !== undefined) {
+      redriveIfReady(story, t);
+      continue;
+    }
+    const age = owedAgeOf(story, t);
+    oldest = Math.max(oldest, age);
+    if (age >= story.dueMs) {
       // …UNLESS IT IS BEING TOLD (`telling`): the release has begun — it finishes, within its bounded grace.
-      if (story.telling !== undefined && t - story.since < story.dueMs + STORY_TELLING_GRACE_MS) {
+      if (story.telling !== undefined && age < story.dueMs + STORY_TELLING_GRACE_MS) {
         let telling = false;
         try {
           telling = story.telling();
@@ -305,7 +360,8 @@ export function settlePresentationDue(): void {
       const starved = story.painted.starved()?.replace(/[()]/g, '');
       retireStory(story, 'degraded');
       presentationLedgerStats.degrades++;
-      console.warn(`[presentation-ledger] story «${story.id}» degraded after ${Math.round((t - story.since) / 1000)}s — the release edge never came${storyDiagnose(story)}` +
+      console.warn(`[presentation-ledger] story «${story.id}» degraded after ${Math.round(age / 1000)}s — the release edge never came${storyDiagnose(story)}` +
+        (story.waitedMs > 0 ? ` — beside ${Math.round(story.waitedMs / 1000)}s it waited on somebody else` : '') +
         (starved !== undefined ? ` (planned: ${starved})` : ''));
       try {
         story.degrade?.();
@@ -406,12 +462,16 @@ registerLivenessRelease({rank: 0, name: 'presentation-ledger', release: () => de
  * «the stage was not ready, and here is the term that held it»).
  */
 export function presentationLedgerSnapshot(): {
-  stories: Array<{id: string, ageMs: number, dueMs: number, why: string}>,
+  stories: Array<{id: string, ageMs: number, dueMs: number, why: string, waitsOn?: string}>,
   witnesses: Array<{id: string, lyingMs: number}>,
   } {
   const t = now();
   return {
-    stories: [...stories.values()].map((s) => ({id: s.id, ageMs: t - s.since, dueMs: s.dueMs, why: storyDiagnose(s).replace(/^ — /, '')})),
+    // (`ageMs` is the OWED age — what the due is judged by; a story waiting on somebody else says on whom.)
+    stories: [...stories.values()].map((s) => ({
+      id: s.id, ageMs: owedAgeOf(s, t), dueMs: s.dueMs, why: storyDiagnose(s).replace(/^ — /, ''),
+      ...(s.waitingSince !== undefined ? {waitsOn: s.waitingOn} : {}),
+    })),
     witnesses: [...witnesses.values()].map((w) => ({
       id: w.id,
       lyingMs: w.lyingSince === undefined ? 0 : t - w.lyingSince,
