@@ -2300,6 +2300,37 @@ in how the passes are read:
   tiles' twin; its own unit row). **Still on the wall's clock:** the scale step's rating held on the RAIL — an
   INSTRUMENT in view, so the answer there is not «wait longer» (see below when it is taken up).
 
+**STAGE 4 — THE LEDGER FROM TWENTY-FOUR TO SIX, EVERY ROW BY EVIDENCE (2026-11-25).** The owner's bar for this
+stage is a real hundred: a flow «declared with a reason» is not covered. The twenty-four rows left on
+`kernelUnwalked.json` were read one by one, and most of the reasons did not survive the reading:
+- **THE INSTRUMENT COULD NOT SEE EIGHT OF THEM.** The probe that marks a walk's coverage was installed by the GAME
+  screen alone (`wiringController`), so every flow of a screen outside a game — the creator, the campaign map, the
+  carryover picker and its album, the menu's card viewer, the tenders' stand — was walked by the suite's own specs
+  and counted by nobody; they stood on the ledger as «OUTSIDE A GAME», «DEV ONLY», «RARE». `installFlowCoverageProbe()`
+  is called at the app's root now (`App.vue`; still a no-op unless the harness asks). On the box, with coverage on,
+  the existing specs opened SIX of the rows at once (`tender-bidding-reveal`, `card-album`, `console-campaign-map`,
+  `console-carryover-picker`, `console-menu-zoom-host`, `console-tenders-playground`).
+- **TWO WERE REAL GAPS — two refusals nobody had pressed.** `surface:console-create-game` waits only for the end of
+  a REFUSED row's shake (`tests/e2e/console-create-refused.spec.ts`: solo against MarsBot keeps one human seat —
+  «Добавить участника» stands disabled with its reason, A shakes the row once and opens nothing);
+  `surface:gamepad-focus-ring` waits only for the DOM ring's refusal shake, and the DOM engine speaks only on the
+  screens the console does not own (`tests/e2e/console-lobby-pad-refusal.spec.ts`: an injected pad on the lobby, B
+  with nowhere to go back to).
+- **SEVEN WERE DEAD CODE, AND LEFT.** The desktop end-of-game tree (`EndgameExperience` mounted its reveal, its
+  results overlay and its pill only under `!consoleNative`, and `consoleModeState.enabled` has no way to be false)
+  and the legacy `/the-end` page nothing links to: twenty-four components, their state modules, four whole style
+  sheets, twenty specs. An old `/the-end` link lands on the player's own endgame. `endgameState.ts` is one function.
+- **THE UNIT SUITE IS A CORPUS TOO** (`TM_UNIT_COVERAGE=<dir> npm run test:client` → one pass file for
+  `scripts/kernel-walked.mjs`): a flow that stands only on a FAILURE PATH cannot be produced by a walk of a healthy
+  product — the fault has to be injected, and the unit harness is where a fault is injected (the real component, the
+  real runtime, the real kernel). 653 keys, 281 flows opened; of the ledger's rows it walks `console-teleport` (a
+  target absent after the flush), `card-list` and `player-cube-playground`.
+- **SIX LEFT, each named for what it is:** three more are DEAD by a reading that names the contradiction — the draft
+  tray (mounted only in the initial draft, which no creation path of the product can ask for), the played hero's
+  `overlay` host (two rows: every entry point of a play resolves to the workspace host), the law-play fold (the claim
+  is placed before the commit, so the fold's branch is skipped) — they leave with their code next; and two are
+  FAILURE PATHS no spec injects yet (`colony-resolution-release-owed`, the colony controller's two nets).
+
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick
 the safety came due) or at 43 %. The arc ran late on a starved clock and the safety met the chip ON its destination, a

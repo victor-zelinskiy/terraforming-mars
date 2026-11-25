@@ -110,7 +110,7 @@ function asked(): boolean {
   }
 }
 
-/** Idempotent; a no-op unless the harness asked. Called when the game screen is mounted (`wiringController`). */
+/** Idempotent; a no-op unless the harness asked. Called at the app's root (`App.vue` — every screen, a game or not) and again when the game screen is mounted (`wiringController`). */
 export function installFlowCoverageProbe(): void {
   if (installed || typeof window === 'undefined' || !asked()) {
     return;

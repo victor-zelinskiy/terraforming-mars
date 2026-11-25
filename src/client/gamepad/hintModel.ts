@@ -63,8 +63,6 @@ export function hintsFor(scopeId: string, focusKind: FocusKind, focusVerb?: stri
   // P19: the blocking update prompt — the A-verb IS the primary button.
   case 'desktopUpdate':
     return [NAVIGATE, ...selects];
-  case 'finalReveal':
-    return [SELECT, CLOSE];
   case 'mandatoryModal':
     return [NAVIGATE, ...selects, ...cardExtra, MINIMIZE];
   case 'drawReveal':
@@ -77,7 +75,6 @@ export function hintsFor(scopeId: string, focusKind: FocusKind, focusVerb?: stri
     return [...head, {control: 'back', label: 'Cancel placement'}];
   }
   case 'startGameFlow':
-  case 'endgame':
   case 'colonies':
     return [NAVIGATE, ...selects, ...cardExtra, MINIMIZE];
   case 'base':

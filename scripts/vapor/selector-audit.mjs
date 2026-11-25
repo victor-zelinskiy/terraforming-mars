@@ -88,8 +88,6 @@ function mayThrow(source) {
 const ALLOWED = new Map([
   ['src/client/components/console/menu/ConsoleAdminRollback.vue|targetSave.value.generation',
     'the computed always answers an object (it falls back to a zero save)'],
-  ['src/client/components/endgame/FinalScoringReveal.vue|reveal.value.tieBreak?.winner',
-    '`reveal` is a computed model that is never nullish; the optional link after it is null-safe'],
 ]);
 
 const findings = [];

@@ -33,8 +33,7 @@ export type AppScreen = 'admin' |
   'main-menu' |
   'premium-create-game' |
   'player-home' |
-  'start-screen' |
-  'the-end';
+  'start-screen';
 
 export interface AppRoot {
   /** The screen on stage — WRITTEN by a flow that lands on another one (the lobby's «load a game»). */

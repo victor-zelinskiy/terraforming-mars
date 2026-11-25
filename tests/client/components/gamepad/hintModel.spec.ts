@@ -51,7 +51,7 @@ describe('hintModel', () => {
   });
 
   it('every scope resolves to a non-empty hint set (the bar is never blank)', () => {
-    for (const scope of ['base', 'placement', 'mandatoryModal', 'dialog', 'drawReveal', 'colonies', 'endgame', 'startGameFlow', 'overlay-effects', 'revealViewer', 'unknown-future-scope', 'mainMenu', 'createGame', 'lobby', 'joinPanel', 'finalReveal']) {
+    for (const scope of ['base', 'placement', 'mandatoryModal', 'dialog', 'drawReveal', 'colonies', 'startGameFlow', 'overlay-effects', 'revealViewer', 'unknown-future-scope', 'mainMenu', 'createGame', 'lobby', 'joinPanel', 'finalReveal']) {
       expect(hintsFor(scope, 'action').length, scope).to.be.greaterThan(0);
     }
   });

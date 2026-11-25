@@ -1,11 +1,7 @@
 /*
  * Rematch flow — the "offer / accept a rematch" prompt modal, the minimized
- * pill, the "rematch ready" celebration, and the "declined" toast. Plus the
- * extra endgame-overlay control states (Accept / Decline / Waiting). Dark-glass
+ * pill, the "rematch ready" celebration, and the "declined" toast. Dark-glass
  * + cyan/mint/amber sci-fi language, matching the rest of the fork's overlays.
- *
- * Imported AFTER endgame.less so the `.eg-results__ctl--*` modifiers can layer
- * onto that base control style.
  */
 @rematch-z-modal: 3300;
 @rematch-z-pill: 3260;
@@ -316,37 +312,6 @@
   &:hover { color: @rematch-ink; }
 }
 
-// ─────────────────── Endgame overlay control states ───────────────────
-.eg-results__ctl--danger {
-  border-color: fade(@rematch-amber, 55%) !important;
-  color: @rematch-amber !important;
-  &:hover:not(:disabled) {
-    background: fade(@rematch-amber, 14%) !important;
-  }
-}
-
-.eg-results__ctl--wait {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: default;
-  color: @rematch-ink-dim !important;
-}
-
-.eg-results__wait-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: @rematch-cyan;
-  box-shadow: 0 0 8px @rematch-cyan;
-  animation: rematch-pulse 1.6s ease-in-out infinite;
-}
-
-.eg-results__wait-count {
-  font-weight: 700;
-  color: @rematch-cyan;
-}
-
 // ───────────────────────────── Keyframes ─────────────────────────────
 @keyframes rematch-fade {
   from { opacity: 0; }
@@ -370,8 +335,7 @@
   .rematch-modal__backdrop,
   .rematch-pill,
   .rematch-toast,
-  .rematch-pill__dot,
-  .eg-results__wait-dot {
+  .rematch-pill__dot {
     animation: none !important;
   }
 }

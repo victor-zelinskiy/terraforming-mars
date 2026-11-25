@@ -240,6 +240,22 @@ if (withBottle) {
   (globalThis as {__TM_BOTTLE_PAGE__?: string}).__TM_BOTTLE_PAGE__ = pageBundle;
 }
 
+// THE SUITE AS A CORPUS OF THE KERNEL's STATE SPACE (`TM_UNIT_COVERAGE=<dir>` — see `bundleSetup.ts`): the in-bundle
+// setup marks the kernel's trace for the whole run and hands the keys back here, filed as one pass for
+// `scripts/kernel-walked.mjs <dir> …` (the shape of a monkey's `cause-classes` file).
+const unitCoverageDir = process.env.TM_UNIT_COVERAGE;
+if (unitCoverageDir !== undefined && unitCoverageDir !== '') {
+  (globalThis as {__TM_UNIT_COVERAGE__?: (keys: ReadonlyArray<string>) => void}).__TM_UNIT_COVERAGE__ = (keys) => {
+    const dir = path.join(path.resolve(ROOT, unitCoverageDir), 'cause-classes');
+    fs.mkdirSync(dir, {recursive: true});
+    fs.writeFileSync(path.join(dir, 'unit-suite.json'), JSON.stringify({
+      file: 'unit-suite', title: 'the client unit suite', retry: 0, status: 'passed', specs: specs.length,
+      coverage: {keys: [...keys].sort(), machines: {}, frames: []},
+    }, null, 1));
+    console.log(` COVERAGE  ${keys.length} key(s) of the kernel's state space → ${path.join(dir, 'unit-suite.json')}`);
+  };
+}
+
 // The jsdom environment — before mocha loads the bundle (the bundle's modules read `document` as they evaluate).
 require(SETUP);
 

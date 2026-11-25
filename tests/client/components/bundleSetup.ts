@@ -31,6 +31,7 @@
 import {config, disableAutoUnmount, enableAutoUnmount} from '@vue/test-utils';
 import {vaporInteropPlugin} from 'vue';
 import {auditReactivity} from '@/client/components/presentation/reactivityWitness';
+import {flowCoverage, installFlowCoverage} from '@/client/console/kernel/flowCoverage';
 
 /**
  * Teardown failures collected during the run, so ONE of them cannot take the
@@ -126,6 +127,28 @@ afterEach(function(this: HookContext) {
     }
   }
 });
+
+/*
+ * ── THE UNIT SUITE AS A CORPUS OF THE KERNEL's STATE SPACE (FREEZE ZERO, stage 4 — «walked or declared») ──────────
+ *
+ * Asked for by the runner (`TM_UNIT_COVERAGE=<dir>` → `scripts/client-tests.mts` lends `__TM_UNIT_COVERAGE__`): every
+ * step of the kernel's trace marks its key for the whole run (`kernel/flowCoverage.ts` — the same keys a page marks
+ * for the monkey and the e2e suite), and the set is filed once, at the end, as ONE pass
+ * (`<dir>/cause-classes/unit-suite.json`) that `scripts/kernel-walked.mjs` unions with the others.
+ *
+ * WHY THE UNIT SUITE COUNTS, AND FOR WHAT. A flow that stands only on a FAILURE PATH — a teleport whose target is
+ * absent after the flush, a release refused at a resolution's end, a net of an entry that never arrived — cannot be
+ * produced in a healthy product by any walk: a spec has to INJECT the fault, and the unit harness is where a fault is
+ * injected (the real component, the real runtime, the real kernel). The corpus says which of those the suite really
+ * runs; what it walks leaves the ledger of the unwalked by evidence, as everything else does.
+ */
+const fileUnitCoverage = (globalThis as {__TM_UNIT_COVERAGE__?: (keys: ReadonlyArray<string>) => void}).__TM_UNIT_COVERAGE__;
+if (fileUnitCoverage !== undefined) {
+  installFlowCoverage();
+  after(function() {
+    fileUnitCoverage(flowCoverage());
+  });
+}
 
 after(function() {
   if (reactivityFailures.length > 0) {

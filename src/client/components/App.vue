@@ -161,26 +161,12 @@
         :view="endgameView"
         :headless="endgameConsoleNative" />
       <!--
-        Premium end-of-game experience. App-level so no server-response
-        update can tear down the reveal / results overlay.
-        Gated by `endgameView` (the active player view ONLY when the
-        game has reached Phase.END), so it never shows mid-game.
-
-        CONSOLE NATIVE: the console shell runs its own scoring workspace, so
-        there this component is only the detailed-overlay host («Обзор
-        партии») — no auto reveal, no pill (see EndgameExperience).
+        (The end of a game is the CONSOLE's own: the scoring ceremony and «Обзор партии» stand inside
+        `ConsoleEndgameWorkspace`, which asks for the endgame facts itself. The desktop reveal / results overlay and
+        the legacy `/the-end` page that stood here left with the desktop.)
       -->
-      <EndgameExperience
-        v-if="endgameView !== undefined"
-        :view="endgameView"
-        :viewer-color="endgameViewerColor"
-        :console-native="endgameConsoleNative" />
-      <game-end
-        v-else-if="screen === 'the-end'"
-        :player-view="playerView"
-      ></game-end>
       <games-overview
-        v-else-if="screen === 'games-overview'"
+        v-if="screen === 'games-overview'"
       ></games-overview>
       <card-list v-else-if="screen === 'cards'"></card-list>
       <admin-home v-else-if="screen === 'admin'"></admin-home>
@@ -284,8 +270,6 @@ import {
   ConsoleResolutionsPlayground,
   ConsoleShell,
   ConsoleTendersPlayground,
-  EndgameExperience,
-  GameEnd,
   GameHome,
   GamesOverview,
   Help,
@@ -370,6 +354,7 @@ import {seedDeckDrawHold} from '@/client/console/deckDraw/consoleDeckDraw';
 import {seedVpShares} from '@/client/console/scoreCell/vpShareLedger';
 import {openReactionSeedBlock, seedCardReactionHolds, snapshotRailHolds} from '@/client/console/cardReaction/cardReactionDirector';
 import {seedTerraformedScene} from '@/client/console/terraformedScene/terraformedScene';
+import {installFlowCoverageProbe} from '@/client/console/flowCoverageProbe';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
 import {seedCellResourceHolds} from '@/client/console/cellResource/cellResourceBeat';
@@ -397,6 +382,13 @@ function getLastPathSegment() {
 }
 
 defineOptions({name: 'App'});
+
+// HOW MUCH OF THE KERNEL'S STATE SPACE A WALK WENT THROUGH (`flowCoverageProbe.ts` — a no-op unless the e2e harness asks,
+// idempotent). At the APP's root, before any screen mounts: the game screen used to install it alone, so every flow of
+// a screen OUTSIDE a game — the menu, the creator, the campaign map, the carryover picker, the card list — was walked
+// by the suite's specs and counted by nobody, and stood on the ledger of the unwalked «with a reason» (FREEZE ZERO,
+// stage 4: «walked or declared» is a number only where the instrument can see).
+installFlowCoverageProbe();
 
 const resolutionsPg = useTemplateRef<{handleIntent?: (intent: GamepadIntent) => boolean}>('resolutionsPg');
 const tendersPg = useTemplateRef<{handleIntent?: (intent: GamepadIntent) => boolean}>('tendersPg');
@@ -470,17 +462,11 @@ const showTendersPlayground = computed((): boolean => {
 const playgroundDeepLinkActive = computed((): boolean => {
   return showCubePlayground.value || showPremiumCardsPlayground.value || showLorePlayground.value || showResolutionsPlayground.value || showTendersPlayground.value;
 });
-// The active player view ONLY when its game has ended —
-// drives the App-level EndgameExperience mount. Undefined mid-game.
+// The active player view ONLY when its game has ended — the rematch layer's and the exit button's gate. Undefined
+// mid-game.
 const endgameView = computed((): ViewModel | undefined => {
   if (screen.value === 'player-home' && endgameAvailable(playerView.value)) {
     return playerView.value;
-  }
-  return undefined;
-});
-const endgameViewerColor = computed((): Color | undefined => {
-  if (screen.value === 'player-home') {
-    return playerView.value?.thisPlayer?.color;
   }
   return undefined;
 });
@@ -800,13 +786,10 @@ function update(path: typeof paths.PLAYER): void {
         if (!preserveCardPickModal && !preserveOpenOverlay && !promptPreserved) {
           playerkey.value++;
         }
-        // When the user navigated directly to /the-end, keep that screen.
-        if (currentPathname === paths.THE_END) {
-          screen.value = 'the-end';
-        } else {
-          screen.value = 'player-home';
-        }
-        if (currentPathname !== path && currentPathname !== paths.THE_END) {
+        // (An old `/the-end` link lands here too: the console's own endgame is the end of a game — the URL becomes
+        // the player's.)
+        screen.value = 'player-home';
+        if (currentPathname !== path) {
           window.history.replaceState(
             model,
             `${constants.APP_NAME} - Game`,

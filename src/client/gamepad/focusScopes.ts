@@ -84,9 +84,6 @@ export const SCOPE_DEFS: ReadonlyArray<ScopeDef> = [
   {id: 'resourceDetail', root: '.additional-resource-detail', back: {kind: 'escape'}},
   {id: 'rematchCreated', root: '.rematch-modal--created', back: {kind: 'click', selectors: ['.rematch-modal__min']}},
   {id: 'rematchPrompt', root: '.rematch-modal', back: {kind: 'click', selectors: ['.rematch-modal__min']}},
-  // Lifecycle modals/screens (console full-lifecycle iteration).
-  {id: 'finalReveal', root: '.fsr', back: {kind: 'escape'}},
-  {id: 'endgame', root: '.eg-results', back: {kind: 'click', selectors: ['.eg-results__ctl--min']}},
 
   // 3. Lifecycle SCREENS (outside the game shell): the lobby stays
   //    pad-drivable via this engine; hints come from hintModel per scope id.

@@ -4,7 +4,7 @@
  * A REAL finished game via the shared endgame journey. What this spec pins:
  *
  *  · «Обзор партии» is an INTERNAL SCENE of the endgame workspace — the
- *    desktop `.eg-results` never mounts, the workspace root never unmounts,
+ *    workspace root never unmounts,
  *    and the SEAMLESS-TRANSITION PROBE proves no frame ever exposed the
  *    board (HUD stays hidden), showed neither scene (blank), or moved the
  *    workspace root's box;
@@ -36,7 +36,6 @@ const SHOT_DIR = 'screenshots/console-endgame-overview';
 
 /** One observation of the trip: null while the endgame workspace root is not in the document. */
 type TransitionSeen = {
-  egResults: number,
   hudVisible: boolean,
   scoringShown: boolean,
   overviewShown: boolean,
@@ -66,7 +65,6 @@ async function armTransitionWitness(page: Page): Promise<void> {
     const b = root.getBoundingClientRect();
     const hud = document.querySelector<HTMLElement>('.con-status');
     return {
-      egResults: document.querySelectorAll('.eg-results').length,
       hudVisible: visiblyShown(hud),
       scoringShown: visiblyShown(document.querySelector<HTMLElement>('.con-eg')),
       overviewShown: visiblyShown(document.querySelector<HTMLElement>('.con-egov')),
@@ -456,8 +454,6 @@ test.describe('console endgame overview — 2p journey', () => {
     // The record keeps DISTINCT states, never frames: its floor only catches a dead recorder (`tests.md`).
     const samples = await transitionRecord(page);
     expect(samples.length, 'the transition witness recorded the trip').toBeGreaterThan(0);
-    // The desktop overlay NEVER mounted, not for one sample.
-    expect(samples.filter((s) => s.egResults > 0)).toHaveLength(0);
     // The board/HUD never showed through the workspace.
     expect(samples.filter((s) => s.hudVisible)).toHaveLength(0);
     // No blank frame: at every sample at least one scene was on stage.

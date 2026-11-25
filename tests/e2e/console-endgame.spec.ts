@@ -21,7 +21,7 @@
  *  · the default action focus is «Обзор партии» (never the replay);
  *  · a RELOAD into the ended game lands SETTLED — no uninvited replay;
  *  · «Обзор партии» descends into the CONSOLE-NATIVE overview scene of the
- *    SAME workspace (the desktop `.eg-results` never rises) and B returns
+ *    SAME workspace and B returns
  *    without replaying the ceremony — the deep overview journey lives in
  *    console-endgame-overview.spec.ts;
  *  · «Повторить подсчёт» replays, X HURRIES it (T08 — the crowning still plays), a second X is a no-op.
@@ -237,7 +237,6 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     //     results without replaying the ceremony.
     await page.keyboard.press('Enter');
     await waitWithFrames(page, async () => (await page.locator('.con-egov').count()) > 0, 15_000, 'the console overview');
-    await expect.poll(() => page.locator('.eg-results').count()).toBe(0); // desktop stays desktop-only
     await expect(page.locator('.con-endgame')).toBeVisible(); // the same root carries both scenes
     await expect(page.locator('.con-egov__kicker')).toContainText(/Обзор партии/i);
     await expect(page.locator('.con-status')).toBeHidden(); // the board never shows through

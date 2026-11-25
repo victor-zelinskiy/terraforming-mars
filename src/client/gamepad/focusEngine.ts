@@ -77,7 +77,7 @@ const CARD_HOST_SELECTOR = [
 
 /** Known premium scroll containers (fallback when the focused chain has none). */
 const SCROLL_CONTAINER_SELECTOR = [
-  '.eg-results__body',
+  // (None left: the desktop results overlay was the last one — the console's surfaces page, they do not scroll.)
 ].join(', ');
 
 /** Pixels per full-deflection frame for right-stick scrolling. */

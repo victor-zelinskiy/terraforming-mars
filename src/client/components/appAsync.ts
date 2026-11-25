@@ -22,7 +22,6 @@ import type {Component} from 'vue';
 
 export const AdminHome: Component = lazyComponent(() => import('@/client/components/admin/AdminHome.vue'));
 export const CardList: Component = lazyComponent(() => import('@/client/components/cardlist/CardList.vue'));
-export const GameEnd: Component = lazyComponent(() => import('@/client/components/GameEnd.vue'));
 export const GameHome: Component = lazyComponent(() => import('@/client/components/GameHome.vue'));
 export const GamesOverview: Component = lazyComponent(() => import('@/client/components/GamesOverview.vue'));
 export const Help: Component = lazyComponent(() => import('@/client/components/help/Help.vue'));
@@ -35,9 +34,6 @@ export const ConsoleMainMenu: Component = lazyComponent(() => import('@/client/c
 export const ConsoleCreateGame: Component = lazyComponent(() => import('@/client/components/console/menu/ConsoleCreateGame.vue'));
 export const ConsoleCampaignMap: Component = lazyComponent(() => import('@/client/components/console/campaign/ConsoleCampaignMap.vue'));
 export const ConsoleMenuZoomHost: Component = lazyComponent(() => import('@/client/components/console/menu/ConsoleMenuZoomHost.vue'));
-// Premium end-of-game experience (winner reveal + full-screen results). Async
-// so its charts / tabs only download once a game actually ends.
-export const EndgameExperience: Component = lazyComponent(() => import('@/client/components/endgame/EndgameExperience.vue'));
 export const PlayerCubePlayground: Component = lazyComponent(() => import('@/client/components/PlayerCubePlayground.vue'));
 export const ConsoleResolutionsPlayground: Component = lazyComponent(() => import('@/client/components/console/parliament/ConsoleResolutionsPlayground.vue'));
 export const ConsoleTendersPlayground: Component = lazyComponent(() => import('@/client/components/console/campaign/ConsoleTendersPlayground.vue'));
