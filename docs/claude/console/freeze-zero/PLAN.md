@@ -2107,7 +2107,12 @@ stopped by a class that is closed now, and each record read with «what did the 
   the plate and the park and not the third home (`boardYielded`), and stood a SECOND sitting up over the placement
   (`console-parliament-aside-door.spec.ts` on `parliament-aquifer-enact`, red without the fix). Game 64 itself pressed
   no direction on the wheel — its door is NOT yet named, the finding stays open for it. **#113,
-  game 71 — a new pair, `bar-APART:quick>finale`** (one press with the wheel open over the finale's context) — open.
+  game 71 — a new pair, `bar-APART:quick>finale`: CLOSED IN CODE.** In the finale's context without a pick the
+  player may look around; a wheel opened there showed its own bar («B Закрыть») — and B minimized the FINALE under
+  it, RT answered «the finish waits»: the finale's rung stood above the wheel's and took its presses. The rung no
+  longer takes a press while a wheel is open; `console-final-greenery-trigger.spec.ts` step ②½, red without it.
+  Three findings of one green-looking rerun, three real defects of the product — the measure of stage 2 earning its
+  keep on whole games.
 - **«PER MAP SET», COUNTED.** The pilot's tables are spread over eleven boards; the box's passes so far hold 13 – 35
   games a board (295 in all, on five builds). A hundred on EVERY board is ≈ 1 100 games — nights of the box, not one:
   the number is reported per build and per board, and the gate must be green on the build that is released.

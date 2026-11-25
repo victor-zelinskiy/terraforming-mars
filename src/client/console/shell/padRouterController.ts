@@ -1101,7 +1101,12 @@ export function createPadRouterController(shell: PadRouterPort) {
     // THE FINALE CONTEXT STANDS WITHOUT A PICK (PL-303 — a greenery landing, another seat deciding): B minimizes,
     // RT names why the finish waits (nothing of ours to answer), A has nothing to open yet; everything else (the
     // hand, the quick wheel, the sticks, the log) passes through — the player may look around inside the context.
-    if (shell.finaleSessionEngaged && !shell.placementActive && intent.kind === 'press') {
+    // …AND A WHEEL THE PLAYER OPENED THERE IS THEIR OWN LOOK, ON TOP: its bar is the wheel's («B Закрыть», the other
+    // wheel's trigger), and its presses are the wheel's. This rung stood ABOVE the wheel's own, so B on an open wheel
+    // minimized the finale under it and RT answered «the finish waits» instead of turning the wheel — the bar said one
+    // owner's commands and another rung took the press (the one-owner law's `bar-APART:quick>finale`, the autopilot in
+    // a real browser — game 71, finding #113).
+    if (shell.finaleSessionEngaged && !shell.placementActive && intent.kind === 'press' && consoleState.quick === undefined) {
       notePadRung('finale');
       const act = consoleActionOf(intent);
       if (act === 'back') {

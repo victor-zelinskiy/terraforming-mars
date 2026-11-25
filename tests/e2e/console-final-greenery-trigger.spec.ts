@@ -140,6 +140,18 @@ for (const profile of PROFILES) {
       expect((await getModel(request, viewer)).game.finalGreenery?.done ?? [], 'the viewer is not done — nothing was submitted').not.toContain((await getModel(request, viewer) as unknown as Wire).thisPlayer.color);
       expect(await finaleStage(page)).toBe('wait');
 
+      // ── ②½ A WHEEL OPENED INSIDE THE CONTEXT IS THE PLAYER'S OWN LOOK: its bar is the wheel's, and B closes THE WHEEL —
+      //    never the finale under it (the one-owner law's `bar-APART:quick>finale`: the finale's rung stood above the
+      //    wheel's and took its B and its RT).
+      await press(page, 'Comma', 700);
+      await waitWithFrames(page, async () => (await page.locator('.con-quick').count()) > 0, 10_000, 'LT opens the basic-actions wheel inside the waiting context');
+      await waitWithFrames(page, async () => /Закрыть/i.test(await barText(page)), 10_000, 'the bar is the wheel\'s: B closes it');
+      await press(page, 'Escape', 700);
+      await waitWithFrames(page, async () => (await page.locator('.con-quick').count()) === 0, 10_000, 'B closes the wheel');
+      await expect(page.locator(FINALE_BLOCK), 'B closed the WHEEL — the finale context still stands under it').toHaveCount(1);
+      await expect(page.locator('.con-mandatory'), 'nothing was minimized to the plate').toHaveCount(0);
+      expect(await finaleStage(page), 'still the wait stage').toBe('wait');
+
       // ── ③ B minimizes to the plate; A brings the context back, still waiting ──
       const witnessBeforeCollapse = await readFinaleWitness(page);
       await disarmFinaleWitness(page);
