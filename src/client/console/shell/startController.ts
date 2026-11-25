@@ -29,7 +29,7 @@ import {ConsoleTask, taskFor, promptOutranksStartScene, SCENE_KINDS, corpFirstAc
 import {ConsoleTaskSummary} from '@/client/console/consoleTaskSummary';
 import {sceneTransitionInputLocked} from '@/client/console/loadingScreenState';
 import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
-import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {startReturnBehindOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {cardReactionState} from '@/client/console/cardReaction/cardReactionStage';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -426,7 +426,11 @@ export function createStartController(shell: StartPort) {
       playersLook: hostCarriesPlayersLook('start'),
       bonusTrip: bonusTurnLive.value,
     });
-    const held = wf === undefined ? undefined :
+    // (…and THE OPENING THAT HAS NOT COME BACK YET is held by name: the workspace it lent the screen to still shows its
+    // outcome — `startReturnBehindOutcome`, the answer the frame's own door reads. Unnamed, the shadow judged the
+    // verdict the player was reading «expected the queue, on screen the game» for as long as they read it.)
+    const behind = startReturnBehindOutcome();
+    const held = wf === undefined ? undefined : behind !== undefined ? `outcome:${behind}` :
       (wf.type === 'space' ? promptAdmissionBlock('placement', shell.admissionSignals) : promptAdmissionBlock('host', shell.admissionSignals));
     const prompt = wf === undefined ? '—' :
       `${wf.type}:${wf.startGamePrompt?.kind ?? task?.kind ?? ''}#${wf.promptId ?? ''}`;
@@ -638,9 +642,8 @@ export function createStartController(shell: StartPort) {
     // rose as the standalone «Получены карты» band over the start workspace.
     // The claim's own release (the take, the reconciler, its backstop) is
     // what re-fires this computed — the hold is bounded by construction.
-    if (!workspaceFrameKnown('start') && workspaceOutcomeState.host !== undefined &&
-        workspaceOutcomeState.host !== 'start' && workspaceOutcomeState.sourceCard !== '' &&
-        workspaceFrameKnown(workspaceOutcomeState.host)) {
+    // (`startReturnBehindOutcome` — the one answer; the question's facts read it too.)
+    if (startReturnBehindOutcome() !== undefined) {
       return false;
     }
     if (startSceneServes.value || workspaceFrameHasNested('start')) {

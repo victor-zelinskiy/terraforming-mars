@@ -310,6 +310,12 @@ describe('servingOwner — who serves the question: one total function', functio
     expect(servingOwnerOf({...QUIET, task: ALL_SHAPES.find((t) => t.kind === 'startSequence'), startFlow: true, startYielded: true, frames: ['start']}))
       .to.deep.include({owner: 'start', hold: {kind: 'scene', by: 'start-yielded'}});
     expect(servingOwnerOf({...QUIET, task: {kind: 'payment'}, startFlow: true, startYielded: true, host: 'start', frames: ['start']})).to.not.have.property('hold');
+    // THE OPENING THAT HAS NOT COME BACK YET — a bonus-action window ended on an answer that carries the acting
+    // workspace's outcome and the opening's next question («Фора» → «Поиск жизни»: the verdict stands, the second
+    // prelude is already asked — game 906 of the third hundred): the start owns it and waits behind that outcome.
+    expect(servingOwnerOf({...QUIET, task: ALL_SHAPES.find((t) => t.kind === 'startSequence'), startBehind: 'card-actions', host: 'card-actions', frames: ['card-actions']}))
+      .to.deep.include({owner: 'start', hold: {kind: 'scene', by: 'outcome:card-actions'}});
+    expect(servingOwnerOf({...QUIET, task: {kind: 'payment'}, startBehind: 'card-actions', host: 'card-actions', frames: ['card-actions']})).to.not.have.property('hold');
     // A PHASE ROOT is never a step in somebody's zone.
     expect(owner({kind: 'cardSelect', mode: 'buy'}, {draftClaims: true, host: 'parliament'})).to.eq('draft');
     expect(owner({kind: 'cardSelect', mode: 'draft'}, {host: 'hand'})).to.eq('draft');

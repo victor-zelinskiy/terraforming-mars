@@ -2248,6 +2248,30 @@ in how the passes are read:
 - **Still to change the same way:** the remote landing's wait for the board (a tile «revealed without its flight» at
   its ceiling — 44 records in the second hundred), and the scale step's rail members, whose rating stands held on the
   RAIL (an instrument in view) for up to thirty-two seconds under a workspace.
+- **Dead code that could only ever stand in a walk's way left with it** (`7ee984a4f9`): four flows no path opens — the
+  desktop start-of-game reveal, the desktop played-cards pick bridge (with two twins), an owed answer that was only
+  ever taken, a hold whose supplier no flush could see true. Stage 4's ledger: 24 flows.
+- **PILOT 2** (`5ae78e07c4`): a turn has an INTENT (the wheel that leads to a section and the press that enters it,
+  in rotation — the first two hundreds never built a colony and never took a party action), a look is closed before
+  an answer, the layout of a production loss has its hands.
+- **THE THIRD HUNDRED's FIRST THIRTY-EIGHT GAMES (the box, `823a151bc3`, the first pilot) AND GAME 906.** 38 to their
+  final scoring, no defect record, no episode; the gate red by ONE press of one game: `pad-MISS:sheet:cardActions` ·
+  `band-APART:own:start>sheet:cardActions`. Read to its end it is two things, neither a freeze:
+  1. **A hold one reader knew.** «Фора» (two ordinary actions in the middle of the preludes) → the last of them is
+     «Поиск жизни»: the answer that carries the verdict is the very one that ends the window, the server already asks
+     for the second prelude. The product is right — the verdict is the player's to read and the start's frame stays
+     off the stack until they have (`startFrameLive`'s first hold). But that condition was written inside the frame's
+     door and nowhere else: the function of the one owner said «the start serves» over the verdict (the MISS), the
+     band named a surface that was not there (the APART), and the start's shadow judged the same second «expected
+     the queue, on screen the game». The law: **a hold is ONE named answer and every reader asks it**
+     (`consoleWorkspaceOutcome.startReturnBehindOutcome` → the door, `QuestionFacts.startBehind` — held `scene ·
+     outcome:<workspace>`, the shadow's `held`). Proof: `tests/e2e/console-bonus-outcome-owner.spec.ts` (green; RED
+     with the fact taken out), a row of `servingOwner.spec`.
+  2. **A habit of the pilot.** A bonus action's menu has no «Пас» — the pilot told a menu by its pass, read this one
+     as a question the screen does not answer, thumbed the board for forty-five presses and let the door act (the
+     pass's one «door» record). It reads the server's marker now (`bonusActionPrompt`): a turn with an intent, and a
+     second one when the first led nowhere.
+  The count goes on from the build that holds both, under pilot 2.
 
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick

@@ -41,7 +41,7 @@ import {cardGrantOwedTo} from '@/client/console/cardGrantHost';
 import {cardsResponse, orOptionResponse, orWrappedResponse} from '@/client/console/taskResponses';
 import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
 import {preludeChainOn, preludePlayChainState} from '@/client/console/deckPick/preludePlayChain';
-import {workspaceClaimsVenusBonus, workspaceClaimsEffect, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, setWorkspaceOutcomePhase, workspaceOutcomeState, workspaceOutcomeZone} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsVenusBonus, workspaceClaimsEffect, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, setWorkspaceOutcomePhase, startReturnBehindOutcome, workspaceOutcomeState, workspaceOutcomeZone} from '@/client/console/consoleWorkspaceOutcome';
 import {claimPlayOutcome, isPlayOutcomeHost} from '@/client/console/played/consolePlayOutcomeClaim';
 import {isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {deckDrawHolds} from '@/client/console/deckDraw/consoleDeckDraw';
@@ -1127,6 +1127,8 @@ export function createRouterController(shell: RouterPort) {
           shell.startSceneMounted,
       // THE OPENING YIELDED ITS SCENE (`startSceneVisible`): its frame stands, the screen is somebody else's.
       startYielded: yielded ?? (shell.startSceneMounted && !shell.startSceneVisible),
+      // THE OPENING HAS NOT COME BACK YET (`startReturnBehindOutcome` — the same answer its frame's door reads).
+      startBehind: startReturnBehindOutcome() ?? '',
     };
   }
 

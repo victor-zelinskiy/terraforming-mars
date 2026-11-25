@@ -897,6 +897,26 @@ export function workspaceOutcomeLastChainClose(): string {
   return lastChainClose;
 }
 
+/**
+ * THE OPENING's RETURN WAITS BEHIND THIS WORKSPACE's OUTCOME (`undefined` — behind nobody's).
+ *
+ * A bonus-action window of the opening («Фора»: two ordinary actions in the middle of the preludes) hands the screen
+ * to an ordinary workspace; the answer that ENDS the window is the very one that carries that workspace's outcome —
+ * a deck check's verdict, a drawn batch, a colony's payout — and the next question of the opening with it. The
+ * outcome is the player's to read first: the start's frame stays off the stack until the claim lets go (the take,
+ * the reconciler, the claim's own backstop — bounded by construction).
+ *
+ * ONE ANSWER FOR TWO READERS: `startController.startFrameLive` (the frame does not come back yet) and the question's
+ * facts (`servingOwnerOf`: the start owns the question and WAITS — the press is the outcome's). They were one
+ * condition written once and known to the first reader alone: the one-owner measure read «the start serves» over a
+ * verdict the player was reading (`pad-MISS:sheet:cardActions`, the third hundred's game 906, 2026-11-25).
+ */
+export function startReturnBehindOutcome(): WorkspaceOutcomeHost | undefined {
+  const host = workspaceOutcomeState.host;
+  return host !== undefined && host !== 'start' && workspaceOutcomeState.sourceCard !== '' &&
+    !workspaceFrameKnown('start') && workspaceFrameKnown(host) ? host : undefined;
+}
+
 /** Is ANY workspace holding a claim right now? */
 export function workspaceOutcomeClaimed(): boolean {
   return workspaceOutcomeState.sourceCard !== '';

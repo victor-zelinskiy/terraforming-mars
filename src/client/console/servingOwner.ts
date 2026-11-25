@@ -52,6 +52,12 @@ export type QuestionFacts = {
    * its question, and it waits. (The same reading: «says start, the pad gave the board».)
    */
   startYielded: boolean;
+  /**
+   * THE OPENING's RETURN WAITS BEHIND A WORKSPACE's OUTCOME ('' — behind nobody's; else that workspace): a bonus-action
+   * window ended on an answer that carries the acting workspace's outcome AND the opening's next question
+   * (`startReturnBehindOutcome`). The start owns the question and waits; the press is the outcome's.
+   */
+  startBehind?: string;
   /** `buildEffectDecision` builds a decision for this prompt (a contextual choice with its marker). */
   effectDecision: boolean;
   /** The draft workspace's frame is known to the stack. */
@@ -256,6 +262,10 @@ export function servingOwnerOf(f: QuestionFacts): Ownership {
   if (f.startYielded && owner.owner === 'start') {
     return {asked: true, ...owner, hold: {kind: 'scene', by: 'start-yielded'}};
   }
+  // …AND THE OPENING THAT HAS NOT COME BACK YET: the workspace it lent the screen to still shows its outcome.
+  if ((f.startBehind ?? '') !== '' && owner.owner === 'start') {
+    return {asked: true, ...owner, hold: {kind: 'scene', by: `outcome:${f.startBehind}`}};
+  }
   // THE SCREEN IS BEING HANDED OVER to this very owner: what stands is the surface that is leaving (the measure's
   // second disagreement — the research buy the draft claims, with the sitting still on screen).
   if (f.handoff.includes(owner.owner as WorkspaceFrameKind)) {
@@ -295,6 +305,7 @@ export function questionFactsDigest(f: QuestionFacts): string {
     blocks.length > 0 ? `blocks [${blocks.join(',')}]` : '',
     f.scene !== '' ? `scene ${f.scene}` : '',
     f.lateral !== '' ? `lateral ${f.lateral}` : '',
+    (f.startBehind ?? '') !== '' ? `startBehind ${f.startBehind}` : '',
     ...(['client', 'startFlow', 'startYielded', 'effectDecision', 'draftFrame', 'draftClaims', 'resolutionDraw', 'aside', 'boardBranch', 'claimHeld'] as const).filter((k) => f[k]),
   ].filter((part) => part !== '').join(' · ');
 }

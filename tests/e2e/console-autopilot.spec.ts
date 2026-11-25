@@ -124,7 +124,7 @@ function tableOf(n: number): {config: Record<string, unknown>, word: string} {
 
 type Wire = {
   game: {phase: string, generation: number, gameAge: number},
-  waitingFor?: {type: string, promptId?: number, options?: Array<{type: string, warnings?: Array<string>}>},
+  waitingFor?: {type: string, promptId?: number, bonusActionPrompt?: unknown, options?: Array<{type: string, warnings?: Array<string>}>},
 };
 
 /** The keys of the pad as the key bridge maps them — by the glyph the bar prints. */
@@ -307,7 +307,7 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     }
   };
 
-  let standing: {promptId: number | undefined, type: string, menu: boolean, presses: number, budget: number, byApi: boolean, intent: Array<string>, intentful: boolean} | undefined;
+  let standing: {promptId: number | undefined, type: string, menu: boolean, bonus: boolean, presses: number, budget: number, byApi: boolean, intent: Array<string>, intentful: boolean} | undefined;
   /** The menus of the game so far — the intents' rotation (seeded by the game's own number, so two games start apart). */
   let menus = Math.floor(g() * INTENTS.length);
   let moved = {age: -1, at: Date.now()};
@@ -344,10 +344,15 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       const menu = wf.type === 'or' && (wf.options ?? []).some((o) => o.type === 'option' && o.warnings?.includes('pass') === true);
       // (Pilot 2: three menus in four have an INTENT — the turn goes to one section and plays there; the budget is
       // then never shorter than the way in and a few presses inside.)
-      const intentful = PILOT >= 2 && menu && g() < 0.75;
+      // A BONUS ACTION's MENU (the server's marker — «Фора»'s two actions, a card's granted one) is an action menu
+      // with NO PASS: the player must act. The pilot read it as a question the screen does not answer and thumbed
+      // the board for forty-five presses until the door acted for it (the third hundred's game 906). It is a turn
+      // like any other — always with an intent, and a second one when the first led nowhere.
+      const bonus = PILOT >= 2 && wf.type === 'or' && !menu && wf.bonusActionPrompt !== undefined;
+      const intentful = PILOT >= 2 && (bonus || (menu && g() < 0.75));
       const intent = intentful ? [...INTENTS[menus++ % INTENTS.length].keys] : [];
-      const budget = menu ? (g() < (intentful ? 0.05 : 0.18) ? 0 : (intentful ? 9 : 4) + Math.floor(g() * 23)) : 45;
-      standing = {promptId: wf.promptId, type: wf.type, menu, presses: 0, budget, byApi: false, intent: budget > 0 ? intent : [], intentful: intentful && budget > 0};
+      const budget = bonus ? 60 : menu ? (g() < (intentful ? 0.05 : 0.18) ? 0 : (intentful ? 9 : 4) + Math.floor(g() * 23)) : 45;
+      standing = {promptId: wf.promptId, type: wf.type, menu, bonus, presses: 0, budget, byApi: false, intent: budget > 0 ? intent : [], intentful: intentful && budget > 0};
       if (standing.intent.length > 0) {
         log.push(`[INTENT ${INTENTS[(menus - 1) % INTENTS.length].name}]`);
       }
@@ -489,6 +494,11 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     // a question the HOME could not serve either.)
     if (!standing.menu && standing.presses === Math.floor(standing.budget / 2)) {
       await walkHome(false);
+      if (standing.bonus) {
+        // (…and a bonus action that found nothing to do where it went goes SOMEWHERE ELSE.)
+        standing.intent = [...INTENTS[menus++ % INTENTS.length].keys];
+        log.push(`[INTENT ${INTENTS[(menus - 1) % INTENTS.length].name}]`);
+      }
     }
     const seen = await look(page);
     stood = `${seen.frames.join('>') || '-'}${seen.zoom ? '+ZOOM' : ''}${seen.quick ? '+WHEEL' : ''}|${wf.type}#${wf.promptId ?? ''}|${seen.bar.slice(0, 80)}`;
@@ -507,7 +517,7 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       await press((['Enter', 'Enter', 'ArrowDown', 'KeyX'] as const)[standing.presses % 4], pause());
       continue;
     }
-    await press(pilotPick(seen, g, lastKey, standing.menu ? standing.intentful : standing.presses >= Math.floor(standing.budget / 2)), pause());
+    await press(pilotPick(seen, g, lastKey, standing.menu || standing.bonus ? standing.intentful : standing.presses >= Math.floor(standing.budget / 2)), pause());
   }
   if (played.phase === 'end') {
     // THE FINALE: the ceremony's screens are the page's own — pressed through like everything else.
