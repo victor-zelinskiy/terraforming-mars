@@ -15,7 +15,9 @@
  * presentation facts the console already keeps (never a clock, never a title):
  *
  *   · `board-story`     — the board's own scene (a landing, a reward wave, a scale story, the camera);
- *   · `remote-landing`  — another seat's tile owed to this board (queued, waiting, or flying);
+ *   · `remote-landing`  — another seat's tile owed to this board (queued, waiting, or flying) — one that waits behind
+ *                         the player's own screen is HANDED OVER by the wait (shown without its flight at once: the
+ *                         transition takes the stage it was waiting for — `handRemoteLandingsOver`), never waited for;
  *   · `reveal`          — a drawn batch the player has not TAKEN yet (standing, pending, or parked — a parked one
  *                         presents once its park drains; the next screen must not bury it);
  *   · `card-arrival`    — cards physically arriving: the deck search, a card on its way into the dock;
@@ -46,7 +48,7 @@ import {owePresentation} from '@/client/console/presentationLedger';
 import {probeTick} from '@/client/console/probeTick';
 import {isResourceTransferActive} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {boardStorySettling} from '@/client/console/rewardPayoutQuiet';
-import {remoteLandingOwed} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {handRemoteLandingsOver, remoteLandingOwed} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {deferredGenerationFlipOwed} from '@/client/console/generationScene/deferredGenerationFlip';
 
 export type ScreenHandoffReason =
@@ -156,6 +158,7 @@ export function waitScreenHandoff(
   const alive = opts?.alive ?? (() => true);
   const started = Date.now();
   let lastReasons: Array<ScreenHandoffReason> = [];
+  const waitsForLandings = (opts?.only === undefined || opts.only.includes('remote-landing')) && opts?.ignoreReasons?.includes('remote-landing') !== true;
   const story = owePresentation({
     id: `screen-handoff:${id}`,
     ready: () => false, // the wait polls itself — the story is the diagnostic record, never a redrive
@@ -173,6 +176,13 @@ export function waitScreenHandoff(
         node?.end();
         done('dead');
         return;
+      }
+      // A LANDING THAT WAITS BEHIND THE PLAYER's OWN SCREEN is handed over, never waited for: this transition takes
+      // the stage it was waiting for, so it shows without its flight now (`handRemoteLandingsOver`) and the wait below
+      // is the queue's own tick. Only a caller that waits for landings at all hands them over — a door into the
+      // sitting does not (`PARLIAMENT_DOOR_REASONS`): the sitting tells them itself.
+      if (waitsForLandings) {
+        handRemoteLandingsOver();
       }
       lastReasons = screenHandoffReasons(opts);
       if (lastReasons.length === 0) {

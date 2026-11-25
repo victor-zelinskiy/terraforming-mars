@@ -60,6 +60,14 @@ export type CeilingWait = {
    * the day, 2026-11-19 — `wg-project-short-deck`). The ceiling line names the bound the wait ended on.
    */
   bound: (maxMs: number) => void,
+  /**
+   * THE WAIT IS THE PLAYER's FOR NOW (`why` — what of theirs it stands behind) — or no longer (`undefined`). While it
+   * is, the node waits on the PLAYER and carries no bound: the caller's own clock does not run (a foreign tile behind
+   * the viewer's own screen — `boardCoverWitness.boardWaitClock`), and a node left on its motion's bound would be named
+   * «overdue» over a player reading their hand. Back on its own clock the node's bound is the wait's bound PLUS the
+   * time that was the player's — the graph judges a node by its age.
+   */
+  heldByPlayer: (why: string | undefined, now?: number) => void,
 };
 
 /** Evidence (`__conWaitGraph().ceilings`): how many waits met their thing, how many ended on the ceiling, the last ones. */
@@ -81,6 +89,8 @@ export function beginCeilingWait(spec: CeilingWaitSpec, now: number = Date.now()
   let open = true;
   let detail = spec.detail;
   let boundMs = spec.maxMs;
+  let playersSince: number | undefined;
+  let playersMs = 0;
   // A MOTION'S BOUND IS JUDGED AGAINST THE FRAMES THE PAGE PAINTED (`kernel/frameWitness.ts`): a page that does not
   // paint — hidden, behind another window, starved — cannot end a motion, and its ceiling is the wait's honest end.
   const painted = (spec.target ?? 'motion') === 'motion' ? watchFrames() : undefined;
@@ -131,7 +141,22 @@ export function beginCeilingWait(spec: CeilingWaitSpec, now: number = Date.now()
     bound: (maxMs) => {
       if (open && maxMs !== boundMs) {
         boundMs = maxMs;
-        node.update({boundMs: maxMs});
+        if (playersSince === undefined) {
+          node.update({boundMs: maxMs + playersMs});
+        }
+      }
+    },
+    heldByPlayer: (why, at = Date.now()) => {
+      if (!open || (why !== undefined) === (playersSince !== undefined)) {
+        return;
+      }
+      if (why !== undefined) {
+        playersSince = at;
+        node.update({targets: [{kind: 'player', what: why}], boundMs: undefined});
+      } else {
+        playersMs += at - (playersSince ?? at);
+        playersSince = undefined;
+        node.update({targets: [{kind: spec.target ?? 'motion', what: spec.what}], boundMs: boundMs + playersMs});
       }
     },
   };

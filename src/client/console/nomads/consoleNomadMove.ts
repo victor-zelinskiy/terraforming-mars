@@ -73,7 +73,7 @@ import {
 } from '@/client/console/tilePlacement/adjacencyPayoutBeat';
 import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel';
 import {boardCovered, boardCoverTerms} from '@/client/console/tilePlacement/consoleRemotePlacement';
-import {watchBoardCover} from '@/client/console/boardCoverWitness';
+import {BOARD_OFF_SCREEN_TERM, boardWaitClock, watchBoardCover} from '@/client/console/boardCoverWitness';
 import {PlacementBonus, TileRect, findSpace} from '@/client/console/tilePlacement/tilePlacementModel';
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
@@ -822,7 +822,11 @@ function awaitWatchableBoard(myEpoch: number): Promise<void> {
   if (!boardCovered()) {
     return Promise.resolve();
   }
-  const deadline = Date.now() + NOMAD_BOARD_WAIT_MAX_MS;
+  // THE WAIT's CLOCK RUNS ONLY WHILE THE BOARD COULD SHOW THE HOP (the landing law — `boardCoverWitness.boardWaitClock`,
+  // the tiles' twin in `consoleRemotePlacement`): behind the viewer's own workspace the camp waits for its stage,
+  // however long, and is carried when the board is back — never «landed without its flight» under a hand being read.
+  const clock = boardWaitClock(Date.now());
+  let stoodMs = 0;
   // The wait has to wait: a node of the wait graph, its ceiling ending it said (`ceilingWait.ts`).
   const wait = beginCeilingWait({
     id: 'nomad-move:watchable-board', owner: 'consoleNomadMove', what: 'an uncovered board for the remote nomad move', maxMs: NOMAD_BOARD_WAIT_MAX_MS,
@@ -834,10 +838,14 @@ function awaitWatchableBoard(myEpoch: number): Promise<void> {
   return new Promise<void>((done) => {
     const poll = () => {
       const covered = boardCovered();
+      const terms = covered ? boardCoverTerms() : [];
+      const behind = terms.includes(BOARD_OFF_SCREEN_TERM);
+      stoodMs = clock.look(behind, Date.now());
       if (covered) {
-        wait.update(cover.look(boardCoverTerms(), Date.now()));
+        wait.update(cover.look(terms, Date.now()));
+        wait.heldByPlayer(behind ? 'the board back from behind their own screen' : undefined);
       }
-      if (remoteEpoch !== myEpoch || !covered || Date.now() > deadline) {
+      if (remoteEpoch !== myEpoch || !covered || stoodMs > NOMAD_BOARD_WAIT_MAX_MS) {
         if (remoteEpoch !== myEpoch) {
           wait.end();
         } else if (!covered) {

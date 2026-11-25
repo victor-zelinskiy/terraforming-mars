@@ -26,6 +26,7 @@
  * (a static chain reaching a webpack-chunk consumer would silently zero
  * mochapack spec files; the menu-safe half lives in `inputEcho.ts` alone).
  */
+import {remoteLandingBehindScreen, remotePlacementState} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {activeAnimationHoldLabels} from '@/client/components/presentation/animationHold';
 import {transportDiagFacts} from '@/client/console/transport/gameTransport';
 import {stackYieldedToBoard, workspaceStackDepth, workspaceStackState} from '@/client/console/consoleWorkspaceStack';
@@ -98,6 +99,11 @@ export type ConsoleReadinessSnapshot = {
    */
   scaleStory: {camera: string, storyReady: boolean, draining: boolean, held: string, rating: string,
     owed: Array<{id: string, ageMs: number, why: string, waitsOn?: string}>};
+  /**
+   * ANOTHER SEAT's LANDING owed to this board: queued · on stage · parked for the board · and parked BEHIND the
+   * viewer's own screen (its clock stands — `consoleRemotePlacement.remoteLandingBehindScreen`).
+   */
+  remoteLanding: {queued: number, active: boolean, waiting: boolean, behind: boolean};
   at: number;
 };
 
@@ -131,6 +137,10 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
       draining: boardBeatParkState.draining, held: Object.keys(boardBeatParkState.heldParams ?? {}).join(','),
       rating: scaleStepRatingState.phase,
       owed: presentationLedgerSnapshot().stories.map((s) => ({id: s.id, ageMs: s.ageMs, why: s.why, ...(s.waitsOn !== undefined ? {waitsOn: s.waitsOn} : {})})),
+    },
+    remoteLanding: {
+      queued: remotePlacementState.queued, active: remotePlacementState.active, waiting: remotePlacementState.waitingForBoard,
+      behind: remoteLandingBehindScreen(),
     },
     at: Date.now(),
   };

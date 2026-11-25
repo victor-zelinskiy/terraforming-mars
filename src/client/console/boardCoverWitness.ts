@@ -38,6 +38,50 @@ export const GAME_ONLY_TAIL_MS = 5000;
  */
 export const SELF_BOUNDED_COVERS: ReadonlyMap<string, number> = new Map([['sitting-rise', 15_000]]);
 
+/**
+ * THE COVER THAT TAKES THE BOARD OFF THE SCREEN — the player's own workspace. (A reveal's band is the player's time
+ * too, but it stands OVER a board in view: a tile held hidden under it is a lie the player can see, and stays bounded.)
+ */
+export const BOARD_OFF_SCREEN_TERM = 'workspace';
+
+/**
+ * THE CLOCK OF A WAIT FOR THE BOARD — it runs only while the board could have shown the thing (the story law, the
+ * owner's bar of 2026-11-25: «the nets are insurance»). A tile of another seat waits for a board the player can see;
+ * while the player's own screen stands over the board nothing can be shown and nobody is lied to — the board is not on
+ * screen, every instrument outside it reads the applied view — so that time is the PLAYER's and the wait's ceiling
+ * does not count it. The ceiling stays for what it was written for: a board in view that the game's own scenes keep.
+ *
+ * `look(behind, now)` — one look of the wait; `behind`: the board is behind the player's own screen right now. The
+ * span since the previous look belongs to the state that stood THROUGH it (the previous look's). Returns the time the
+ * wait has stood on its own clock.
+ */
+export type BoardWaitClock = {
+  look: (behind: boolean, now: number) => number,
+  /** The time that was the player's own — behind their screen. */
+  behindMs: () => number,
+};
+
+export function boardWaitClock(started: number): BoardWaitClock {
+  let last = started;
+  let own = 0;
+  let behindTotal = 0;
+  let wasBehind = false;
+  return {
+    look: (behind, now) => {
+      const span = Math.max(0, now - last);
+      if (wasBehind) {
+        behindTotal += span;
+      } else {
+        own += span;
+      }
+      last = now;
+      wasBehind = behind;
+      return own;
+    },
+    behindMs: () => behindTotal,
+  };
+}
+
 export type BoardCoverWitness = {
   /** One look of the wait: the terms that cover the board right now. Returns the wait's detail (what holds it). */
   look: (terms: ReadonlyArray<string>, now: number) => string,

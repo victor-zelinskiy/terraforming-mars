@@ -5,8 +5,10 @@ import {SpaceId} from '@/common/Types';
 import {TileType} from '@/common/TileType';
 import {TileMoveRecordModel} from '@/common/boards/TileMove';
 import {
-  abortRemotePlacements, isRemotePlacementActive, remoteLandingOwed, remotePlacementState, stageRemotePlacements,
+  abortRemotePlacements, handRemoteLandingsOver, isRemotePlacementActive, remoteLandingBehindScreen, remoteLandingOwed, remotePlacementState,
+  stageRemotePlacements,
 } from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {collectWaitNodes} from '@/client/console/waitGraph/waitGraph';
 import {resetTileMoveClaims} from '@/client/console/tilePlacement/tileMoveRecords';
 import {clearRemoteRevealHolds, isRemoteRevealHeld} from '@/client/console/tilePlacement/remoteRevealHold';
 import {
@@ -146,6 +148,99 @@ describe('a remote board queue — the hold is for the scene, never for the wait
     expect(remotePlacementState.active, 'a degraded landing never stood a stage up').is.false;
     expect(owed.value, 'the cached «owed» fell with the drain — no placement is held for a landing that is over').is.false;
     expect(seen[seen.length - 1], 'and its watchers were told').eq(false);
+  });
+
+  /*
+   * THE LANDING LAW (FREEZE ZERO, stage 6 — «like a clock, not on its nets», 2026-11-25). The wait for the board had
+   * twenty seconds of the WALL: a tile of another seat placed while the player read their hand was «revealed without
+   * its flight» under that hand — fifteen such lines in thirty-eight whole games, each filed «planned». The wait's
+   * clock runs only while the board could show the landing; behind the player's own screen it waits for the player.
+   */
+  describe('the landing waits for the board — behind the screen of the player its clock does not run', () => {
+    const warns: Array<string> = [];
+    const realWarn = console.warn;
+    const realNow = Date.now;
+    /** The wall jumps (the module reads `Date.now`; the kernel's timers stay real, so the polls go on). */
+    let jumped = 0;
+    const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+    beforeEach(() => {
+      warns.splice(0);
+      jumped = 0;
+      console.warn = (...args: Array<unknown>) => warns.push(args.map(String).join(' '));
+      Date.now = () => realNow() + jumped;
+    });
+    afterEach(() => {
+      console.warn = realWarn;
+      Date.now = realNow;
+    });
+    const ceilings = (): Array<string> => warns.filter((line) => line.includes('[wait-graph] ceiling'));
+    const node = () => collectWaitNodes(Date.now()).find((n) => n.id.startsWith('ceiling:remote-placement:watchable-board#'));
+
+    it('five minutes in a workspace: the tile is still held for its flight, the node waits on the PLAYER — and the board, back, gets its landing', async () => {
+      enterWorkspace('card-actions');
+      stageRemotePlacements([space('41')], [space('41', {tileType: TileType.GREENERY, color: 'blue'})], {gamePhase: 'action'});
+      await until(() => remotePlacementState.waitingForBoard && node() !== undefined, 'the landing parked behind the workspace');
+      expect(remoteLandingBehindScreen(), 'it waits behind the screen of the player').is.true;
+      await until(() => node()?.targets[0]?.kind === 'player', 'the node says on whom it waits');
+      expect(node()?.boundMs, 'and carries no clock').eq(undefined);
+
+      jumped += 5 * 60_000;
+      await pause(450); // (three looks of the wait past the jump)
+      expect(remotePlacementState.waitingForBoard, 'five minutes later it still waits').is.true;
+      expect(isRemoteRevealHeld('41'), 'the tile is still held for its flight').is.true;
+      expect(ceilings(), 'no ceiling ended it').deep.eq([]);
+      expect(isRemotePlacementActive(), 'and the wait holds nothing').is.false;
+
+      resetWorkspaceStack();
+      await until(() => !isRemoteRevealHeld('41'), 'the board is back: the landing ran (degraded here: no stage in JSDOM)');
+      await until(() => !remotePlacementState.draining, 'the drain ended');
+      expect(ceilings(), 'told on the board, never ended by a clock').deep.eq([]);
+    });
+
+    it('a landing on a board in view is behind no screen — there is nothing to hand over', async () => {
+      stageRemotePlacements([space('42')], [space('42', {tileType: TileType.GREENERY, color: 'blue'})], {gamePhase: 'action'});
+      expect(remoteLandingBehindScreen(), 'a board in view: nothing is behind a screen').is.false;
+      expect(handRemoteLandingsOver(), 'and there is nothing to hand over').is.false;
+      await until(() => !isRemoteRevealHeld('42'), 'the landing resolved');
+      await until(() => !remotePlacementState.draining, 'the drain ended');
+    });
+
+    it('NOMADS, the same law: five minutes in a workspace and the camp still waits to be carried — the board, back, gets the hop', async () => {
+      teardowns.push(boardCell('61', {x: 100, y: 100}), boardCell('62', {x: 160, y: 100}));
+      enterWorkspace('card-actions');
+      stageRemoteNomadMove([space('61', {nomads: true}), space('62')], [space('61'), space('62', {nomads: true})]);
+      await until(() => nomadMoveState.remoteWaiting, 'the hop parked behind the workspace');
+
+      jumped += 5 * 60_000;
+      await pause(450); // (three looks of the wait past the jump)
+      expect(nomadMoveState.remoteWaiting, 'five minutes later it still waits').is.true;
+      expect(nomadCellHidden('62'), 'the camp has not landed unseen').is.true;
+      expect(ceilings(), 'no ceiling ended it').deep.eq([]);
+      expect(isRemoteNomadMoveActive(), 'and the wait holds nothing').is.false;
+
+      resetWorkspaceStack();
+      await until(() => !nomadMoveState.remoteWaiting && !nomadCellHidden('62'), 'the board is back: the hop resolved');
+      expect(ceilings(), 'carried on the board, never ended by a clock').deep.eq([]);
+    });
+
+    it('THE SCREEN IS HANDED OVER: every landing parked behind the workspace shows at once, no ceiling — the queue is done in a tick', async () => {
+      enterWorkspace('hand');
+      stageRemotePlacements([space('43'), space('44')],
+        [space('43', {tileType: TileType.GREENERY, color: 'blue'}), space('44', {tileType: TileType.CITY, color: 'blue'})], {gamePhase: 'action'});
+      await until(() => remotePlacementState.waitingForBoard, 'the first landing parked behind the hand');
+      expect(isRemoteRevealHeld('43') && isRemoteRevealHeld('44'), 'both tiles are held').is.true;
+
+      expect(handRemoteLandingsOver(), 'the transition hands them over').is.true;
+      await until(() => !isRemoteRevealHeld('43') && !isRemoteRevealHeld('44'), 'both show without their flights');
+      await until(() => !remoteLandingOwed(), 'nothing is owed any more — the transition goes on');
+      expect(ceilings(), 'an event ended the wait, not its ceiling').deep.eq([]);
+      // …and the next landing, on a board in view again, is not «handed over» by a flag left behind.
+      resetWorkspaceStack();
+      stageRemotePlacements([space('45')], [space('45', {tileType: TileType.GREENERY, color: 'blue'})], {gamePhase: 'action'});
+      expect(handRemoteLandingsOver()).is.false;
+      await until(() => !isRemoteRevealHeld('45'), 'it resolved on the board');
+      await until(() => !remotePlacementState.draining, 'the drain ended');
+    });
   });
 
   it('NOMADS: the second hop parks for a covered board holding NOTHING — the first hop\'s proxy is off the stage', async () => {

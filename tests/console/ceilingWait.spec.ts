@@ -79,6 +79,29 @@ describe('ceilingWait — a ceiling is a node, and a ceiling hit is said', () =>
     expect(collectWaitNodes(300)).to.deep.eq([]);
   });
 
+  /*
+   * THE WAIT IS THE PLAYER's FOR A WHILE (the landing law, 2026-11-25): a foreign tile behind the viewer's own screen
+   * waits for the player, on no clock. The node says so — and back on its own clock its bound has grown by the time
+   * that was theirs, since the graph judges a node by its age.
+   */
+  it('a wait held by the PLAYER waits on the player with no bound; back on its clock the bound carries the time that was theirs', () => {
+    const w = beginCeilingWait({id: 'remote-placement:watchable-board', owner: 'consoleRemotePlacement', what: 'a board free for the landing', maxMs: 20_000}, 1_000);
+    const node = () => collectWaitNodes(2_000).find((n) => n.id.startsWith('ceiling:remote-placement:watchable-board#'));
+    w.heldByPlayer('the board back from behind their own screen', 3_000);
+    expect(node()?.boundMs, 'no clock behind the screen of the player').to.eq(undefined);
+    expect(node()?.targets).to.deep.eq([{kind: 'player', what: 'the board back from behind their own screen'}]);
+    w.heldByPlayer('the board back from behind their own screen', 9_000); // (said again: nothing moves)
+    w.bound(60_000);
+    expect(node()?.boundMs, 'a bound moved meanwhile waits for the clock of the wait').to.eq(undefined);
+    w.heldByPlayer(undefined, 303_000); // five minutes in the hand
+    expect(node()?.targets).to.deep.eq([{kind: 'motion', what: 'a board free for the landing'}]);
+    expect(node()?.boundMs, 'the bound of the wait, and the five minutes that were the time of the player').to.eq(60_000 + 300_000);
+    w.bound(20_000);
+    expect(node()?.boundMs).to.eq(20_000 + 300_000);
+    w.met();
+    expect(warns).to.deep.eq([]);
+  });
+
   it('a ceiling hit is said ONCE with who waited and for what, counted, and the node is gone', () => {
     const w = beginCeilingWait({id: 'scale-swing:stage', owner: 'scaleSwing', what: 'a watchable stage', maxMs: 6_000, detail: 'temperature'});
     w.ceiling();

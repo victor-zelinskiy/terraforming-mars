@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {GAME_ONLY_TAIL_MS, SELF_BOUNDED_COVERS, watchBoardCover} from '@/client/console/boardCoverWitness';
+import {BOARD_OFF_SCREEN_TERM, GAME_ONLY_TAIL_MS, PLAYER_COVER_TERMS, SELF_BOUNDED_COVERS, boardWaitClock, watchBoardCover} from '@/client/console/boardCoverWitness';
 import {SITTING_RISE_NET_MS} from '@/client/console/parliament/sittingRise';
 
 /*
@@ -102,5 +102,38 @@ describe('boardCoverWitness — whose time a covered board was', () => {
       past.look(['sitting-rise'], t);
     }
     expect(past.verdict(20_000).planned, 'a rise that outlived its own net is a leak').to.eq(undefined);
+  });
+});
+
+/*
+ * THE CLOCK OF A WAIT FOR THE BOARD (the landing law, 2026-11-25). A tile of another seat waited twenty seconds of
+ * the WALL for a board the player can see, and was then «revealed without its flight» — fifteen such lines in
+ * thirty-eight whole games, each of them under a hand the player was reading. The clock runs only while the board
+ * could have shown the landing.
+ */
+describe('boardWaitClock — the wait ages only while the board could show the thing', () => {
+  it('five minutes behind the screen of the player: the wait has not aged', () => {
+    const clock = boardWaitClock(0);
+    let stood = 0;
+    for (let t = 0; t <= 300_000; t += 100) {
+      stood = clock.look(true, t);
+    }
+    expect(stood).to.eq(0);
+    expect(clock.behindMs(), 'all of it was the time of the player').to.eq(300_000);
+  });
+
+  it('the time in view adds up across the screens between: eight seconds, a minute in the hand, thirteen more — past the twenty', () => {
+    const clock = boardWaitClock(1_000);
+    expect(clock.look(false, 1_000)).to.eq(0);
+    expect(clock.look(true, 9_000), 'eight seconds under a scene of the game').to.eq(8_000);
+    expect(clock.look(true, 39_000), 'in the hand').to.eq(8_000);
+    expect(clock.look(false, 69_000), 'the hand closed at this look — the span before it was still its own').to.eq(8_000);
+    expect(clock.look(false, 82_000)).to.eq(21_000);
+    expect(clock.behindMs()).to.eq(60_000);
+  });
+
+  it('the screen that takes the board away is the workspace of the player — the band of a reveal leaves it in view', () => {
+    expect(BOARD_OFF_SCREEN_TERM).to.eq('workspace');
+    expect(PLAYER_COVER_TERMS.has(BOARD_OFF_SCREEN_TERM), 'and it is one of the covers of the player').to.eq(true);
   });
 });

@@ -2272,6 +2272,33 @@ in how the passes are read:
      pass's one «door» record). It reads the server's marker now (`bonusActionPrompt`): a turn with an intent, and a
      second one when the first led nowhere.
   The count goes on from the build that holds both, under pilot 2.
+- **THE LANDING LAW — the second «planned» class goes the way of the first.** `wait-graph/ceiling/remote-placement:
+  watchable-board`: fifteen lines in those thirty-eight games (forty-four in the second hundred), every one «planned:
+  the viewer kept the board covered by workspace — the tile is revealed without its flight». What the player had:
+  another seat places a tile while they read their hand; twenty seconds of the WALL later the tile is simply there —
+  it never arrived — and an automatic transition (the generation's scene, the draft's door, the finale) that came in
+  those twenty seconds WAITED for a landing nobody could be shown. The law now, the story law's twin:
+  - **the wait's clock runs only while the board could show the landing** (`boardCoverWitness.boardWaitClock` — pure;
+    `consoleRemotePlacement.watchableBoardAfterTick`). Behind the player's own workspace the tile waits for its stage
+    however long, and flies when the board is back; the node of the wait graph says it waits on the PLAYER, with no
+    bound (`CeilingWait.heldByPlayer`), and carries the wait's bound plus the player's time once it is on its own
+    clock again. The ceiling stays for what it was written for — a board IN VIEW kept by the game's own scenes (a
+    wave, the played card, a reveal's band: a hidden tile there is a lie the player can see) and a sitting that
+    promised to yield (`boardWaitKeeper`, sixty seconds).
+  - **an EVENT ends the wait behind a screen, never a clock:** the board coming back — or the screen HANDED OVER.
+    `waitScreenHandoff` hands the parked landings over on its first look (`handRemoteLandingsOver`): they show
+    without their flight at once, and the transition waits the queue's own tick. A door that does not wait for
+    landings (the sitting's — `PARLIAMENT_DOOR_REASONS`) does not hand them over: the sitting tells them itself.
+  - **what did not change:** the truth is on every instrument at once; a placement of the viewer's own still takes
+    the board for a foreign landing first (`placementTakesBoardForLanding` — the block `remote-landing` exists only
+    over a board in view, so its twenty seconds are honest).
+  Proof: `tests/e2e/console-remote-landing-waits.spec.ts` (two seats; red plants a greenery over the API while blue
+  stands in the hand — twenty-four seconds later the tile is still held and the landing «behind», B brings the board,
+  the proxy takes the stage, the tile stands; no ceiling line). Unit: the clock's rows, the node's, five minutes in a
+  workspace on a jumped wall, the hand-over (both tiles of a queue in a tick; the next landing not «handed over» by a
+  flag left behind), the handoff's two rows. The nomads' remote hop is on the same clock (`consoleNomadMove.awaitWatchableBoard` — the
+  tiles' twin; its own unit row). **Still on the wall's clock:** the scale step's rating held on the RAIL — an
+  INSTRUMENT in view, so the answer there is not «wait longer» (see below when it is taken up).
 
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick

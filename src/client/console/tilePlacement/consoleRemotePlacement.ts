@@ -79,7 +79,7 @@ import {TileMoveRecordModel} from '@/common/boards/TileMove';
 import {SpaceId} from '@/common/Types';
 import {probeTick} from '@/client/console/probeTick';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
-import {watchBoardCover} from '@/client/console/boardCoverWitness';
+import {BOARD_OFF_SCREEN_TERM, boardWaitClock, watchBoardCover} from '@/client/console/boardCoverWitness';
 import {flowClock} from '@/client/console/kernel/flowClock';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {
@@ -151,9 +151,16 @@ export const REMOTE_STAGE_SAFETY_MS = 15000;
  * workspace folds the tile is simply THERE — the placement never happened as
  * far as the player is concerned.
  *
- * So the landing waits for the board instead. Bounded, because a hidden tile
- * is a worse lie than a missed animation: a player who parks a workspace and
- * walks away must still find their city on the map.
+ * So the landing waits for the board instead. Bounded WHILE THE BOARD IS IN
+ * VIEW, because a hidden tile there is a worse lie than a missed animation: a
+ * board the game's own scenes keep (a wave, a reveal's band, the played card)
+ * must still show the city on the map.
+ *
+ * …AND ON NO CLOCK BEHIND THE PLAYER's OWN SCREEN (the landing law, 2026-11-25
+ * — `watchableBoardAfterTick`): there the board is not on screen and the held
+ * cell lies to nobody, so the time is the player's and the tile flies when the
+ * board is back. What ends such a wait is an EVENT — the board, or a screen
+ * handed over (`handRemoteLandingsOver`).
  */
 const BOARD_WAIT_MAX_MS = 20000;
 
@@ -165,6 +172,9 @@ const BOARD_WAIT_MAX_MS = 20000;
 const BOARD_WAIT_KEPT_MAX_MS = 60000;
 
 let boardWaitKeeper: (() => boolean) | undefined;
+
+/** The screen was handed over while a landing waited behind the player's own (`handRemoteLandingsOver`). */
+let handedOver = false;
 
 /** A surface that will yield the board for an owed landing says so here (one keeper — the sitting's world beat). */
 export function registerRemoteBoardWaitKeeper(keeper: (() => boolean) | undefined): void {
@@ -884,6 +894,7 @@ export function abortRemotePlacements(): void {
   dropVpClaim(REMOTE_TILE_VP_OWNER);
   remoteVpCells = [];
   clearRemoteRevealHolds(); // belt-and-braces: nothing may stay hidden
+  handedOver = false;
   setDraining(false);
   remotePlacementState.waitingForBoard = false;
   clearRemoteStage();
@@ -958,6 +969,7 @@ async function drainQueue(): Promise<void> {
     }
   } finally {
     if (epoch === myEpoch) {
+      handedOver = false;
       setDraining(false);
       clearRemoteStage();
       clearStageSafety();
@@ -1763,6 +1775,33 @@ function ownPlacementStoryTerms(): Array<string> {
   return terms;
 }
 
+/**
+ * THE BOARD IS BEHIND THE PLAYER's OWN SCREEN — a workspace stands over it, and no surface has promised to step aside
+ * for this very landing (the sitting's world beat — `boardWaitKeeper`: that wait is the sitting's walk, on its clock).
+ */
+function boardBehindPlayersScreen(): boolean {
+  return boardWaitKeeper?.() !== true && boardCoverTerms().includes(BOARD_OFF_SCREEN_TERM);
+}
+
+/** A landing waits behind the player's own screen right now — its clock stands, and nothing waits for it. */
+export function remoteLandingBehindScreen(): boolean {
+  return remotePlacementState.waitingForBoard && boardBehindPlayersScreen();
+}
+
+/**
+ * THE SCREEN IS BEING HANDED OVER (`screenHandoff.waitScreenHandoff` — an automatic transition that waits for the
+ * landings owed to this board): the ones that still wait behind the player's own screen have lost their stage — the
+ * next screen takes it. They are shown without their flight NOW (the queue's own degrade), so the transition waits a
+ * tick for them, never their ceiling. A landing on a board in view is not touched: it is being told. Idempotent.
+ */
+export function handRemoteLandingsOver(): boolean {
+  if (!remoteLandingBehindScreen()) {
+    return false;
+  }
+  handedOver = true;
+  return true;
+}
+
 /** The board is no stage for another seat's landing yet: covered, or still the viewer's own placement's. */
 function boardBusyForRemote(): boolean {
   return boardCovered() || ownPlacementStoryLive();
@@ -1776,12 +1815,14 @@ function watchableBoardAfterTick(myEpoch: number): Promise<void> {
     return Promise.resolve();
   }
   parkForBoard();
-  const started = Date.now();
-  const deadline = started + BOARD_WAIT_MAX_MS;
-  const expired = (): boolean => {
-    const now = Date.now();
-    return now > deadline && (boardWaitKeeper?.() !== true || now > started + BOARD_WAIT_KEPT_MAX_MS);
-  };
+  // THE WAIT's CLOCK RUNS ONLY WHILE THE BOARD COULD SHOW THE LANDING (`boardCoverWitness.boardWaitClock` — the story
+  // law). Behind the player's own screen the tile waits for its stage, however long: the cell reads untouched to
+  // nobody (the board is not on screen), and the tile flies when the board is back — it is never «revealed without
+  // its flight» by a clock under a hand the player was reading (fifteen such lines in the thirty-eight whole games of
+  // 2026-11-25, each filed «planned»: a net doing on schedule what the flow did not know how to do).
+  const clock = boardWaitClock(Date.now());
+  let stoodMs = 0;
+  const expired = (): boolean => stoodMs > BOARD_WAIT_MAX_MS && (boardWaitKeeper?.() !== true || stoodMs > BOARD_WAIT_KEPT_MAX_MS);
   // The wait has to wait: a node of the wait graph, its ceiling ending it said (`ceilingWait.ts`).
   const wait = beginCeilingWait({
     id: 'remote-placement:watchable-board', owner: 'consoleRemotePlacement', what: 'a board free for the landing of another seat',
@@ -1794,13 +1835,23 @@ function watchableBoardAfterTick(myEpoch: number): Promise<void> {
   return new Promise<void>((done) => {
     const poll = () => {
       const busy = boardBusyForRemote();
+      const behind = busy && boardBehindPlayersScreen();
+      stoodMs = clock.look(behind, Date.now());
+      if (!behind) {
+        handedOver = false;
+      }
       if (busy) {
         wait.update(cover.look([...boardCoverTerms(), ...ownPlacementStoryTerms()], Date.now()));
         // (The node's bound is the wait's own at every look: kept while the keeper's promise stands — `expired`.)
         wait.bound(boardWaitKeeper?.() === true ? BOARD_WAIT_KEPT_MAX_MS : BOARD_WAIT_MAX_MS);
+        wait.heldByPlayer(behind ? 'the board back from behind their own screen' : undefined);
       }
-      if (epoch !== myEpoch || !busy || expired()) {
-        if (epoch !== myEpoch) {
+      // …AND AN EVENT ENDS IT THERE, never a clock: the screen is handed over (`handRemoteLandingsOver` — the
+      // generation's scene, the draft's door, the finale). The turn this landing belonged to is over; the tile shows
+      // without its flight, as it did at the ceiling — at once, and with nobody made to wait for it.
+      const handed = behind && handedOver;
+      if (epoch !== myEpoch || !busy || expired() || handed) {
+        if (epoch !== myEpoch || handed) {
           wait.end();
         } else if (!busy) {
           wait.met();

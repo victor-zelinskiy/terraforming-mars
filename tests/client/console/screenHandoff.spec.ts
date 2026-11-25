@@ -6,7 +6,11 @@ import {
 import {beginAnimationHold, resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
-import {remotePlacementState} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {abortRemotePlacements, remoteLandingOwed, remotePlacementState, stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {clearRemoteRevealHolds, isRemoteRevealHeld} from '@/client/console/tilePlacement/remoteRevealHold';
+import {enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
+import {SpaceModel} from '@/common/models/SpaceModel';
+import {TileType} from '@/common/TileType';
 import {presentationLedgerSnapshot, resetPresentationLedger} from '@/client/console/presentationLedger';
 import {PARLIAMENT_DOOR} from '@/client/console/parliament/parliamentDoorHandoff';
 import {openRulingChangePark, resetRulingChangeDraw} from '@/client/console/parliament/rulingChangeDraw';
@@ -138,6 +142,57 @@ describe('screenHandoff — what the player is still owed before the next screen
 
     drawnCardsState.events = [batch('own', {type: 'card', cardName: CardName.ALGAE})];
     expect(screenHandoffReasons(PARLIAMENT_DOOR), 'a card the player has not taken still holds the door').to.deep.eq(['reveal']);
+  });
+
+  /*
+   * THE LANDING LAW (2026-11-25): a tile of another seat that waits behind the player's own screen has no clock — and
+   * a transition that takes that screen does not wait for it either. It HANDS IT OVER: the tile shows without its
+   * flight now, and the transition waits the queue's own tick, never the landing's twenty seconds.
+   */
+  describe('a landing behind the screen of the player is handed over, never waited for', function() {
+    // eslint-disable-next-line no-invalid-this
+    this.timeout(10_000);
+    const cell = (id: string, over: Partial<SpaceModel> = {}): SpaceModel => ({id, x: 0, y: 0, spaceType: 'land', bonus: [], ...over}) as unknown as SpaceModel;
+    const parked = async (): Promise<void> => {
+      for (let i = 0; i < 400 && !remotePlacementState.waitingForBoard; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      expect(remotePlacementState.waitingForBoard, 'the landing parked behind the workspace').is.true;
+    };
+    afterEach(() => {
+      resetWorkspaceStack();
+      abortRemotePlacements();
+      clearRemoteRevealHolds();
+    });
+
+    it('the generation scene, the draft, the finale: QUIET in a tick, the tile on the board, nothing said', async () => {
+      const warns: Array<string> = [];
+      const warn = console.warn;
+      console.warn = (...args: Array<unknown>) => warns.push(args.map(String).join(' '));
+      try {
+        enterWorkspace('hand');
+        stageRemotePlacements([cell('51')], [cell('51', {tileType: TileType.GREENERY, color: 'blue'})], {gamePhase: 'action'});
+        await parked();
+        expect(screenHandoffReasons()).to.deep.eq(['remote-landing']);
+        const started = Date.now();
+        expect(await waitScreenHandoff('spec:generation')).eq('quiet');
+        expect(Date.now() - started, 'a tick of the queue — never the old twenty seconds').to.be.lessThan(5_000);
+        expect(isRemoteRevealHeld('51'), 'the tile shows').is.false;
+        expect(remoteLandingOwed()).is.false;
+        expect(warns.filter((line) => line.includes('[wait-graph] ceiling') || line.includes('[screen-handoff]')), 'no net fired').to.deep.eq([]);
+      } finally {
+        console.warn = warn;
+      }
+    });
+
+    it('a door that does not wait for landings does not hand them over — the sitting tells them itself', async () => {
+      enterWorkspace('hand');
+      stageRemotePlacements([cell('52')], [cell('52', {tileType: TileType.GREENERY, color: 'blue'})], {gamePhase: 'action'});
+      await parked();
+      expect(await waitScreenHandoff('spec:door', PARLIAMENT_DOOR)).eq('quiet');
+      expect(isRemoteRevealHeld('52'), 'the tile is still held for its flight').is.true;
+      expect(remotePlacementState.waitingForBoard).is.true;
+    });
   });
 
   it('a superseded transition resolves DEAD and never opens; the ceiling resolves DEGRADED, named', async () => {
