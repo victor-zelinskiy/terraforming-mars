@@ -302,7 +302,7 @@ describe('notificationState (lifecycle)', () => {
      * own «play a card» step unanswered for a minute and a half, its chain called a leak and its card released
      * half-told). A chain the server names as held only by a player's prompt is that player's time.
      */
-    it('a chain held ONLY by a player\'s prompt is not released at the ceiling — it is said, planned, once per ceiling; the answer releases it', () => {
+    it('a chain held ONLY by a player\'s prompt is not released at the ceiling — and nothing is said (the player\'s time is no event); the answer releases it', () => {
       const warns: Array<string> = [];
       const original = console.warn;
       console.warn = (...args: Array<unknown>) => warns.push(args.map(String).join(' '));
@@ -310,12 +310,9 @@ describe('notificationState (lifecycle)', () => {
         noteOpenCorrelationHolders([{id: 9, holder: 'prompt:projectCard@blue'}]);
         stashPreparing(model('g9', 'normal', {correlationId: 9}), 1000);
         expect(takePreparedModels(new Set([9]), 1000 + PREPARING_MAX_MS), 'the player is still asked: held').to.have.length(0);
-        expect(takePreparedModels(new Set([9]), 2000 + PREPARING_MAX_MS), 'and not said again a second later').to.have.length(0);
-        expect(warns.filter((w) => w.includes('correlation 9'))).to.have.length(1);
-        expect(warns[0]).to.contain('(planned: the chain waits for a player\'s answer — prompt:projectCard@blue)');
-        expect(causeOf(warns[0], 'warn')).to.deep.include({tier: 'planned'});
+        expect(takePreparedModels(new Set([9]), 2000 + PREPARING_MAX_MS), 'still held a second later').to.have.length(0);
         expect(takePreparedModels(new Set([9]), 1000 + 2 * PREPARING_MAX_MS), 'another ceiling of the player\'s thinking: held').to.have.length(0);
-        expect(warns.filter((w) => w.includes('correlation 9'))).to.have.length(2);
+        expect(warns.filter((w) => w.includes('correlation 9')), 'a player thinking is no line of the log').to.deep.equal([]);
         // The answer came: the chain closed, the card is released whole.
         expect(takePreparedModels(new Set(), 1000 + 2 * PREPARING_MAX_MS + 500)).to.have.length(1);
         // A prompt AND something else holding it is not the player's alone: the ceiling releases, by name.

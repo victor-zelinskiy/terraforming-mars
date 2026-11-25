@@ -1,6 +1,6 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
-import {answerPrompt, cinematicBeat, fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, soloGameConfig} from './consoleStart';
+import {answerPrompt, cinematicBeat, fetchPlayerModel, NO_PAYMENT, openConsole, seedGameOverApi, sendPlayerInput, soloGameConfig} from './consoleStart';
 
 /**
  * THE AUTOPILOT — A WHOLE GAME THROUGH THE REAL CONSOLE, IN A REAL BROWSER (FREEZE ZERO, stage 6 — «whole games and
@@ -142,9 +142,16 @@ type Wire = {
   game: {phase: string, generation: number, gameAge: number},
   waitingFor?: {
     type: string, promptId?: number, bonusActionPrompt?: unknown, title?: unknown, min?: number, max?: number, cards?: Array<unknown>,
-    options?: Array<{type: string, warnings?: Array<string>}>,
+    options?: Array<{type: string, warnings?: Array<string>, cards?: Array<{name: string, isDisabled?: boolean, calculatedCost?: number}>}>,
   } & Record<string, unknown>,
 };
+
+/**
+ * THE STANDARD PROJECTS THAT TERRAFORM — what the rival seat plays when it can afford one: a duo table whose rival
+ * only took the menu's first branch or passed did not terraform, and stood for 28 generations until the press budget
+ * capped it (CI's autopilot, game 52). The table must reach its end for the walk to see the whole game.
+ */
+const TERRAFORMING_SP: ReadonlyArray<string> = ['Asteroid:SP', 'Aquifer', 'Greenery', 'Air Scrapping'];
 
 /** The keys of the pad as the key bridge maps them — by the glyph the bar prints. */
 const GLYPH_KEY: Readonly<Record<string, string>> = {
@@ -346,6 +353,12 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         // The answers to try, in order: a pass now and then, the harness's own answer, and — for a menu — every plain
         // option of it (an «end», a «skip», a «do nothing»): a seat must never stand on a question it cannot answer.
         const tries: Array<unknown> = [];
+        // (A seat that can terraform mostly does — the table goes on to its end.)
+        const projects = options.findIndex((o) => o.type === 'projectCard' && (o.cards ?? []).some((c) => TERRAFORMING_SP.includes(c.name) && c.isDisabled !== true));
+        const project = projects >= 0 ? options[projects].cards?.find((c) => TERRAFORMING_SP.includes(c.name) && c.isDisabled !== true) : undefined;
+        if (project !== undefined && rivalRng() < 0.8) {
+          tries.push({type: 'or', index: projects, response: {type: 'projectCard', card: project.name, payment: {...NO_PAYMENT, megacredits: project.calculatedCost ?? 0}}});
+        }
         if (pass >= 0 && rivalRng() < 0.3) {
           tries.push({type: 'or', index: pass, response: {type: 'option'}});
         }

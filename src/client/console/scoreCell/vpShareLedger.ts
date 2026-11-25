@@ -87,7 +87,9 @@ export const vpShareState = reactive({
   flown: [] as Array<string>,
 });
 
-const claims = new Map<string, VpClaim>();
+// (Reactive: the feed's hold reads WHOSE a share is and whether its host waits for the player — a cached predicate's
+// terms move at their edges, invariant 17.)
+const claims = reactive(new Map<string, VpClaim>());
 let claimSeq = 0;
 let heldSeq = 0;
 let reasonSeq = 0;
@@ -129,23 +131,27 @@ onCardResourceLanded((spec) => {
   }
 });
 
-// A held share keeps the FEED only (never the foreground): the cell's story is a member, not a gate.
-registerAnimationHoldSupplier('vp-shares', () => vpShareState.held.length > 0, {
+/**
+ * A SHARE ITS HOST KEEPS FOR THE PLAYER (`VpClaim.heldForPlayer` — the host's scene waits for a screen the player has
+ * not opened: the sitting a receipt of the table plays in, a board kept covered): it keeps the cell's NUMBER, never the
+ * feed. The feed is paced by what PLAYS, and nothing of such a share plays until the player goes there — the toasts of
+ * the table stood frozen behind it for twelve seconds and came «anyway» (CI's autopilot, game 52: a receipt of the
+ * table seeded while the sitting was only ahead of the seat, the player on the board).
+ */
+function shareParkedForPlayer(held: HeldVpShare): boolean {
+  return !held.flying && claims.get(held.owner)?.heldForPlayer?.() !== undefined;
+}
+
+/** Do the held shares hold the FEED — is one of them a story that will play (never only kept for the player)? */
+export function vpSharesHoldTheFeed(): boolean {
+  return vpShareState.held.some((held) => !shareParkedForPlayer(held));
+}
+
+// A held share keeps the FEED only (never the foreground): the cell's story is a member, not a gate — and only while it
+// is a story that will play (a share kept for the player keeps the cell alone).
+registerAnimationHoldSupplier('vp-shares', vpSharesHoldTheFeed, {
   scope: 'notification-only',
-  diagnose: () => vpShareState.held.map((h) => `${h.owner} · ${vpSourceKey(h.share.source)} ${h.share.points}${h.flying ? ' (flying)' : ''}`),
-  // The hold waits on the PLAYER when every share it keeps is a host's whose flight does (`VpClaim.heldForPlayer`):
-  // one share of a host that is simply late makes it a motion again.
-  heldForPlayer: () => {
-    const reasons = new Set<string>();
-    for (const held of vpShareState.held) {
-      const why = held.flying ? undefined : claims.get(held.owner)?.heldForPlayer?.();
-      if (why === undefined) {
-        return undefined;
-      }
-      reasons.add(why);
-    }
-    return reasons.size === 0 ? undefined : [...reasons].join('; ');
-  },
+  diagnose: () => vpShareState.held.map((h) => `${h.owner} · ${vpSourceKey(h.share.source)} ${h.share.points}${h.flying ? ' (flying)' : shareParkedForPlayer(h) ? ' (kept for the player)' : ''}`),
   expire: () => releaseAllVpShares('ceiling'),
 });
 

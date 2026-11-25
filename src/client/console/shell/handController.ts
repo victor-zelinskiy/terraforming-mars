@@ -44,6 +44,7 @@ import {leaveAfterTokens} from '@/client/console/surfaceMotion/leaveAfterTokens'
 import {untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {revealKeptCardHeld} from '@/client/console/revealReading';
 import {taskFor, DELEGATE_GRANT_STEP_STAGE} from '@/client/console/consoleTaskRouter';
+import {hostableStep} from '@/client/console/screenDirector';
 import {leakDetectorState} from '@/client/console/consoleLeakDetector';
 import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
@@ -997,8 +998,11 @@ export function createHandController(shell: HandPort) {
    * workspace (the Reds' discard inside «Действия карт», the colony resolution's discard) left only through its own
    * answer (`leaveHandAfterAnswer`). Answered any other way (another device, a reload, the autopilot's door) the step
    * stayed — serving the NEXT turn's menu inside the old flow, the host's conclusion held «nested-step» for good:
-   * «overdue conclusion:card-actions … standing 33 s». The question that opened the step is remembered; a question of
-   * the step's own kind keeps it (a second discard), and any other question takes it down by the same verb.
+   * «overdue conclusion:card-actions … standing 33 s». The question that opened the step is remembered; a question that
+   * stands AS A STEP keeps it — the step's own kind (a second discard) or a continuation hosted inside it (the played
+   * card's colony build: start ⊃ hand ⊃ colonies — CI's `console-sponsor-colony`, red three times out of three when
+   * only the step's own kind kept it) — and a question that is never a step (the next turn's menu, an opening's own,
+   * a modal of its own — `hostableStep`) takes it down by the same verb.
    */
   let hostedStepPrompt: number | undefined;
 
@@ -1014,9 +1018,17 @@ export function createHandController(shell: HandPort) {
     if (id === undefined || id === hostedStepPrompt) {
       return; // nobody asks yet — the next question decides
     }
+    // A STEP WHOSE FLOW STILL RUNS leaves through that flow's own ending, never at the question's edge: a continuation
+    // stacked above it (the colony it hosts, committing), or its own commit in flight from this page — the rule is for a
+    // step answered ELSEWHERE, which stands on top, reversible, with nothing of its own running. Taken down at the edge,
+    // the opening came back under the colony's cube still in the air (CI's `console-sponsor-colony`, the second half).
+    const top = workspaceStackTop();
+    if (top?.kind !== 'hand' || isCommitted(top.phase) || top.phase === 'executing') {
+      return;
+    }
     const task = taskFor(shell.playerView);
-    if (task?.kind === 'handSelect' || task?.kind === 'projectCard') {
-      hostedStepPrompt = id; // the step's own kind of question: it stays for it
+    if (task !== undefined && hostableStep(task.kind)) {
+      hostedStepPrompt = id; // a step's question — its own kind, or a continuation it hosts: it stays for it
       return;
     }
     hostedStepPrompt = undefined;

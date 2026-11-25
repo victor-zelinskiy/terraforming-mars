@@ -111,7 +111,7 @@
            simply keeps its board-level z and is covered where a panel reaches
            it; only the rail panel itself is lifted above the shade. The prop
            gates the section/info states it always did.) -->
-      <ConsoleResourcePanel ref="conRailEl"
+      <ConsoleResourcePanel v-if="boardHalfMounted" ref="conRailEl"
                             :player="railPlayer" :epoch="playerView.runId"
                             :gameTags="playerView.game.tags"
                             :convertPlants="convertPlantsReady && railShowsSelf" :convertHeat="convertHeatReady && convertHeatFutile === undefined && railShowsSelf"
@@ -128,7 +128,7 @@
            SelectSpace attaches placement handlers to its cells. -->
       <!-- …and UNDER a standing workspace while its board PEEK is open (TR45 — L3 «Показать на поле» in the play
            composer): the workspace recedes by opacity over it, keeping its state (`boardPeek.ts`). -->
-      <ConsoleBoardSection v-show="consoleState.section === 'board' || boardPeekUi.peek !== undefined"
+      <ConsoleBoardSection v-if="boardHalfMounted" v-show="consoleState.section === 'board' || boardPeekUi.peek !== undefined"
                            :ref="surfaces.bind.boardSection"
                            :playerView="playerView"
                            :placementActive="placementActive"
@@ -150,7 +150,7 @@
            home's right edge; task overlays and workspaces stand OVER it. The
            board PEEK shows it too: the peeked board is the board home's
            layout, never a wider re-fit (PL-199, `boardPeek.ts`). -->
-      <ConsoleStrategyRail ref="conStratEl"
+      <ConsoleStrategyRail v-if="boardHalfMounted" ref="conStratEl"
                            :shown="consoleState.section === 'board' || boardPeekUi.peek !== undefined"
                            :replaced="strategyRailReplaced"
                            :milestones="hudMilestoneZone"
@@ -1516,17 +1516,17 @@
          transport lifecycle and renders the one legacy piece left — the
          top-level SelectSpace board binder (cell handlers + highlight). -->
     <div class="con-wf-host" aria-hidden="true">
-      <console-board-binder v-if="game.phase !== 'end'"
+      <console-board-binder v-if="boardHalfMounted && game.phase !== 'end'"
                             :playerView="playerView"
                             :waitingfor="playerView.waitingFor"></console-board-binder>
-      <console-board-input v-if="convertPlantsPrompt !== undefined"
+      <console-board-input v-if="boardHalfMounted && convertPlantsPrompt !== undefined"
                            :playerView="playerView"
                            :playerinput="convertPlantsPrompt"
                            :price="plantExchangePrice"
                            :onsave="onConvertPlantsSpacePicked" />
       <!-- Nested board pick from a task's space-type option (WGT ocean):
            the same board-input binder as convert-plants. -->
-      <console-board-input v-if="taskSpacePrompt !== undefined"
+      <console-board-input v-if="boardHalfMounted && taskSpacePrompt !== undefined"
                            :playerView="playerView"
                            :playerinput="taskSpacePrompt"
                            :price="finalGreeneryPickPending ? plantExchangePrice : undefined"
@@ -1536,7 +1536,7 @@
            synthetic SelectSpace built from the preview's StagedPlacementModel.
            The confirm posts the parked batch (+ the space tail); B restores
            the composer with nothing ever sent. -->
-      <console-board-input v-if="stagedPlayLevelPrompt !== undefined"
+      <console-board-input v-if="boardHalfMounted && stagedPlayLevelPrompt !== undefined"
                            :playerView="playerView"
                            :playerinput="stagedPlayLevelPrompt"
                            :staged="placementStaged"
@@ -1749,7 +1749,7 @@ const props = defineProps({
 // (The template's own four refs — `conRootEl`, `conMainEl`, `conRailEl`, `conStratEl` — are taken by the composition
 // BY NAME, `useTemplateRef`: the script names none of them.)
 const {
-  actionBlockedReason, aresGlobalsActive, awaitingInput, awardFundingActive, bannerText, boardPeekUi, botAttackActive,
+  actionBlockedReason, aresGlobalsActive, awaitingInput, awardFundingActive, bannerText, boardHalfMounted, boardPeekUi, botAttackActive,
   botAttackVm, botExtrasCtx, cancelStagedPlay, cardActionsLeaveHook, cardsPlayableCount, cellInfoLoading,
   closeColonyInspect, closeJournal, closePlayedOverlay, closeZoomViewer, collapseWorkspace, coloniesForRail,
   coloniesLeaving, colonyDocks, colonyGrantColony, colonyInspectModel, colonyPick, colonyPickLatch,

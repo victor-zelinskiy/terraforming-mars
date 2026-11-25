@@ -196,8 +196,14 @@ export function seedTableReceipts(sitting: string, before: PlayerViewModel | und
   }
   // THE CARDS' POINTS ride the touchdowns: a card whose points the unit moved is held on the rail's score cell until
   // its own token lands (the ledger's `releaseOnLanding` — the contact beat of `noteCardResourceLanding`).
+  // …and while no stage stands to play them (the sitting only AHEAD of the seat — its plate is the door), the points wait
+  // for the PLAYER: they keep the cell, never the feed (`vpShareLedger.shareParkedForPlayer`).
   const names = new Set<string>(tableReceiptState.owed.flatMap((r) => r.cards.map((c) => c.card)));
-  claimVpShares(TABLE_RECEIPT_VP_OWNER, (share) => share.source.kind === 'card' && names.has(share.source.card), 0, {releaseOnLanding: true});
+  claimVpShares(TABLE_RECEIPT_VP_OWNER, (share) => share.source.kind === 'card' && names.has(share.source.card), 0, {
+    releaseOnLanding: true,
+    heldForPlayer: () => tableReceiptState.showing === undefined && !consoleParliamentUi.stageStanding ?
+      'the sitting that plays the receipt is not open — its plate is the door' : undefined,
+  });
 }
 
 /** A receipt is owed or on screen — the reward stage holds its field and its page for it. */

@@ -456,10 +456,11 @@ export function takePreparedModels(openCorrelations: ReadonlySet<number>, now: n
       // per ceiling, by name (the bottle's monkey, 2026-11-18 · `field-start-sbp-triton`: Ecology Experts' own «play a
       // card» step stood unanswered for a minute and a half, and its chain was called a leak). A chain held by
       // anything else — a deferred action, nobody — is released as before.
+      // …AND SAYS NOTHING (FREEZE ZERO, the autopilot's zero bar — «a planned firing is debt», the owner 2026-11-25): a
+      // player thinking over a question for ninety seconds is the game working, and the net named it once per ninety
+      // seconds as if it were something to read (five lines of one game, a pilot slow in a composer). The ceiling is
+      // re-armed in silence; the line stays for a chain that something ELSE holds — the leak it exists for.
       if (holders.length > 0 && holders.every((holder) => holder.startsWith('prompt:'))) {
-        console.warn(
-          `[notifications] correlation ${corrId} has stood open for over ${PREPARING_MAX_MS}ms — still holding its prepared ` +
-          `notification (planned: the chain waits for a player's answer — ${holders.join(', ')})`);
         notificationState.preparingSince.set(corrId, now);
         continue;
       }

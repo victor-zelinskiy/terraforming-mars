@@ -2436,6 +2436,44 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   `fonts.ready` restyle ≈ 800 elements each, after root custom properties written in between). The cure is two
   steps: no geometry read inside the mount task (the first measurement where layout is already clean), and the mount
   itself spread over frames behind the curtain.
+  - **Measured, the first step does nothing by itself** (built, traced, reverted): the first full pass is paid by
+    whichever reader comes first — moving the scale markers' and the board's reads out handed it to the board's
+    candidate geometry, then to the command bar's font read; the task stayed 870 – 898 ms. The dearest part is the
+    script of ONE task.
+  - **THE BOOT MOUNTS IN TWO HALVES** (`wiringController.boardHalfMounted`): behind the boot curtain the HULL mounts —
+    every controller, the strip, the footer, the layers — and the BOARD's HALF one painted frame later in a task of its
+    own (a frame callback, then a timer task): the two rails, the board, its cell binders, and with the board's binder
+    the game transport — no view applied, no flight measured, while there is no board. The curtain holds until it
+    stands (`boot-mount`); outside a curtain both halves mount at once (a spec's mount). Under ×4 CPU the one task of
+    887 ms became two of ≈ 650 (with the box loaded by two other runs); on CI's runner that is ≈ 280 + 280 against the
+    500 ms line. Guard `tests/console/bootHalves.spec.ts` (every board-bound element of the shell is in the half; the
+    half mounts after a painted frame, never in the hull's task).
+- **CI's autopilot on `943b14c7b9` (games 49 – 72, browser) and its e2e — read and closed:**
+  - `console-sponsor-colony` red three times out of three — **a regression of the hosted-step rule** (`943b14c7b9`): the
+    hand step hosted by the opening was taken down by the played card's own colony build (start ⊃ hand ⊃ colonies).
+    A question that stands AS A STEP keeps the step (`hostableStep` — its own kind or a continuation it hosts); only a
+    question that is never a step (the next turn's menu, an opening's own, a modal of its own) takes it down — and only
+    from a step that stands on top, reversible, with nothing of its own running (a step answered ELSEWHERE): a step
+    whose continuation still runs above it, or whose own commit is in flight, leaves through that flow's own ending
+    (the box, first cut: the opening came back under the colony's cube still in the air);
+  - #156 (game 57 STUCK) was the PILOT: the rival seat could not answer the replacement of a colony tile (TR10 —
+    `{colonyName, replaces}`); the harness's `answerPrompt` now answers it, and a delegate's removal / exchange
+    (`{partyName, delegate}` — the box's game 1501, seven minutes on «a delegate to remove from a resolution», its
+    chain open the whole time) — and the rival seat TERRAFORMS when it can
+    afford a standard project that raises a parameter (game 52 stood 28 generations, capped: a rival that only took the
+    menu's first branch or passed never brought the table to its end);
+  - #155 (game 52 — `notifications/starvation/vp-shares`): a receipt of the table seeded while its sitting was only
+    AHEAD of the seat kept the Pristar points for the receipt, and the feed stood frozen twelve seconds behind a story
+    that could not play until the player opened the sitting. A share its host keeps for the PLAYER (`heldForPlayer`)
+    keeps the cell's number, never the feed (`vpShareLedger.shareParkedForPlayer`; the claims are reactive); the
+    receipt's claim says so while no stage stands to play it.
+- **A PLAYER THINKING IS NO LINE OF THE LOG** (the owner: «a planned firing is debt»): a notification chain the server
+  names as held ONLY by a player's prompt stays held at its ninety-second ceiling as before — and the ceiling is
+  re-armed in silence (`notifications/correlation-player` is gone from the shapes). The line stays for a chain held by
+  anything else: the leak it exists for (`correlation-ceiling`, defect).
+- **Open after the first slice of the sixth count (`fzl-count`, two games on `2bddfb55c7`):** `workspace-conclusion/
+  level-door/hand` (info — game 1504: three B presses through a played card's committed beat, then the hand did not
+  conclude by its own edge and the level door closed it 250 ms later) — to read to its root.
 
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick

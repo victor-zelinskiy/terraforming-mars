@@ -2673,6 +2673,15 @@ export function answerPrompt(prompt: WirePrompt, plan: SeedPlan): WireResponse {
     // The solo setup REMOVES a colony — never the one a spec came to look at.
     const pick = colonies.find((c) => c !== plan.keepColony) ?? colonies[0];
     expect(pick, `a colony prompt with no colonies: ${describePrompt(prompt)}`).toBeDefined();
+    // A REPLACEMENT (TR10 · `ReplaceColonyTile`) takes a tile of the reserve INTO the slot of a vacant tile in play: the
+    // fourth form of the answer names both (`replaces` — the first tile the roster lets leave). The autopilot's rival
+    // seat stood on it for ten minutes (CI's game 57: «RIVAL-STUCK colony … a new colony tile to replace it»).
+    const roster = (prompt as {rosterChange?: {kind?: string, outgoing?: ReadonlyArray<{colony: string, reason?: string}>}}).rosterChange;
+    if (roster?.kind === 'replace') {
+      const leaving = roster.outgoing?.find((tile) => tile.reason === undefined)?.colony;
+      expect(leaving, `a replacement with no tile that may leave: ${describePrompt(prompt)}`).toBeDefined();
+      return {type: 'colony', colonyName: pick, replaces: leaving};
+    }
     return {type: 'colony', colonyName: pick};
   }
   case 'player':
@@ -2682,6 +2691,13 @@ export function answerPrompt(prompt: WirePrompt, plan: SeedPlan): WireResponse {
     // banner) or adds a delegate (The Deimos Group). Which deal a seeded spec gets moves with the corporation pool (a
     // new corporation reshuffles every seed — TR84 dealt Septem Tribus to `console-colony-venus-redux`), so the seeder
     // answers it like any other forced step: the first party on offer.
+    // A DELEGATE's pick (TR72 — the removal / TR74 — the exchange: `RemoveDelegate`) names the figure, not only its
+    // party: the first target row the server offers, its place and owner. The autopilot's rival seat stood on it for
+    // seven minutes (the box's game 1501: «RIVAL-STUCK party … a delegate to remove from a resolution»).
+    const target = (prompt as {delegatePrompt?: {targets?: ReadonlyArray<{party: string, place: unknown, owner: unknown}>}}).delegatePrompt?.targets?.[0];
+    if (target !== undefined) {
+      return {type: 'party', partyName: target.party, delegate: {place: target.place, owner: target.owner}};
+    }
     const party = (prompt.parties ?? [])[0];
     expect(party, `a party prompt with no party: ${describePrompt(prompt)}`).toBeDefined();
     return {type: 'party', partyName: party};

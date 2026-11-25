@@ -7,10 +7,11 @@ import {
 import {VP_RAIL_KEY, isVpTransfer, vpTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   claimVpShares, flyVpShares, holdsVpShares, isBoardVpShare, noteVpHeldElsewhere, releaseVpShares,
-  resetVpShareLedgerForTests, seedVpShares, vpShareState,
+  resetVpShareLedgerForTests, seedVpShares, vpShareState, vpSharesHoldTheFeed,
 } from '@/client/console/scoreCell/vpShareLedger';
 import {vpReasonViews} from '@/client/console/scoreCell/vpReasonText';
 import {privateScoreState} from '@/client/components/overview/privateScoreState';
+import {computed, reactive} from 'vue';
 import {reduceMotionOverrideState} from '@/client/utils/reducedMotion';
 
 /*
@@ -159,6 +160,25 @@ describe('vpShareLedger — the score cell obeys the law of causality', () => {
       seedVpShares(view(BEFORE), view(AFTER_CARD));
       releaseVpShares('host', {why: 'test'});
       expect(vpShareState.reason?.lines).to.have.length(1);
+    });
+
+    /*
+     * A SHARE KEPT FOR THE PLAYER keeps the cell, never the feed (CI's autopilot, game 52 — a receipt of the table seeded
+     * while its sitting was only ahead of the seat: the toasts stood frozen twelve seconds behind a story that could not
+     * play until the player opened the sitting). The moment the host's scene can play, the share paces the feed again.
+     */
+    it('a share its host keeps for the PLAYER holds the cell\'s number, never the feed — until the host\'s scene can play', () => {
+      const away = reactive({player: true});
+      // (Read through a cache, as the hold registry reads its supplier: the predicate moves at a reactive edge.)
+      const holds = computed(() => vpSharesHoldTheFeed());
+      claimVpShares('receipt', () => true, 10, {heldForPlayer: () => away.player ? 'the sitting is not open' : undefined});
+      seedVpShares(view(BEFORE), view(AFTER_CARD));
+      expect(heldVictoryPoints(), 'the cell still reads «total − held»').eq(2);
+      expect(holds.value, 'nothing of it plays while the player is away — the feed flows').is.false;
+      away.player = false;
+      expect(holds.value, 'the host\'s scene can play: the share paces the feed again').is.true;
+      releaseVpShares('receipt', {named: false});
+      expect(holds.value).is.false;
     });
 
     it('«on landing»: the touchdown of a card resource onto its card releases that card\'s share', () => {

@@ -245,6 +245,9 @@ export type WiringPort = {
   /** WRITTEN here. */ zoomOpenToken: UnwrapRef<ViewerController['zoomOpenToken']>,
 };
 
+/** The board's half of the boot on a page that paints no frame (a hidden tab): mounted at this bound all the same. */
+const BOARD_HALF_UNPAINTED_MS = 2000;
+
 export function createWiringController(shell: WiringPort) {
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
   /** Unregister fn of the planet-focus live-params source. */
@@ -256,6 +259,17 @@ export function createWiringController(shell: WiringPort) {
   const releaseNotificationCorner = ref(undefined as (() => void) | undefined);
   /** Un-registrations of the notification bus's CTAs (T6) — the shell answers them while it stands. */
   const notificationBusOff = ref([] as Array<() => void>);
+  /**
+   * THE BOOT MOUNTS IN TWO HALVES (FREEZE ZERO — the autopilot's zero bar: the console shell's first mount was ONE task,
+   * 0.5 – 0.9 s on a starved CPU — `[long-frame] … resolve-promise «import.then»` at the start of one game in six on the
+   * box and on CI's runner; the board's subtree a third of it, its scale markers' first anchors the dearest forced
+   * layout). Behind the boot curtain the HULL mounts first — every controller, the strip, the footer, the layers — and
+   * the BOARD's HALF one painted frame later, in a task of its own: the two rails, the board and its cell binders. The
+   * game transport's lifecycle rides the board's binder, so the transport starts with the board it binds — no view is
+   * applied, no flight measured, while there is no board. The curtain holds until the half stands (`boot-mount`).
+   * Outside a boot curtain (a spec's mount, a shell raised with no curtain) both halves mount at once.
+   */
+  const boardHalfMounted = ref(loadingScreenState.phase !== 'covering');
 
   // ── derived ──────────────────────────────────────────────────────────────────────────────────────────────────────
   /**
@@ -1282,6 +1296,10 @@ ${ownerEdge.facts}`;
     // ordinary game to the main menu; every exit door funnels through
     // exitGameToMenu() so the destination can never diverge between doors.
     syncGameExitTarget();
+    // THE BOARD's HALF of the boot (`boardHalfMounted`) — whatever the curtain does meanwhile, it is mounted.
+    if (!boardHalfMounted.value) {
+      mountBoardHalf();
+    }
     // …and hold the boot curtain until this shell's FIRST frame is real:
     // fonts settled (a fallback-font swap moves layout) and — when the boot
     // state demands the start workspace — the start scene actually rendered,
@@ -1322,6 +1340,32 @@ ${ownerEdge.facts}`;
       }
       armSceneDestination();
     }
+  }
+
+  /**
+   * THE BOARD's HALF OF THE BOOT (see `boardHalfMounted`): one painted frame after the hull, in a task of its own — a
+   * frame callback, then a timer task (in the hull's own task the two halves are one long frame again). A page that
+   * paints no frame (a hidden tab) mounts it at the bound. The curtain's `boot-mount` hold is let go once it stands.
+   */
+  function mountBoardHalf(): void {
+    const release = deferSceneReveal('boot-mount', 8000);
+    const scope = consoleSessionScope();
+    let mounted = false;
+    const mount = (): void => {
+      if (mounted) {
+        return;
+      }
+      mounted = true;
+      boardHalfMounted.value = true;
+      void nextTick(() => release());
+    };
+    const cancelFrame = scope.afterFrame('the boot\'s board half waits for the hull\'s painted frame', () => {
+      scope.after(0, 'the boot\'s board half mounts in a task of its own', mount);
+    });
+    scope.after(BOARD_HALF_UNPAINTED_MS, 'the boot\'s board half — a page that paints no frame mounts it at its bound', () => {
+      cancelFrame();
+      mount();
+    });
   }
 
   /** THE SHELL IS LEAVING — its own wiring first, then the session's ordered pass, then what is the instance's own. */
@@ -1393,6 +1437,7 @@ ${ownerEdge.facts}`;
   }
 
   return {
+    boardHalfMounted,
     bandRungNow,
     offPlanetFocusParams,
     offWsPresence,

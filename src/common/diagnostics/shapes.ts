@@ -381,10 +381,6 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
       why: 'every hold behind the queue says it waits on the player (`AnimationHoldOptions.heldForPlayer`): the delivery at the bound is the designed degraded mode',
     },
     {name: 'correlation-ceiling', re: /^correlation \S+ stayed open for over .* — held by (.*)$/, tier: 'defect', parts: [1]},
-    {
-      name: 'correlation-player', re: /^correlation \S+ has stood open for over .* — still holding its prepared notification \(planned: the chain waits for a player/, tier: 'planned',
-      why: 'the server names a player\'s prompt as the chain\'s only holder: a question asked inside the action is that player\'s time — the card stays held (released half-told it would freeze) and the ceiling only says so',
-    },
     {name: 'unclassified-variant', re: /^variant '([^']*)' has no feed-relevance classification/, tier: 'defect', parts: [1]},
     {name: 'band-no-cause', re: /^band with no nameable cause:/, tier: 'defect'},
   ],
