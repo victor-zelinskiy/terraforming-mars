@@ -6,6 +6,7 @@ import {
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {causeOf} from '@/common/diagnostics/cause';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {LEAVE_WAITS_TOKENS_ATTR, leaveAfterTokens} from '@/client/console/surfaceMotion/leaveAfterTokens';
 
 /*
  * THE LAW OF THE FOLD (T09 «ПОВЕРХНОСТЬ НЕ СКЛАДЫВАЕТСЯ ПОД СВОИМ ЖЕТОНОМ», ledger BY) — the engine's half. A surface may
@@ -44,6 +45,34 @@ describe('surfaceClear — a surface never folds under its own token', () => {
     resetTransferEnds();
     surface.remove();
     rail.remove();
+  });
+
+  /*
+   * A SURFACE LEAVES AFTER ITS TOKENS (`leaveAfterTokens` — CI #146, game 1183): whichever verb took the frame off (the
+   * generation scene's rise into a sitting, 67 ms after the play), the surface's LEAVE waits for the token born on it.
+   */
+  it('THE LEAVE WAITS: a gain still being born on the surface keeps it standing, inert, marked — its leave plays after the pop', async () => {
+    registerTransferEnds(5, gain, icon, rail);
+    let left = false;
+    leaveAfterTokens(surface, false, () => {
+      left = true;
+    });
+    expect(left, 'the surface stays for its token').is.false;
+    expect(surface.hasAttribute(LEAVE_WAITS_TOKENS_ATTR), 'marked — the fold\'s witness reads it').is.true;
+    expect(surface.style.pointerEvents, 'and answers no pointer').eq('none');
+    markTransferEndLeft(5);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(left, 'popped — the leave plays').is.true;
+    expect(surface.hasAttribute(LEAVE_WAITS_TOKENS_ATTR)).is.false;
+  });
+
+  it('…and a surface with nothing standing on it leaves at once (the ordinary road is untouched)', () => {
+    let left = false;
+    leaveAfterTokens(surface, true, () => {
+      left = true;
+    });
+    expect(left).is.true;
+    expect(surface.style.position, 'never pinned for nothing').eq('');
   });
 
   it('a PRICE drawn into an icon on the surface holds it to the ABSORB — its departure off the rail is no release', async () => {

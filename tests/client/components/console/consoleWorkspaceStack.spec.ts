@@ -1360,6 +1360,16 @@ describe('a frame lives only while its anchor holds — in every home, at every 
     expect(dropped).deep.eq(['aside:parliament']);
   });
 
+  it('ONE INSTANCE OF A KIND: a door into the kind standing aside for the board is refused — never a second instance beside it (CI #138)', () => {
+    enterWorkspace('parliament', {anchor: SITTING});
+    setWorkspaceFramePhase('parliament', 'committed');
+    yieldStackToBoard();
+    enterWorkspace('parliament');
+    expect(workspaceStackState.frames, 'no second Parliament over the board').deep.eq([]);
+    expect(resumeStackFromBoard(), 'the instance aside comes back by its own door').eq(true);
+    expect(workspaceStackState.frames.map((f) => [f.kind, f.phase])).deep.eq([['parliament', 'committed']]);
+  });
+
   it('…while a sitting still LIVE comes back exactly as it left (the trip\'s ordinary return)', () => {
     enterWorkspace('parliament', {anchor: SITTING});
     setWorkspaceFramePhase('parliament', 'committed');

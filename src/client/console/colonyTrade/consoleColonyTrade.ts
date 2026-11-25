@@ -208,6 +208,13 @@ type TradeCtx = {
   /** The reward waves have been started (exactly once per transaction). */
   rewardsKicked: boolean;
   committedTrack: number | undefined;
+  /**
+   * THE RESET OF THIS TRADE WAS SEEN — a one-way latch (CI #139): set by the server's stamp on this trade's manifest
+   * (`resetCommitted`), or — an older server — by the first committed track position at or below the trade's post.
+   * Never cleared by a later rise: another seat building on the tile moves the marker up AFTER the reset, and the
+   * live position then said «not reset yet» for good.
+   */
+  resetSeen: boolean;
   glideStarted: boolean;
   /**
    * THE TRACK POSITION THE PLAYER PRESSED AT — captured at the arm, before the
@@ -247,6 +254,7 @@ const ctx: TradeCtx = {
   chipsDone: false,
   rewardsKicked: false,
   committedTrack: undefined,
+  resetSeen: false,
   glideStarted: false,
   advanceFrom: -1,
   advancePending: false,
@@ -762,6 +770,7 @@ export function armColonyTrade(
   ctx.chipsDone = false;
   ctx.rewardsKicked = false;
   ctx.committedTrack = undefined;
+  ctx.resetSeen = false;
   ctx.glideStarted = false;
   ctx.advanceFrom = trackPosition ?? -1;
   ctx.advancePending = false;
@@ -821,6 +830,7 @@ function claimManifest(manifest: ColonyTradeManifestModel): void {
   clearArmSafety();
   ctx.claimed = true;
   ctx.manifest = manifest;
+  ctx.resetSeen = ctx.resetSeen || manifest.resetCommitted === true;
   colonyTradeState.tradeId = manifest.tradeId;
   colonyTradeState.preTrackPosition = manifest.preTradeTrackPosition;
   colonyTradeState.postTrackPosition = manifest.postTradeTrackPosition;
@@ -1090,6 +1100,10 @@ export function notifyColonyTradeTrackCommitted(colonyName: ColonyName, trackPos
     return;
   }
   ctx.committedTrack = trackPosition;
+  // (An older server stamps nothing: the first committed position at or below the post is the reset — latched.)
+  if (trackPosition <= colonyTradeState.postTrackPosition) {
+    ctx.resetSeen = true;
+  }
   maybeAdvance();
 }
 
@@ -1128,6 +1142,11 @@ export function noticeColonyTradeCommit(view: PlayerViewModel): void {
       manifest?.tradeId === ctx.manifest.tradeId) {
     void runColonyTradeRewards();
   }
+  // THE SERVER's WORD on this trade's reset (the stamp): latched, and the gate re-asked.
+  if (!ctx.resetSeen && ctx.manifest !== undefined && manifest?.tradeId === ctx.manifest.tradeId && manifest.resetCommitted === true) {
+    ctx.resetSeen = true;
+    maybeAdvance();
+  }
   syncParkedEvidence(view);
 }
 
@@ -1165,7 +1184,7 @@ function syncParkedEvidence(view: PlayerViewModel): void {
 /** The one gate the parked net exists for: the reset is owed and uncommitted. */
 function resetStillOwed(): boolean {
   const moves = colonyTradeState.postTrackPosition < colonyTradeState.preTrackPosition;
-  return moves && !(ctx.committedTrack !== undefined && ctx.committedTrack <= colonyTradeState.postTrackPosition);
+  return moves && !ctx.resetSeen;
 }
 
 function clearParkedNet(): void {
@@ -1208,7 +1227,7 @@ function maybeAdvance(): void {
     return;
   }
   const moves = colonyTradeState.postTrackPosition < colonyTradeState.preTrackPosition;
-  if (moves && !(ctx.committedTrack !== undefined && ctx.committedTrack <= colonyTradeState.postTrackPosition)) {
+  if (moves && !ctx.resetSeen) {
     return; // the server hasn't reset yet (an interactive bonus is still resolving)
   }
   ctx.glideStarted = true;

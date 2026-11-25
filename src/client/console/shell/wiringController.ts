@@ -7,7 +7,7 @@ import type {UnwrapRef} from 'vue';
 import {ExposedOf} from '@/client/components/exposedOf';
 import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 import {installCursorArrivalInput} from '@/client/console/cursorArrivalInput';
-import {computed, ref, watch} from 'vue';
+import {computed, nextTick, ref, watch} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {SpaceId} from '@/common/Types';
 import {submitInput, submitBatch as transportSubmitBatch, SubmitTicket, transportState} from '@/client/console/transport/gameTransport';
@@ -47,7 +47,8 @@ import {colonyFocusState} from '@/client/console/consoleColoniesModel';
 import {consoleStartState, startSceneHeld} from '@/client/console/consoleStartState';
 import {boardExcursionActive, releaseBoardExcursion} from '@/client/console/boardExcursion';
 import {firstActionOwed} from '@/client/console/startFirstAction';
-import {isResourceTransferActive, noteTransferTrail, resourceTransferDiagnostics, witnessFrameLeft} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {frameLeftDetail, isResourceTransferActive, noteTransferTrail, resourceTransferDiagnostics} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {LEAVE_WAITS_TOKENS_ATTR} from '@/client/console/surfaceMotion/leaveAfterTokens';
 import {consoleCardZoom} from '@/client/console/consoleCardZoom';
 import {currentRevealEvent, drawnCardsState, registerRevealQueuePark, revealPresented} from '@/client/components/drawnCards/drawnCardsState';
 import {generationSceneState, registerGenerationSceneHandoff} from '@/client/console/generationScene/generationScene';
@@ -1173,10 +1174,23 @@ ${ownerEdge.facts}`;
     );
     // THE FOLD's OWN WITNESS, IN SHADOW (`consoleResourceTransfer.witnessFrameLeft`): asked at the mutation itself
     // (`sync` — the surface is still in the tree), whichever verb took the frame off the live stack. It only reads.
+    // …SAID ONLY IF THE SURFACE REALLY WENT UNDER ITS TOKENS (CI #146): the line is composed at the removal (what stood
+    // then), and said after the flush that played the leave — unless the surface waits for its tokens there
+    // (`leaveAfterTokens`' mark) or still stands painted (the same surface re-entered by another frame).
     const offFoldWitness = watch(() => workspaceStackState.frames.map((frame) => frame.kind), (now, before) => {
       for (const kind of before) {
         if (!now.includes(kind)) {
-          witnessFrameLeft(kind, workspaceLastVerb(), document.querySelector(workspaceFrameSelector(kind)));
+          const surface = document.querySelector(workspaceFrameSelector(kind));
+          const detail = frameLeftDetail(workspaceLastVerb(), surface);
+          if (detail !== undefined && surface !== null) {
+            void nextTick(() => {
+              const waits = surface.hasAttribute(LEAVE_WAITS_TOKENS_ATTR);
+              const standing = surface.isConnected && (surface as HTMLElement).getClientRects().length > 0 && !surface.hasAttribute('data-motion-leaving');
+              if (!waits && !standing) {
+                console.warn(`[transfer] a frame left with tokens on its surface — «${kind}» ${detail}`);
+              }
+            });
+          }
         }
       }
     }, {flush: 'sync'});

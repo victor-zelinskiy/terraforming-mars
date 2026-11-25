@@ -1005,6 +1005,50 @@ async function drainEvents(myEpoch: number): Promise<void> {
 }
 
 /**
+ * THE BOARD IS THIS LANDING's STAGE — watchable AND its geometry calm, ONE condition asked together at every look
+ * (FREEZE ZERO, CI #147 — game 1182). The landing waited for a watchable board, then for stable geometry with a
+ * ceiling of four seconds — and the player covered the board inside that second wait (A on the sitting's plate,
+ * sixteen milliseconds after the board came back). The geometry of a hidden board never settles (its tween probe stops
+ * polling off stage), so the wait spent its whole ceiling on a board nobody could see and the tile then degraded over
+ * the cover. A cover arriving during the geometry wait now sends the landing back to the watchable-board wait — whose
+ * clock runs only while the board is in the player's view (the landing law) — and the viewer's holds tick at once.
+ * `false` = this landing's epoch ended meanwhile.
+ */
+async function awaitBoardStage(ev: RemoteEvent, myEpoch: number): Promise<boolean> {
+  for (;;) {
+    if (boardCovered()) {
+      // TRUTH BEFORE STORY: the viewer's income and payouts of this landing tick NOW, named by their chips — never held
+      // on the panel for a board that may be covered by the very flow waiting on that hold.
+      tickViewerHoldsNow(ev);
+      parkForBoard();
+    }
+    try {
+      await awaitWatchableBoard(myEpoch);
+    } finally {
+      remotePlacementState.waitingForBoard = false;
+    }
+    if (epoch !== myEpoch) {
+      return false;
+    }
+    // (The board's wait ended with the board still covered — the screen handed over, or its ceiling: the turn is over
+    // for this tile, and the caller shows it at once, without its flight. Never back into the wait.)
+    if (boardCovered()) {
+      return true;
+    }
+    // …AND ON STABLE GEOMETRY (boardSpaceGeometry, mechanism D): a Planet Focus enter/exit or a fit pass moves the
+    // whole coordinate space, so a measure taken mid-transition aims the flight at a rect that will not exist at
+    // touchdown. Bounded by its own node of the wait graph — at its end the flight flies at the best measure it can take.
+    await waitBoardGeometryStable({alive: () => epoch === myEpoch && !boardCovered()});
+    if (epoch !== myEpoch) {
+      return false;
+    }
+    if (!boardCovered()) {
+      return true;
+    }
+  }
+}
+
+/**
  * THE MOVE — one relocation on the shared remote stage (TR14 Re-settlement):
  * an opponent's city, or the viewer's own PARKED pin landing a response later.
  * The hero's own beats and the hero's own director (`playTileMove`), on a
@@ -1022,22 +1066,7 @@ async function drainEvents(myEpoch: number): Promise<void> {
  * stand — named (`moveDegraded`), never a hidden city.
  */
 async function moveRemote(ev: RemoteEvent, move: RemoteMove, myEpoch: number): Promise<void> {
-  if (boardCovered()) {
-    // TRUTH BEFORE STORY: the viewer's income and payouts of this landing tick NOW, named by their chips — never held
-    // on the panel for a board that may be covered by the very flow waiting on that hold.
-    tickViewerHoldsNow(ev);
-    parkForBoard();
-  }
-  try {
-    await awaitWatchableBoard(myEpoch);
-  } finally {
-    remotePlacementState.waitingForBoard = false;
-  }
-  if (epoch !== myEpoch) {
-    return;
-  }
-  await waitBoardGeometryStable({alive: () => epoch === myEpoch});
-  if (epoch !== myEpoch) {
+  if (!await awaitBoardStage(ev, myEpoch)) {
     return;
   }
   const dest = measureBoardHexRect(ev.spaceId);
@@ -1160,22 +1189,7 @@ async function degradeMove(ev: RemoteEvent, myEpoch: number): Promise<void> {
  * no proxy): the cell is never left hidden.
  */
 async function liftRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
-  if (boardCovered()) {
-    // TRUTH BEFORE STORY: the viewer's income and payouts of this landing tick NOW, named by their chips — never held
-    // on the panel for a board that may be covered by the very flow waiting on that hold.
-    tickViewerHoldsNow(ev);
-    parkForBoard();
-  }
-  try {
-    await awaitWatchableBoard(myEpoch);
-  } finally {
-    remotePlacementState.waitingForBoard = false;
-  }
-  if (epoch !== myEpoch) {
-    return;
-  }
-  await waitBoardGeometryStable({alive: () => epoch === myEpoch});
-  if (epoch !== myEpoch) {
+  if (!await awaitBoardStage(ev, myEpoch)) {
     return;
   }
   const hex = measureBoardHexRect(ev.spaceId);
@@ -1238,29 +1252,11 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   // BE there when the workspace folds. This is the whole reason the tile
   // stays held: the wait costs nothing (the cell reads untouched) and buys
   // the player the one moment the placement actually happens.
-  if (boardCovered()) {
-    // TRUTH BEFORE STORY: the viewer's income and payouts of this landing tick NOW, named by their chips — never held
-    // on the panel for a board that may be covered by the very flow waiting on that hold.
-    tickViewerHoldsNow(ev);
-    parkForBoard();
-  }
-  try {
-    await awaitWatchableBoard(myEpoch);
-  } finally {
-    remotePlacementState.waitingForBoard = false;
-  }
-  if (epoch !== myEpoch) {
+  if (!await awaitBoardStage(ev, myEpoch)) {
     return;
   }
-  // …AND ON STABLE GEOMETRY (boardSpaceGeometry, mechanism D): a Planet
-  // Focus enter/exit or a fit pass moves the whole coordinate space, so a
-  // measure taken mid-transition aims the flight at a rect that will not
-  // exist at touchdown. Bounded — past the cap the flight flies at the best
-  // measure it can take and the retarget/verify below own the residue.
-  await waitBoardGeometryStable({alive: () => epoch === myEpoch});
-  if (epoch !== myEpoch) {
-    return;
-  }
+  // (…and on stable geometry — asked inside `awaitBoardStage`: past its cap the flight flies at the best measure it
+  // can take, and the retarget / verify below own the residue.)
   let hex = measureBoardHexRect(ev.spaceId);
   if (hex === undefined) {
     degradeReveal(ev); // still unmeasurable (a hidden section) — no flight

@@ -8,6 +8,7 @@
  */
 import {reactive} from 'vue';
 import type {WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 /**
  * THE WAIT GRAPH's BOUND OF AN OWED CONCLUSION THAT HOLDS ON A MOTION (`supervisorController` — the node
@@ -26,7 +27,27 @@ export const OWED_CONCLUSION_BOUND_MS = 10_500;
  * refusal must not become a render dependency of anything. A holder (`.last`), because the conclusion writes it and
  * the supervisor reads it from another module.
  */
-export const conclusionRefusal: {last: {kind: WorkspaceFrameKind, reason: string, at: number} | undefined} = {last: undefined};
+export const conclusionRefusal: {
+  last: {kind: WorkspaceFrameKind, reason: string, at: number} | undefined,
+  /**
+   * …AND EACH WORKSPACE's OWN (FREEZE ZERO, CI #148 — game 1125): one slot for every kind meant the refusal of ANOTHER
+   * workspace overwrote this one's, and a debt read «held: unknown» — no edge in the hold table, the motion bound of
+   * 10.5 s on a step that has no clock: «overdue … past its 11 s bound — standing 33 s». A kind's reason is cleared
+   * only by ITS OWN conclusion.
+   */
+  byKind: Map<WorkspaceFrameKind, {reason: string, at: number}>,
+} = {last: undefined, byKind: new Map()};
+
+/** The named hold this workspace's last refused conclusion held on, `'unknown'` when it never refused. */
+export function conclusionRefusalOf(kind: WorkspaceFrameKind): string {
+  return conclusionRefusal.byKind.get(kind)?.reason ?? 'unknown';
+}
+
+/** The session's end: nothing of a refusal carries over. */
+export function resetConclusionRefusal(): void {
+  conclusionRefusal.last = undefined;
+  conclusionRefusal.byKind.clear();
+}
 
 /**
  * Workspace entries deferred to the screen handoff (`enterWorkspaceAfterHandoff`) — one pending entry per kind.
@@ -34,3 +55,6 @@ export const conclusionRefusal: {last: {kind: WorkspaceFrameKind, reason: string
  * would be a latch (invariant 17).
  */
 export const handoffPendingEntries = reactive(new Set<WorkspaceFrameKind>());
+
+// THE GAME SCREEN LEAVES: no refusal of the last game names a workspace of the next one.
+sessionState('conclusion-refusal', resetConclusionRefusal, 185);

@@ -98,14 +98,18 @@ function pilotPick(bottle: ConsoleBottle, g: () => number, last: BottleKey | und
   if (sees('dialog.con-zoom[open]')) {
     return toTheQuestion || g() < 0.5 ? 'Escape' : ARROWS[Math.floor(g() * ARROWS.length)];
   }
-  if (toTheQuestion && offered.some((o) => o.key === 'Enter') && bottle.frames().length === 0 && !sees('.con-quick')) {
+  // (…the board home, never a STANDALONE question's own host: with no frame it looked like home, and A — which on a
+  // distribution only adds a unit — was pressed to the end of the budget while its commit stood on X: bottle game 1188,
+  // three questions answered by the door. On a host the weighted pick below carries the flow on, X included.)
+  const onTaskHost = sees('.con-task-host');
+  if (toTheQuestion && offered.some((o) => o.key === 'Enter') && bottle.frames().length === 0 && !sees('.con-quick') && !onTaskHost) {
     return 'Enter';
   }
   const roll = g();
   if (roll < (toTheQuestion ? 0.8 : 0.7) && offered.length > 0) {
     const carries = (o: {key: BottleKey, hot: boolean}): number => (o.hot ? 8 : 0) + (o.key === 'Enter' ? 6 : o.key === 'Period' ? 4 : 0);
     const weight = (o: {key: BottleKey, hot: boolean}): number => (toTheQuestion ?
-      (carries(o) > 0 ? carries(o) + 4 : o.key === 'KeyX' ? 2 : LOOK_KEYS.has(o.key) || o.key === 'Escape' || o.key === 'Comma' || o.key === 'KeyY' ? 0.1 : 1) :
+      (carries(o) > 0 ? carries(o) + 4 : o.key === 'KeyX' ? (onTaskHost ? 8 : 2) : LOOK_KEYS.has(o.key) || o.key === 'Escape' || o.key === 'Comma' || o.key === 'KeyY' ? 0.1 : 1) :
       (LOOK_KEYS.has(o.key) ? 0.5 : (o.hot ? 8 : 0) + (o.key === 'Enter' ? 6 : o.key === 'Period' ? 4 : o.key === 'Escape' ? 0.5 : 2)));
     let x = g() * offered.reduce((sum, o) => sum + weight(o), 0);
     for (const o of offered) {

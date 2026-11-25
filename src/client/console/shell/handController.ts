@@ -40,6 +40,7 @@ import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {leavingRectOf} from '@/client/console/surfaceMotion/rowLeaveRect';
+import {leaveAfterTokens} from '@/client/console/surfaceMotion/leaveAfterTokens';
 import {untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {revealKeptCardHeld} from '@/client/console/revealReading';
 import {taskFor, DELEGATE_GRANT_STEP_STAGE} from '@/client/console/consoleTaskRouter';
@@ -1119,6 +1120,11 @@ export function createHandController(shell: HandPort) {
    * already be back in the row (`surfaceMotion/rowLeaveRect.ts`).
    */
   function handLeaveHook(el: Element, done: () => void): void {
+    // (The hand, too, leaves after its tokens — `leaveAfterTokens`, CI #146: a play's pay-back born on the card.)
+    leaveAfterTokens(el, true, () => playHandLeave(el, done));
+  }
+
+  function playHandLeave(el: Element, done: () => void): void {
     const armed = handDissolveArmed.value;
     handDissolveArmed.value = false;
     const finish = (): void => {

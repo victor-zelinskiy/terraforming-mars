@@ -20,20 +20,24 @@
  * (FREEZE ZERO, the zero bar — the fourth hundred, 2026-11-25).
  *
  * THE LAW (truth before story — invariant 16): the member keeps the screens its step was MADE under (`stepWitness()`,
- * taken when the step arrives). The player has gone to do something else when the board is behind a screen that
- *   · was entered AFTER the step (the top frame is not one of the makers),
- *   · while none of the makers still stands on the live stack (a maker still standing will leave by itself — a flow
- *     past its commit, a follow-up step of the same flow, a maker whose record steps back to «configure» for the beat
- *     between its resolution's end and its conclusion: the colonies after a trade),
- *   · and whose phase is REVERSIBLE (`browse` · `configure` — read where the surface derives it: card-actions).
- * Then the member lets its hold go AT ONCE: the cell ticks, named by its chip, nothing flies. The scale's own marker
- * stays the board's to tell (the park — it glides when the board is back). Otherwise the member waits, as before,
- * bounded by its due.
+ * taken when the step arrives — and only for a step of the VIEWER's: another seat's, the World Government's, was made
+ * under no screen of this page). The player has gone to do something else when the board is out of their view and
+ *   · a screen with NO frame covers it («Информация», «Разыграно» — the player's own looks), or
+ *   · the top frame was entered AFTER the step, none of the makers still stands on the live stack (a maker still
+ *     standing will leave by itself — a flow past its commit, a follow-up step of the same flow, a maker whose record
+ *     steps back to «configure» for the beat between its resolution's end and its conclusion: the colonies after a
+ *     trade), and it is not in a transient beat (`executing` · `completing` — read where the surface derives it:
+ *     card-actions); a flow the player committed in that NEW screen owes this step nothing, or
+ *   · the maker itself stands in a VERDICT (the player reads it; a verdict never leaves by itself).
+ * Then the member lets its hold go AT ONCE: the cell ticks, named by its chip, nothing flies (the walk's trail says it —
+ * `noteStepAway`). The scale's own marker stays the board's to tell (the park — it glides when the board is back).
+ * Otherwise the member waits, as before, bounded by its due.
  */
 import {markRaw, toRaw} from 'vue';
 import {boardOutOfViewForStory} from '@/client/console/boardBeatPark';
-import {liveFrameIdentities, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
-import {surfacePhaseOf} from '@/client/console/workspaceBeatStall';
+import {liveFrameIdentities, standingFrameIdentities, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
+import {isTransientBeat, surfacePhaseOf} from '@/client/console/workspaceBeatStall';
+import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 
 /** The screens a step was made under — kept by the member from the step's arrival. */
 export type ScaleStepWitness = ReadonlySet<object>;
@@ -41,6 +45,14 @@ export type ScaleStepWitness = ReadonlySet<object>;
 /** Taken when a step ARRIVES: the live frames it was made under. */
 export function stepWitness(): ScaleStepWitness {
   return markRaw(liveFrameIdentities() as Set<object>);
+}
+
+/** A step made under no screen of this page (another seat's, the World Government's, a resolution's world move). */
+export const NO_MAKERS: ScaleStepWitness = markRaw(new Set<object>());
+
+/** The member let go — said to the walk's trail, so a walk tells «let go» from «told» (invariant 4). */
+export function noteStepAway(member: string, why: string): void {
+  noteTransferTrail('scale-step:away', {member, why});
 }
 
 /** Two arrivals merged into one entry (a beat still owed for an earlier response plays this one's tokens too). */
@@ -55,8 +67,22 @@ export function scaleStepStageAway(madeUnder: ScaleStepWitness): string | undefi
     return undefined;
   }
   const top = workspaceStackTop();
-  if (top === undefined || madeUnder.has(toRaw(top))) {
-    return undefined;
+  if (top === undefined) {
+    // A screen with no frame covers the board («Информация», «Разыграно»): the player's own look — unless a maker
+    // still STANDS somewhere (parked, aside for the board: the start workspace through its opening — its own screen
+    // still covers the board, and its step is told when the opening is over, or at its due, said `planned`).
+    const standing = standingFrameIdentities();
+    for (const maker of madeUnder) {
+      if (standing.has(maker)) {
+        return undefined;
+      }
+    }
+    return `${behind} — the player is at a screen of their own`;
+  }
+  const phase = surfacePhaseOf(top.kind) ?? top.phase;
+  if (madeUnder.has(toRaw(top))) {
+    // The maker on top leaves by itself — unless it stands in a verdict the player reads.
+    return phase === 'verdict' ? `${behind} — the player reads the verdict of «${top.kind}»` : undefined;
   }
   const live = liveFrameIdentities();
   for (const maker of madeUnder) {
@@ -64,6 +90,5 @@ export function scaleStepStageAway(madeUnder: ScaleStepWitness): string | undefi
       return undefined;
     }
   }
-  const phase = surfacePhaseOf(top.kind) ?? top.phase;
-  return phase === 'browse' || phase === 'configure' ? `${behind} — the player is at «${top.kind}» (${phase})` : undefined;
+  return isTransientBeat(phase) ? undefined : `${behind} — the player is at «${top.kind}» (${phase})`;
 }

@@ -28862,8 +28862,9 @@ html.console-mode .notifications-layer {
    its release beat — unmounting it strands the deployment), it just stops
    painting and stops taking presses. `visibility` keeps its box measurable,
    so the flights that resume afterwards still find their anchors. */
+// (The yield's `visibility: hidden` is the root's own inline binding — `ConsoleStartScene` `YIELDED_STYLE`: a fact of
+// the DOM every reader sees, the page with no stylesheet included — the class stays the family's marker.)
 .con-start--yielded {
-    visibility: hidden;
     pointer-events: none;
 }
 

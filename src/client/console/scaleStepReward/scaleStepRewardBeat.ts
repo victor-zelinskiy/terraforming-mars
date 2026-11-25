@@ -35,7 +35,7 @@
  * motion: nothing flies, the counter ticks as the marker settles.
  */
 import {nextTick, reactive, watch, WatchStopHandle} from 'vue';
-import {scaleStepStageAway, ScaleStepWitness, stepWitness} from '@/client/console/scaleStepReward/scaleStepStageAway';
+import {NO_MAKERS, noteStepAway, scaleStepStageAway, ScaleStepWitness, stepWitness} from '@/client/console/scaleStepReward/scaleStepStageAway';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {motionSpan} from '@/client/console/session/sessionWaits';
 import {Color} from '@/common/Color';
@@ -215,7 +215,9 @@ export function seedScaleStepRewardHolds(before: PlayerViewModel | undefined, af
       // (TR24 — the marker is the law), so the record's share is this host's, never the chain's second flight.
       declareHeldAnswers([spec]);
     }
-    scaleStepRewardState.queue.push({record, own, held, madeUnder: stepWitness()});
+    // (A step of ANOTHER seat — the World Government's, a resolution's world move — was made under no screen of this
+    // page: the viewer's own browse is never its maker.)
+    scaleStepRewardState.queue.push({record, own, held, madeUnder: record.by !== undefined && record.by === viewer ? stepWitness() : NO_MAKERS});
     queued = true;
   }
   if (claimed.size > 64) {
@@ -266,7 +268,9 @@ function waitForStage(entry: ScaleStepEntry, myEpoch: number): Promise<boolean> 
   }
   // THE PLAYER HAS GONE TO DO SOMETHING ELSE (`scaleStepStageAway`): the rail is an instrument in view — the hold is let
   // go at once (the cell ticks, nothing flies), never kept for a stage that is not coming.
-  if (scaleStepStageAway(entry.madeUnder) !== undefined) {
+  const away = scaleStepStageAway(entry.madeUnder);
+  if (away !== undefined) {
+    noteStepAway('reward', away);
     return Promise.resolve(false);
   }
   debt?.settle();
@@ -321,8 +325,11 @@ function waitForStage(entry: ScaleStepEntry, myEpoch: number): Promise<boolean> 
             wait.met();
           } else if (verdict === 'due') {
             wait.update(standing());
-            wait.ceiling();
+            wait.ceiling(boardBeatBoardWatchable() ? undefined : 'the player keeps the board covered — the reward is applied at its due, untold');
           } else {
+            if (verdict === 'away') {
+              noteStepAway('reward', scaleStepStageAway(entry.madeUnder) ?? 'away');
+            }
             wait.end();
           }
           resolve(verdict === 'ready');

@@ -2383,6 +2383,26 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   `[long-frame]` at boot in a third of the games (430 ms of script, 211 of it forced layout, in the console shell's
   first mount — `import.then`) — on the worklist as a performance class, not re-read as noise.
 
+- **THE CI AUTOPILOT's OPEN FINDINGS (#138–#150), read to their roots from the walks** (five readings in parallel,
+  each by its game) and closed by the mechanism — the commit after `ea9b840a00`:
+  - #139 a trade's reset is a FACT (`resetCommitted` on its manifest, latched by the client) — the bot building on the
+    traded tile moved the live track up again and the trade waited for a reset it had already seen;
+  - #146 a surface leaves AFTER its tokens (`leaveAfterTokens` — the one funnel of every band surface's leave): the
+    stack's verbs stay immediate, the surface keeps its pose, inert, for the token's pop; the fold's witness speaks
+    only when a surface really went under its tokens;
+  - #141 a hold is the FLIGHT, never the wait (the Amazonis cell beat), and the beat goes to rest with its session (it
+    was not reached by the session's end at all);
+  - #143–#145 #149 #150 the scale step's story: the «player has gone» law widened (a screen with no frame, a NEW
+    screen's own committed flow, a maker in a verdict, another seat's step made under no screen of this page); the
+    park's windows end with their board; a value seeded during a drain keeps its own story;
+  - #147 the board is a landing's stage only when watchable AND calm, asked together (`awaitBoardStage`);
+  - #148 each workspace keeps its own refused conclusion (`conclusionRefusalOf`);
+  - #138 one instance of a kind — a door into a kind standing aside for the board is refused by the stack; a leaving
+    surface does not paint for the one-owner measure; #142 the start's yield is a fact of the DOM; #110 was already
+    closed by `zoneAwaited` (`1ed577938c`) — to be confirmed by a CI pass.
+- **THE BOX RULE CHANGED (the owner, 2026-11-25):** Enshrouded running on the box no longer stops a run — it selects
+  the gentle mode (≤ 3 workers in all, no timing, builds on the laptop). The iteration needs the box's findings.
+
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick
 the safety came due) or at 43 %. The arc ran late on a starved clock and the safety met the chip ON its destination, a

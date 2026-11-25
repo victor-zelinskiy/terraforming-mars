@@ -400,12 +400,25 @@ function foldSentinel(id: number, end: 'birth' | 'touchdown'): void {
  * that leaves under its own token is the law broken — a defect, with the verb in the line.
  */
 export function witnessFrameLeft(kind: string, verb: string, surface: Element | null): void {
+  const detail = frameLeftDetail(verb, surface);
+  if (detail !== undefined) {
+    console.warn(`[transfer] a frame left with tokens on its surface — «${kind}» ${detail}`);
+  }
+}
+
+/**
+ * The fold's DETAIL (what follows «a frame left with tokens on its surface — «kind»»), composed AT the frame's removal (the
+ * ends standing then — once the surface is gone nothing can be read off it), or `undefined` when nothing stands on it.
+ * The shell says it only if the surface then really went under its tokens (`leaveAfterTokens` keeps a surface that
+ * waits — the witness reads its mark).
+ */
+export function frameLeftDetail(verb: string, surface: Element | null): string | undefined {
   if (surface === null || !surfaceHoldsTokens(surface)) {
-    return;
+    return undefined;
   }
   const starved = pageStarvedNow()?.replace(/[()]/g, '');
-  console.warn(`[transfer] a frame left with tokens on its surface — «${kind}» by ${verb === '' ? 'an unnamed verb' : verb}, holding ${liveEndsOn(surface).join(', ')}` +
-    (starved !== undefined ? ` (planned: ${starved})` : ''));
+  return `by ${verb === '' ? 'an unnamed verb' : verb}, holding ${liveEndsOn(surface).join(', ')}` +
+    (starved !== undefined ? ` (planned: ${starved})` : '');
 }
 
 function surfaceOpacity(el: Element): number {

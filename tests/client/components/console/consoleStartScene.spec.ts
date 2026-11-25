@@ -316,6 +316,13 @@ describe('ConsoleStartScene — the game start workspace', () => {
     await wrapper.setProps({yielded: true});
 
     expect(wrapper.classes()).to.contain('con-start--yielded');
+    // …and the yield is a fact of the DOM, not of a stylesheet (CI #142 — the leak detector with no stylesheet saw
+    // the yielded scene painted over the band it had yielded to).
+    // (Read on the root's own style — jsdom's computed style is a cache that does not see the property cleared.)
+    expect((wrapper.element as HTMLElement).style.visibility, 'hidden on its own root').to.eq('hidden');
+    await wrapper.setProps({yielded: false});
+    expect((wrapper.element as HTMLElement).style.visibility, 'back on stage').to.eq('');
+    await wrapper.setProps({yielded: true});
     sceneOf(wrapper).handleIntent(press('confirm'));
     sceneOf(wrapper).handleIntent(nav('right'));
     await nextTick();

@@ -438,6 +438,14 @@ export abstract class Colony implements IColony {
         if (willDecrease) {
           this.trackPosition = this.colonies.length;
         }
+        // THE RESET HAPPENED — a fact of THIS trade, stamped on its manifest (FREEZE ZERO, CI #139): the trader's
+        // console used to read it off the track's LIVE position («track ≤ post»), which another seat moves up again
+        // the moment it builds on the same tile (MarsBot's delayed turn, a rival's colony) — and the trade's scene
+        // waited for a reset it had already seen, a dead screen until a net let it go.
+        const manifest = player.colonyTradeManifest;
+        if (manifest !== undefined && manifest.tradeId === this.activeTradeId) {
+          manifest.resetCommitted = true;
+        }
         this.activeTradeId = undefined;
       }, Priority.DECREASE_COLONY_TRACK_AFTER_TRADE);
     }

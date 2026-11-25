@@ -52,7 +52,7 @@
  * behaviour (desktop, tests, a torn-down shell).
  */
 
-import {reactive, shallowRef} from 'vue';
+import {reactive, shallowRef, watch} from 'vue';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {deriveFlowRun} from '@/client/console/session/flowRun';
 import {reactivePredicate} from '@/client/components/presentation/reactivityWitness';
@@ -829,6 +829,22 @@ function scheduleSettle(run: () => void): void {
 }
 
 /**
+ * THE DRAIN ENDED — its safety goes with it, UNLESS a hold was seeded DURING the drain (a scale raised while the members
+ * told the last one — CI #149, game 1168): that hold is a story of its own, owed on the board. Its ledger story and its
+ * redrive come back, and the edge the drain swallowed (`if (draining) return` — the board given back mid-drain) is
+ * asked again: a park pending over a board in view never stands with nobody to drain it.
+ */
+function endDrainSafety(): void {
+  clearSafety();
+  // (VALUES seeded during the drain — never the batch this very drain just released: it stays in the reveal queue
+  // until the player takes it, and a re-armed drain would hold it again, round after round.)
+  if (boardBeatParkState.heldParams !== undefined || boardBeatParkState.heldClaims !== undefined) {
+    armSafety();
+    (redriveHook ?? drainBoardBeatsIfDue)();
+  }
+}
+
+/**
  * DRAIN — the shell calls this on the «board watchable» rising edge (and
  * re-asks after every conclusion; idempotent). Causal order, each step
  * re-checking that the board is still watchable — a workspace re-opened
@@ -895,7 +911,7 @@ export function drainBoardBeatsIfDue(): void {
       boardBeatParkState.batchHeldByDrain = false;
       boardBeatParkState.draining = false;
       endScaleStory();
-      clearSafety();
+      endDrainSafety();
     };
     // …and what the released step PAID is told before anything after it (the members' own signal).
     const nonce = boardBeatParkState.nonce;
@@ -908,11 +924,13 @@ export function drainBoardBeatsIfDue(): void {
       parkWindow.drainStep = 'the members\' story';
       let done = false;
       let cancelNet: () => void = () => {};
+      let stopCover: () => void = () => {};
       const finish = () => {
         // A drain released / reset meanwhile (or a NEW drain running) is not this one's to end.
         if (!done && boardBeatParkState.nonce === nonce && boardBeatParkState.draining) {
           done = true;
           cancelNet();
+          stopCover();
           // ONE BREATH after the last touchdown (PL-146): the member's quiet lands on the counter's own tick, and
           // a cover rising 23 ms later (measured) buries the number it just paid — a settle beat, never the window.
           schedule(() => {
@@ -937,6 +955,23 @@ export function drainBoardBeatsIfDue(): void {
       }
       void Promise.all(quiets).then(finish, finish);
       armNet();
+      // THE BOARD COVERED DURING THE MEMBERS' STORY (CI #144, game 1182): the park's windows — the BLOCKING story
+      // window and the drain — are the board's, and they stood over a screen the player had opened, up to the members'
+      // net (8 s, the hard ceiling 20), the screen handoffs and the sitting's world beat waiting on them. The members
+      // keep their OWN holds (notification-only) and their own law (`scaleStepStageAway`); the park's part of the story
+      // is over the moment its board is gone — the settle's «covered again» rule, kept through the members' story.
+      stopCover = watch(() => boardWatchable(), (watchable) => {
+        if (!watchable && !done && boardBeatParkState.nonce === nonce && boardBeatParkState.draining) {
+          done = true;
+          cancelNet();
+          stopCover();
+          parkWindow.coveredAgain++;
+          for (const reason of coverReasonsProbe?.() ?? []) {
+            parkWindow.coveredAgainBy.add(reason);
+          }
+          run();
+        }
+      });
     };
     // THE WINDOW IS THE MEMBERS' WHEN THERE ARE MEMBERS (PL-146): a story member waits for the marker's
     // arrival itself and then tells what the step paid, so the fixed scale window on top of it was
@@ -956,12 +991,12 @@ export function drainBoardBeatsIfDue(): void {
       schedule(afterMembers(() => {
         boardBeatParkState.draining = false;
         endScaleStory();
-        clearSafety();
+        endDrainSafety();
       }), windowMs);
     } else {
       boardBeatParkState.draining = false;
       endScaleStory();
-      clearSafety();
+      endDrainSafety();
     }
   });
 }

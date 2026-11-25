@@ -242,9 +242,14 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
    * twenty seconds before the rating it answers was applied: it paid first. Its clock no longer runs while the
    * rating's stage is covered (`ratingTouchdownStep`): the wait is the story's, the story's due ends both, and the
    * reactor's own ceiling is not reached at all — it stays what it was meant to be, a defect on a stage in plain view.
+   * …AND SINCE THE ZERO BAR (2026-11-25 — `scaleStepStageAway`): the story is not held for a stage that is not coming
+   * at all. The board is behind a screen of the player's own (the opening's scene, its frame no longer on the stack),
+   * so the rating ticks on the rail AT ONCE, named by its chip (the walk's trail says `scale-step:away`), and the
+   * scale's marker stays the board's to tell. Neither ceiling is reached — not the story's, not the reactor's: a planned
+   * line is a story the player did not get, debt, and this one is now none.
    * (The walk is the monkey's own, by its seed — `monkeyWalk.ts`.)
    */
-  it('a scale step\'s rating owed under the start workspace: the story ends as PLANNED at its due — and the card that answers it waits with it', async () => {
+  it('a scale step\'s rating owed under the start workspace: let go at once, no ceiling of the story nor of the card that answers it', async () => {
     const table = await bottleServer().bootFixture('terraforming-deal-start-nodraw');
     bottle = await bootBottle(table);
     await bottle.advance(3_000);
@@ -252,15 +257,11 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     await bottle.advance(14_000);
     const waits = bottle.journal().filter((entry) => (entry.cause?.cls ?? '').startsWith('wait-graph/ceiling/scale-step-rating') ||
       (entry.cause?.cls ?? '').startsWith('wait-graph/ceiling/card-reaction:rating-story'));
-    expect(waits.map((entry) => entry.cause?.cls), 'the walk reaches the wait; ONE ceiling — the story\'s own, at its due')
-      .to.deep.equal(['wait-graph/ceiling/scale-step-rating:stage']);
-    expect(waits.map((entry) => entry.cause?.tier), 'the player kept the board covered: an honest end, said by the line').to.deep.equal(['planned']);
-    expect(waits.every((entry) => /\(planned: .*the player keeps the board covered/.test(entry.text)), 'the reason is in the line').to.equal(true);
-    // The reactor waited WITH the story (no ceiling of its own, neither under its old name nor its new one) and is
-    // not left waiting: the due that ended the story ended its wait.
+    expect(waits.map((entry) => entry.cause?.cls), 'no ceiling at all — the rating was let go the moment its stage was not coming').to.deep.equal([]);
     const graph = (window as unknown as {__conWaitGraph?: () => {nodes: Array<{id: string}>}}).__conWaitGraph?.();
     expect(graph, 'the wait graph\'s probe answers').to.not.equal(undefined);
-    expect((graph?.nodes ?? []).map((node) => node.id).filter((id) => id.includes('card-reaction:rating-story')), 'no reactor wait is left standing').to.deep.equal([]);
+    expect((graph?.nodes ?? []).map((node) => node.id).filter((id) => id.includes('scale-step-rating:stage') || id.includes('card-reaction:rating-story')),
+      'neither the story nor the reactor is left waiting').to.deep.equal([]);
     expect(classes(), 'nothing of this walk is a defect').to.deep.equal([]);
   });
 

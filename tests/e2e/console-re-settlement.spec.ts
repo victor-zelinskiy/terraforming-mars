@@ -630,7 +630,10 @@ for (const preset of PRESETS) {
         expect(probe.noCity, `${who}: a sample with NO city`).toEqual([]);
         expect(probe.vacatedAt, `${who}: the vacated cell never settled`).toBeDefined();
         expect(probe.landedAt, `${who}: the city never landed`).toBeDefined();
-        expect(probe.vacatedAt!, `${who}: the vacated cell settles BEFORE the landing`).toBeLessThan(probe.landedAt!);
+        // NEVER AFTER the landing (CI #151 — `1402 < 1402`): a starved runner's clock can advance the scene past both
+        // poses in ONE tick, and the recorder then sees them in the same sample. The order the player reads is the
+        // scene's; what a sample can prove is that the cell did not settle after the city arrived (FLAKE ZERO).
+        expect(probe.vacatedAt!, `${who}: the vacated cell settles no later than the landing`).toBeLessThanOrEqual(probe.landedAt!);
       };
       assertOneMove(own, 'own');
       expect(own.phases, 'the hero plays the move, lands, then pays').toEqual(expect.arrayContaining(['moving', 'landed', 'rewarding']));

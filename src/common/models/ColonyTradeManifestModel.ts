@@ -77,6 +77,13 @@ export type ColonyTradeManifestModel = {
    */
   postTradeTrackPosition: number;
   /**
+   * THE TRADE's FINALIZER RAN — its track reset (when it resets) is committed. A one-way fact of THIS trade (keyed by
+   * `tradeId`), never re-read off the track's live position: another seat may build on the same tile right after and
+   * move the marker up again (FREEZE ZERO, CI #139). Absent until the finalizer runs (an interactive bonus of the
+   * trader's still resolving) and on an older server.
+   */
+  resetCommitted?: boolean;
+  /**
    * The FIXED part of the income — paid on every trade here BEFORE the
    * marker's bonus (`ColonyMetadata.trade.fixed`: the Redux Venus's «terraform
    * Venus 1 step»). Present only for a tile that prints one.

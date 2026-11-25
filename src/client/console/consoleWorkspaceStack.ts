@@ -721,6 +721,11 @@ export function liveFrameIdentities(): ReadonlySet<object> {
   return new Set(workspaceStackState.frames.map((frame) => toRaw(frame) as object));
 }
 
+/** …and of every frame STANDING anywhere — live, parked by the player, aside for the board (one instance per home). */
+export function standingFrameIdentities(): ReadonlySet<object> {
+  return new Set([...workspaceStackState.frames, ...workspaceStackState.parked, ...boardYielded].map((frame) => toRaw(frame) as object));
+}
+
 export function workspaceStackRoot(): WorkspaceFrame | undefined {
   return workspaceStackState.frames[0];
 }
@@ -1414,6 +1419,14 @@ export function enterWorkspace(
   kind: WorkspaceFrameKind,
   opts?: {subject?: string, serves?: ReadonlyArray<TaskKind>, anchor?: FrameAnchor},
 ): void {
+  // ONE INSTANCE OF A KIND, WHEREVER IT STANDS (CI #138 — game 64): a kind standing ASIDE for the board (the sitting's
+  // world trip) is not entered beside itself — a door that asked only the live stack and the park stood a SECOND
+  // Parliament up over the board its first instance had yielded to. The instance aside comes back by its own door
+  // (`resumeStackFromBoard`); every door into the kind is refused here, once, by the stack.
+  if (workspaceFrameYielded(kind)) {
+    traceVerb(`enterWorkspace:${kind} refused — it stands aside for the board`);
+    return;
+  }
   // `goBoardHome`, not `resetWorkspaceStack`: a PHASE-anchored root survives a
   // lateral move for the same reason it survives a finished flow — walking from
   // the deployment to the colonies does not end the opening.

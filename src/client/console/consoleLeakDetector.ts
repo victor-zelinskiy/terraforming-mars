@@ -597,9 +597,16 @@ export function registerScreenShadowContext(supplier: (() => ScreenShadowContext
   screenShadowContext = supplier;
 }
 
+/**
+ * A surface PAINTS when it has a box, is not a warm (pre-mounted) layer, and is not LEAVING: a surface whose leave
+ * plays (`data-motion-leaving` — `surfaceMotionDirector.surfaceLeaveHook`, as long as the leave and no longer) answers
+ * no pointer and no press; it is the screen letting go of it, never an owner standing (CI #138, bottle game 1188: the
+ * task host set aside by B, caught by one look inside its 130 ms release — twice, a second apart — read as a settled
+ * «EXTRA: the hold says aside, the surface paints»).
+ */
 function paints(el: Element): boolean {
   return (el as HTMLElement).getClientRects().length > 0 && !(el as HTMLElement).hasAttribute('data-surface-warm') &&
-    startSceneServes(el);
+    !(el as HTMLElement).hasAttribute('data-motion-leaving') && startSceneServes(el);
 }
 
 /**

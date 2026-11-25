@@ -60,7 +60,7 @@ import {releaseDiscardExchange} from '@/client/console/cardDiscard/discardExchan
 import {consoleState, closeConsoleLayers} from '@/client/console/consoleRouter';
 import {isSurfaceAwaitingHandoff, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
-import {conclusionRefusal, handoffPendingEntries, OWED_CONCLUSION_BOUND_MS} from '@/client/console/shell/shellFlowState';
+import {conclusionRefusalOf, handoffPendingEntries, OWED_CONCLUSION_BOUND_MS} from '@/client/console/shell/shellFlowState';
 import {promptIdentityKey} from '@/client/console/turnIntents';
 import {MandatoryBeat, isMandatoryBeatPresented, forceMandatoryBeacon, isMandatoryBeaconForced, registerAnnounceDoor} from '@/client/console/consoleMandatoryGate';
 import {ActualStartOwner, StartOwner, StartShadowFinding, startDirectorCure, startShadowInScope, startShadowVerdict} from '@/client/console/startDirector';
@@ -221,7 +221,7 @@ export function createSupervisorController(shell: SupervisorPort) {
    * (`workspaceConclusionOwe.drive`) and the arbiter's rung.
    */
   function forceRecoverStuckWorkspace(kind: WorkspaceFrameKind, why?: string, owedForMs = 0): void {
-    const refused = conclusionRefusal.last?.kind === kind ? conclusionRefusal.last.reason : 'unknown';
+    const refused = conclusionRefusalOf(kind);
     console.warn(why ?? (
       `[workspace-stall] «${kind}» reported finished but could not dismiss for ` +
       `${Math.round(owedForMs / 1000)}s with nothing served — ` +
@@ -428,7 +428,7 @@ export function createSupervisorController(shell: SupervisorPort) {
       holders.push(`story ${story.id} ${(story.ageMs / 1000).toFixed(1)}s of ${Math.round(story.dueMs / 1000)}s${story.why !== '' ? ` — ${story.why}` : ''}`);
     }
     for (const owed of owedConclusions()) {
-      holders.push(`conclusion of ${owed.kind} owed ${age(owed.since)} — held: ${conclusionRefusal.last?.kind === owed.kind ? conclusionRefusal.last.reason : 'unknown'}`);
+      holders.push(`conclusion of ${owed.kind} owed ${age(owed.since)} — held: ${conclusionRefusalOf(owed.kind)}`);
     }
     if (transportState.requestInProgress) {
       holders.push(`transport: ${transportState.responseArrived ? 'the answer is in, its gates play' : 'on the wire'} ${age(transportState.requestSince)}`);
@@ -1021,7 +1021,7 @@ export function createSupervisorController(shell: SupervisorPort) {
     // A HELD / OWED CONCLUSION — by the reason it held on. One node per frame that owes (a debt is the frame's own
     // run now — `workspaceConclusionOwe.ts`; two workspaces owe independently).
     for (const owed of owedNow) {
-      const reason = conclusionRefusal.last?.kind === owed.kind ? conclusionRefusal.last.reason : 'unknown';
+      const reason = conclusionRefusalOf(owed.kind);
       const claimed = workspaceOutcomeState.host === owed.kind && workspaceOutcomeClaimed();
       // The edge by the hold's REASON — one typed table (`CONCLUSION_HOLD_EDGE`, exhaustive: a new reason names its edge).
       const edge = (CONCLUSION_HOLD_EDGE as Partial<Record<string, string>>)[reason] ?? 'motion';

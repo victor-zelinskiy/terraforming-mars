@@ -70,8 +70,9 @@ describe('ColonyTradeManifest', () => {
     });
     expect(tradeSegmentsOf(batch.segments)).deep.eq([{role: 'income', count: 3}, {role: 'bonus', count: 1}]);
 
-    // The track is NOT reset while rewards are still resolving.
+    // The track is NOT reset while rewards are still resolving — and the manifest says so (no stamp yet).
     expect(pluto.trackPosition).eq(5);
+    expect(manifest.resetCommitted, 'the finalizer has not run').is.undefined;
 
     // The player acknowledges the reveal (the client always does before the
     // discard prompt is reachable), then resolves each cube in turn.
@@ -93,6 +94,12 @@ describe('ColonyTradeManifest', () => {
     expect(pluto.trackPosition).eq(2);
     // The manifest is still available for the response serialization.
     expect(player.colonyTradeManifest?.tradeId).eq(manifest.tradeId);
+    // …STAMPED: the reset of THIS trade is a fact the client latches (CI #139) — a later rise of the same track (another
+    // seat building on the tile) never un-says it.
+    expect(player.colonyTradeManifest?.resetCommitted).is.true;
+    pluto.addColony(player2);
+    expect(pluto.trackPosition, 'a colony built after the reset raises the marker again').eq(3);
+    expect(player.colonyTradeManifest?.resetCommitted).is.true;
   });
 
   it('a still-pending merged batch keeps absorbing same-trade draws', () => {

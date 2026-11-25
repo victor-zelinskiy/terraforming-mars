@@ -23,7 +23,7 @@
  * never came back to the board → the rows tick, nothing flies). Reduced motion holds nothing.
  */
 import {reactive, watch, WatchStopHandle} from 'vue';
-import {scaleStepStageAway, ScaleStepWitness, stepWitness} from '@/client/console/scaleStepReward/scaleStepStageAway';
+import {noteStepAway, scaleStepStageAway, ScaleStepWitness, stepWitness} from '@/client/console/scaleStepReward/scaleStepStageAway';
 import {motionSpan} from '@/client/console/session/sessionWaits';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -273,7 +273,9 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
   }
   // THE PLAYER HAS GONE TO DO SOMETHING ELSE (`scaleStepStageAway`): the rail is an instrument in view — the hold is let
   // go at once (the cell ticks, nothing flies), never kept for a stage that is not coming.
-  if (scaleStepStageAway(e.madeUnder) !== undefined) {
+  const away = scaleStepStageAway(e.madeUnder);
+  if (away !== undefined) {
+    noteStepAway('venus-bonus-cell', away);
     return Promise.resolve(false);
   }
   debt?.settle();
@@ -319,8 +321,11 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
             wait.met();
           } else if (verdict === 'due') {
             wait.update(standing());
-            wait.ceiling();
+            wait.ceiling(boardBeatBoardWatchable() ? undefined : 'the player keeps the board covered — the bonus is applied at its due, untold');
           } else {
+            if (verdict === 'away') {
+              noteStepAway('venus-bonus-cell', scaleStepStageAway(e.madeUnder) ?? 'away');
+            }
             wait.end();
           }
           resolve(verdict === 'ready');

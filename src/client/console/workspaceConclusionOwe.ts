@@ -49,7 +49,7 @@ import {shallowRef} from 'vue';
 import {flowClock} from '@/client/console/kernel/flowClock';
 import {FlowScope} from '@/client/console/kernel/flowScope';
 import {WorkspaceFrameKind, workspaceFrameScope} from '@/client/console/consoleWorkspaceStack';
-import {conclusionRefusal} from '@/client/console/shell/shellFlowState';
+import {conclusionRefusalOf} from '@/client/console/shell/shellFlowState';
 import {levelDoorInit, observeLevelDoor} from '@/client/console/levelDoor';
 
 /** The cadence an owed conclusion is re-asked on when nothing it reads has moved (the old truth witness's beat). */
@@ -221,7 +221,7 @@ async function drive(run: OwedRun, scope: FlowScope): Promise<void> {
     }
     const now = flowClock().now();
     if (now - run.since >= CONCLUSION_REASK_GRACE_MS && port.cadenceApplies(run.kind)) {
-      const heldOn = conclusionRefusal.last?.kind === run.kind ? conclusionRefusal.last.reason : 'unknown';
+      const heldOn = conclusionRefusalOf(run.kind);
       const asked = ask(run);
       if (asked !== 'held') {
         // NAMED (invariant 4, and the field log's only word on it): the ending came on the CADENCE — nothing its facts

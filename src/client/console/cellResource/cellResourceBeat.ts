@@ -35,6 +35,7 @@ import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTran
 import {acceptSeatIntake, openSeatIntake, seatIntakeEnd} from '@/client/console/statusIntake';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {deriveFlowRun} from '@/client/console/session/flowRun';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 /** The beat's own name — its notification-only hold, its ledger story. */
 export const CELL_RESOURCE_KEY = 'cell-resource';
@@ -89,17 +90,37 @@ export function cellResourceSpec(record: CellResourcePayoutModel): ResourceTrans
   return {channel: 'stock', resource: record.resource, amount: record.amount};
 }
 
-/** Test seam: forget what was consumed. */
+/**
+ * THE BEAT AT REST — the session's end (`sessionState` below) and the tests. It used to forget only what was consumed:
+ * a run WAITING for its stage stood on (`running`, its stage wait, its ledger debt), and the next game's — or the next
+ * test's — first payout found `running` and never ran (FREEZE ZERO: the module was not reached by the session's end at
+ * all). The run of this generation is ended here; its continuation sees the new generation and writes nothing.
+ */
 export function resetCellResourceBeat(): void {
+  generation++;
+  const abort = abortStageWait;
+  abortStageWait = undefined;
+  abort?.();
+  debt?.settle();
+  debt = undefined;
+  current = undefined;
+  running = false;
   queue = [];
   consumedSeq = undefined;
   cellResourceState.phase = 'idle';
   cellResourceState.degraded = false;
 }
 
+/**
+ * THE HOLD IS THE FLIGHT, NEVER THE WAIT (FREEZE ZERO, the zero bar — CI #141). The notification-only hold keeps the
+ * feed from talking over a token in the air. It used to stand from the seed — through the whole WAIT for a stage too:
+ * a story that was not playing held the feed for up to thirty seconds behind the player's own screen (the starvation
+ * net at 12 s, the foreground watchdog at its grace: «busy with NOTHING rendered»), and raised `anyAnimation` for the
+ * admissions that wait on it. The wait keeps what it owns besides — its ledger debt and its node of the wait graph.
+ */
 export function cellResourceBusy(): boolean {
   void cellResourceState.phase;
-  return cellResourceState.phase !== 'idle';
+  return cellResourceState.phase === 'flying';
 }
 
 registerAnimationHoldSupplier(CELL_RESOURCE_KEY, cellResourceBusy, {
@@ -189,9 +210,32 @@ function stageReady(e: Entry): boolean {
   return boardBeatBoardWatchable() && cellPoint(e.record.spaceId) !== undefined;
 }
 
+/**
+ * THE STAGE THAT IS NOT COMING: the board is in the player's view and the cell stands in its DOM with NO BOX AT ALL —
+ * not laid out (a page with no layout: the console in the bottle; a board section rendered but not laid out). Nothing
+ * will ever measure it; waiting thirty seconds for it is a clock doing the flow's work. (A cell merely OFF the screen —
+ * the camera on another part of the board — has a box: that stage may still come, and is waited for.)
+ */
+function stageNeverComes(e: Entry): boolean {
+  if (!boardBeatBoardWatchable()) {
+    return false;
+  }
+  const box = document.querySelector<HTMLElement>(`#main_board [data_space_id="${e.record.spaceId}"]`)?.getBoundingClientRect();
+  return box !== undefined && box.width < 2 && box.height < 2;
+}
+
+/** The stage stands: the flight is decided in this very task — the hold rises with it, no feed card slips between. */
+function stageTaken(): true {
+  cellResourceState.phase = 'flying';
+  return true;
+}
+
 function waitForStage(e: Entry): Promise<boolean> {
   if (stageReady(e)) {
-    return Promise.resolve(true);
+    return Promise.resolve(stageTaken());
+  }
+  if (stageNeverComes(e)) {
+    return Promise.resolve(false);
   }
   let due = false;
   let aborted = false;
@@ -228,7 +272,10 @@ function waitForStage(e: Entry): Promise<boolean> {
         if (due) {
           return 'due';
         }
-        return stageReady(e) ? 'ready' : 'wait';
+        if (stageReady(e)) {
+          return 'ready';
+        }
+        return stageNeverComes(e) ? 'never' : 'wait';
       },
       (verdict) => {
         if (verdict !== 'wait') {
@@ -241,8 +288,9 @@ function waitForStage(e: Entry): Promise<boolean> {
             abortStageWait = undefined;
           }
           if (verdict === 'ready') {
+            stageTaken();
             wait.met();
-          } else if (aborted) {
+          } else if (aborted || verdict === 'never') {
             wait.end();
           } else {
             wait.update(standing());
@@ -332,3 +380,6 @@ async function run(): Promise<void> {
     }
   }
 }
+
+// THE GAME SCREEN LEAVES: the beat goes to rest with it — a payout waiting for its stage never outlives its game.
+sessionState('cell-resource-beat', resetCellResourceBeat, 75);

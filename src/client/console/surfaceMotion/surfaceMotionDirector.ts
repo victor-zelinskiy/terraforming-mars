@@ -61,6 +61,7 @@ import {EPISODE_NET_CEILING_MS, episodeNet, NetEpisode, playPromptArrive, playPr
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {probeTick} from '@/client/console/probeTick';
 import {leavingRectOf} from '@/client/console/surfaceMotion/rowLeaveRect';
+import {leaveAfterTokens} from '@/client/console/surfaceMotion/leaveAfterTokens';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ──────────────
 
@@ -1025,12 +1026,14 @@ export function pinQuickWheelBox(): void {
  * whichever way it ends, each of them is this `done` — and the cancel hook keeps its own.
  */
 export function surfaceLeaveHook(el: Element, done: () => void): void {
-  playSurfaceLeave(el, () => {
+  // A SURFACE LEAVES AFTER ITS TOKENS (`leaveAfterTokens` — CI #146): whichever verb took its frame off, a token still
+  // born on / landing on it keeps it where it stood, inert, and the ordinary leave plays after the last one.
+  leaveAfterTokens(el, surfaceIdOf(el) === 'section', () => playSurfaceLeave(el, () => {
     if (el instanceof HTMLElement) {
       delete el.dataset.motionLeaving;
     }
     done();
-  });
+  }));
 }
 
 function playSurfaceLeave(el: Element, done: () => void): void {

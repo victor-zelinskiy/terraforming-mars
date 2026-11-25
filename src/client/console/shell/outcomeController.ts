@@ -48,7 +48,7 @@ import {runResourceTransfers, releasePanelRewardHold, surfaceClear, surfaceHolds
 import {ActionCommitPlan, actionCommitHolding, releaseActionCommit, consumeActionCommitPlan} from '@/client/console/consoleActionCommit';
 import {consoleState, closeConsoleLayers} from '@/client/console/consoleRouter';
 import {clearLawPlayDraft, endLawPlayLanding, lawPlayLandingOf} from '@/client/console/consolePlayPick';
-import {conclusionRefusal} from '@/client/console/shell/shellFlowState';
+import {conclusionRefusal, conclusionRefusalOf} from '@/client/console/shell/shellFlowState';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {PromptSurface} from '@/client/console/consolePromptAdmission';
 import {stagedPlayState, stagedHostedTarget, armStagedPlay} from '@/client/console/stagedPlay';
@@ -648,7 +648,7 @@ export function createOutcomeController(shell: OutcomePort) {
       noteOwedSpan('', 'gone', Date.now());
       return;
     }
-    const held = conclusionRefusal.last?.kind === owed.kind ? conclusionRefusal.last.reason : 'unknown';
+    const held = conclusionRefusalOf(owed.kind);
     const asks = shell.playerView.waitingFor === undefined ? 'nobody' : taskFor(shell.playerView)?.kind ?? 'other';
     const flight = flightsInTheAir(Date.now(), [`conclusion:${owed.kind}`, `claim:${owed.kind}`, `surface:${owed.kind}`, OWED_CADENCE_FLIGHT]);
     const look = document.querySelector(PLAYER_LOOK_SELECTOR) !== null ? ' · look' : '';
@@ -783,6 +783,7 @@ export function createOutcomeController(shell: OutcomePort) {
     const conclusion = workspaceConclusionFor(conclusionFacts(kind, servedPromptHolds));
     if (conclusion.verdict === 'hold') {
       conclusionRefusal.last = {kind, reason: conclusion.reason, at: Date.now()};
+      conclusionRefusal.byKind.set(kind, {reason: conclusion.reason, at: Date.now()});
       if (conclusion.reason === 'owned-prompt') {
         openHeldFrameQuestionDoor(kind);
       }
@@ -792,7 +793,10 @@ export function createOutcomeController(shell: OutcomePort) {
       }
       return false;
     }
-    conclusionRefusal.last = undefined;
+    if (conclusionRefusal.last?.kind === kind) {
+      conclusionRefusal.last = undefined;
+    }
+    conclusionRefusal.byKind.delete(kind);
     resetConsoleActionComposerUi();
     // THE QUESTION KEEPS ITS SURFACE (`shellTaskSurface.ts` law 2). The flow is over, but the server already asks the
     // next thing ON this frame — a prelude WG Project dealt (Eccentric Sponsor, Ecology Experts) asks «play a card

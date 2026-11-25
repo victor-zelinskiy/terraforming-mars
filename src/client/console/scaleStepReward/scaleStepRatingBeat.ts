@@ -74,7 +74,7 @@ import {
   RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, TransferPoint, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {SCALE_STEP_BREATH_MS, SCALE_STEP_STAGE_DUE_MS, scaleStepTokenOrigins} from '@/client/console/scaleStepReward/scaleStepRewardModel';
-import {mergeStepWitness, scaleStepStageAway, ScaleStepWitness, stepWitness} from '@/client/console/scaleStepReward/scaleStepStageAway';
+import {mergeStepWitness, noteStepAway, scaleStepStageAway, ScaleStepWitness, stepWitness} from '@/client/console/scaleStepReward/scaleStepStageAway';
 import {freshCardReactions} from '@/client/console/cardReaction/cardReactionModel';
 import {SCALE_STEP_RATING_UNIT, claimTeller} from '@/client/console/resourceTransfer/oneTeller';
 import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
@@ -575,7 +575,9 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
   }
   // THE PLAYER HAS GONE TO DO SOMETHING ELSE (`scaleStepStageAway`): the rail is an instrument in view — the hold is let
   // go at once (the cell ticks, nothing flies), never kept for a stage that is not coming.
-  if (scaleStepStageAway(e.madeUnder) !== undefined) {
+  const away = scaleStepStageAway(e.madeUnder);
+  if (away !== undefined) {
+    noteStepAway('rating', away);
     return Promise.resolve(false);
   }
   debt?.settle();
@@ -627,6 +629,9 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
             wait.update(standing());
             wait.ceiling(boardBeatBoardWatchable() ? undefined : 'the player keeps the board covered — the rating is applied at its due, untold');
           } else {
+            if (verdict === 'away') {
+              noteStepAway('rating', scaleStepStageAway(e.madeUnder) ?? 'away');
+            }
             wait.end();
           }
           resolve(verdict === 'ready');

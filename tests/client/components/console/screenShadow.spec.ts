@@ -119,6 +119,13 @@ describe('screen shadow — positive controls through the leak detector', () => 
     expect(screenShadowLog.findings[0]).deep.include({kind: 'misserved', present: ['colonies'], expected: ['hand']});
   });
 
+  it('a LEAVING surface does not paint: the screen letting go of it is never an owner standing (CI #138)', () => {
+    enterWorkspace('colonies');
+    paint('con-colonies').setAttribute('data-motion-leaving', '1');
+    passes(handSelectView(), SCREEN_SHADOW_CONFIRM_TICKS + 1);
+    expect(screenShadowLog.findings.filter((f) => f.kind === 'misserved'), 'a foreign surface in its leave is not «misserved»').length(0);
+  });
+
   it('AGREE — the expected workspace stands and paints: no finding, the observed owner counted', () => {
     enterWorkspace('hand');
     paint('con-hand');

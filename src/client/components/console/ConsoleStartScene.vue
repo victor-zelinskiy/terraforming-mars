@@ -29,6 +29,7 @@
          // A prelude's «ВАРИАНТ» step stands (P44): the queue's other blocks and the shelf recede, the prelude stays.
          'con-start--variant': variantStep !== undefined,
        }"
+       :style="yielded ? YIELDED_STYLE : undefined"
        :data-bonus-stage="state.bonusAct.stage"
        :data-first-stage="state.firstAct.stage"
        :data-start-press-refused="pressRefusal || undefined"
@@ -1730,6 +1731,15 @@ const START_FLOW_ABSORBER = 'start-flow-motion';
 
 /** CAMPAIGN «ТЕНДЕРЫ» (§19): the door's list is moving (rise / fly home) or a tender's answer is on the wire. */
 const TENDER_DOOR_ABSORBER = 'tender-door-motion';
+
+/**
+ * THE YIELD IS A FACT OF THE DOM (FREEZE ZERO, the zero bar — CI #142). A standalone band of the opening (a production
+ * loss off an Ares hazard, a deck pick) yields the start's scene; the yield lived only in the stylesheet
+ * (`.con-start--yielded { visibility: hidden }`), and a reader with no stylesheet — the console in the bottle, the leak
+ * detector's «painted over» there — saw the scene painted over the band it had yielded to. Bound on the root, the
+ * yield is one truth for every reader; the class stays the family's marker (the transfer dim reads it).
+ */
+const YIELDED_STYLE = Object.freeze({visibility: 'hidden'});
 
 defineOptions({name: 'ConsoleStartScene'});
 const props = defineProps({

@@ -199,6 +199,42 @@ describe('consoleColonyTrade', () => {
     expect(colonyTradeState.phase).eq('glide');
   });
 
+  /*
+   * THE RESET IS A FACT OF THE TRADE, NEVER A LIVE POSITION (FREEZE ZERO, CI #139 — game 67, Ceres vs MarsBot): the gate
+   * read «committed track ≤ post». The bot's delayed turn built on the very tile while the fleet and the chips played,
+   * the track went post → post+1, and the overwritten value said «not reset yet» for good: the colonies workspace stood
+   * `committed` over the next turn's menu, every press swallowed, until a net let it go nine seconds later.
+   */
+  it('a reset SEEN is latched — another seat building on the tile afterwards never un-says it', async () => {
+    armColonyTrade(ColonyName.TRITON, 'red');
+    detectColonyTrade(view(manifest()));
+    notifyColonyTradeTrackCommitted(ColonyName.TRITON, 1);   // the reset (4 → 1), while the chips still play
+    notifyColonyTradeTrackCommitted(ColonyName.TRITON, 2);   // …and the bot builds a colony on Triton
+    await runColonyTradeRewards();
+    await nextTick();
+    expect(colonyTradeState.phase, 'the reset was seen — the final beat of the marker plays').eq('glide');
+  });
+
+  it('…and the stamp of the SERVER is the reset even when no view ever showed the post position (reset and raise in one flush)', async () => {
+    armColonyTrade(ColonyName.TRITON, 'red');
+    detectColonyTrade(view(manifest()));
+    await runColonyTradeRewards();
+    notifyColonyTradeTrackCommitted(ColonyName.TRITON, 2);   // the only position the page ever saw
+    await nextTick();
+    expect(colonyTradeState.phase, 'no stamp yet: it waits').eq('awaiting');
+    noticeColonyTradeCommit(view(manifest({resetCommitted: true})));
+    expect(colonyTradeState.phase, 'the stamp of THIS trade').eq('glide');
+  });
+
+  it('a stamp of ANOTHER trade is not the reset of this one', async () => {
+    armColonyTrade(ColonyName.TRITON, 'red');
+    detectColonyTrade(view(manifest()));
+    await runColonyTradeRewards();
+    noticeColonyTradeCommit(view(manifest({tradeId: 'Triton:g2:a77', resetCommitted: true})));
+    await nextTick();
+    expect(colonyTradeState.phase).eq('awaiting');
+  });
+
   it('a view proving the queue is PARKED on another player concludes on the bounded net', async () => {
     armColonyTrade(ColonyName.TRITON, 'red');
     detectColonyTrade(view(manifest()));

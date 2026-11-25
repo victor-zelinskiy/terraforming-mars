@@ -14,6 +14,7 @@
  *     beat → un-parks; a board re-covered mid-settle re-parks everything.
  */
 import {expect} from 'chai';
+import {nextTick, ref} from 'vue';
 import {GameModel} from '@/common/models/GameModel';
 import {Color} from '@/common/Color';
 import {
@@ -35,7 +36,7 @@ import {HeldGlobalParams} from '@/client/console/planetFocus';
 import {causeOf} from '@/common/diagnostics/cause';
 import {scaleStepStageAway, stepWitness} from '@/client/console/scaleStepReward/scaleStepStageAway';
 import {reportSurfaceBeat} from '@/client/console/workspaceBeatStall';
-import {enterWorkspace, pushWorkspaceFrame, resetWorkspaceStack, setWorkspaceFramePhase} from '@/client/console/consoleWorkspaceStack';
+import {collapseWorkspaceStack, enterWorkspace, pushWorkspaceFrame, resetWorkspaceStack, setWorkspaceFramePhase, workspaceStackState} from '@/client/console/consoleWorkspaceStack';
 
 function gameWith(partial: Partial<GameModel>): GameModel {
   return {
@@ -235,6 +236,64 @@ describe('boardBeatPark', function() {
       expect(boardBeatParkState.scaleStory).to.equal(false);
     } finally {
       off();
+    }
+  });
+
+  /*
+   * THE PARK's WINDOWS ARE THE BOARD's (FREEZE ZERO, CI #144 — bottle game 1182): the blocking story window and the
+   * drain stood over a screen the player opened during the members' story, up to the members' net, and the screen
+   * handoffs waited on them. Covered → the park's part is over at once; the members keep their own holds and laws.
+   * (A REACTIVE probe here, as the shell's is — the park now watches its board.)
+   */
+  it('the board COVERED during the members\' story ends the park\'s windows at once — the members keep their own (CI #144)', async () => {
+    const board = ref(false);
+    registerBoardWatchableProbe(() => board.value);
+    noteBoardScaleAdvance(gameWith({venusScaleLevel: 6}), gameWith({venusScaleLevel: 8}));
+    const off = registerBoardBeatStoryMember('spec-cover-member', {busy: () => true, quiet: () => new Promise<void>(() => {})});
+    try {
+      board.value = true;
+      drainBoardBeatsIfDue();
+      await delay(consoleMotionMs(BOARD_BEAT_SETTLE_MS) + 60);
+      expect(boardBeatParkState.scaleStory, 'the members\' story holds the window').to.equal(true);
+      expect(boardBeatParkState.draining).to.equal(true);
+      board.value = false;
+      await nextTick();
+      expect(boardBeatParkState.scaleStory, 'the blocking window let go with its board').to.equal(false);
+      expect(boardBeatParkState.draining, 'the drain is over').to.equal(false);
+    } finally {
+      off();
+    }
+  });
+
+  /*
+   * …AND A HOLD SEEDED DURING THE DRAIN KEEPS ITS OWN STORY (CI #149 — game 1168): the drain's end cleared the park's
+   * safety unconditionally — the ledger story, its redrive and its `waitsOn` with it — while a scale raised under a
+   * cover meanwhile stood parked: a park pending over a board in view, nobody to drain it, overdue at 32 s.
+   */
+  it('a hold seeded DURING the drain keeps its story when the drain ends — never a park pending with nobody to drain it (CI #149)', async () => {
+    const board = ref(false);
+    registerBoardWatchableProbe(() => board.value);
+    let redrives = 0;
+    registerBoardBeatRedrive(() => {
+      redrives++;
+    });
+    noteBoardScaleAdvance(gameWith({venusScaleLevel: 6}), gameWith({venusScaleLevel: 8}));
+    const off = registerBoardBeatStoryMember('spec-seed-member', {busy: () => true, quiet: () => new Promise<void>(() => {})});
+    try {
+      board.value = true;
+      drainBoardBeatsIfDue();
+      await delay(consoleMotionMs(BOARD_BEAT_SETTLE_MS) + 60);
+      expect(boardBeatParkState.heldParams, 'the first story released its values').to.equal(undefined);
+      board.value = false;  // the player covers the board…
+      noteBoardScaleAdvance(gameWith({temperature: -30}), gameWith({temperature: -28}));  // …and a scale moves under the cover
+      await nextTick();
+      expect(boardBeatParkState.draining, 'the drain ended with its board').to.equal(false);
+      expect(boardBeatParkPending(), 'the new scale stands parked').to.equal(true);
+      expect(presentationLedgerSnapshot().stories.some((s) => s.id === 'board-beat-park'), 'and its story stands on the ledger').to.equal(true);
+      expect(redrives, 'the swallowed edge is asked again').to.be.greaterThan(0);
+    } finally {
+      off();
+      registerBoardBeatRedrive(undefined);
     }
   });
 
@@ -858,14 +917,41 @@ describe('boardBeatPark', function() {
       expect(scaleStepStageAway(made), 'configure').to.contain('card-actions');
     });
 
-    it('the screen the player opened is PAST ITS COMMIT: the member waits — that flow leaves by itself, and the story follows (PL-002)', () => {
+    it('the screen the player opened stands in a TRANSIENT BEAT: the member waits it out — a committed flow of that NEW screen owes this step nothing', () => {
       const made = stepWitness();
       registerBoardCoverReasons(() => ['workspace']);
       enterWorkspace('hand');
-      for (const phase of ['executing', 'committed', 'completing'] as const) {
+      for (const phase of ['executing', 'completing'] as const) {
         setWorkspaceFramePhase('hand', phase);
         expect(scaleStepStageAway(made), phase).to.eq(undefined);
       }
+      setWorkspaceFramePhase('hand', 'committed');
+      expect(scaleStepStageAway(made), 'committed in a screen entered after the step').to.contain('hand');
+    });
+
+    it('a screen with NO FRAME covers the board («Информация», «Разыграно» — the player\'s own looks): gone', () => {
+      const made = stepWitness();
+      registerBoardCoverReasons(() => ['workspace']);
+      expect(scaleStepStageAway(made)).to.contain('a screen of their own');
+    });
+
+    it('…a screen with no frame, but the maker still STANDS somewhere (parked): the member waits', () => {
+      registerBoardCoverReasons(() => ['workspace']);
+      enterWorkspace('hand');
+      const made = stepWitness();
+      collapseWorkspaceStack();
+      expect(workspaceStackState.frames, 'nothing live').deep.eq([]);
+      expect(scaleStepStageAway(made), 'the maker stands parked').to.eq(undefined);
+    });
+
+    it('the MAKER stands in a VERDICT the player reads (it never leaves by itself): gone', () => {
+      registerBoardCoverReasons(() => ['section', 'workspace']);
+      enterWorkspace('parliament');
+      setWorkspaceFramePhase('parliament', 'committed');
+      const made = stepWitness();
+      expect(scaleStepStageAway(made), 'the maker past its commit leaves by itself').to.eq(undefined);
+      setWorkspaceFramePhase('parliament', 'verdict');
+      expect(scaleStepStageAway(made), 'its verdict').to.contain('verdict');
     });
 
     it('…and the phase is read where the surface DERIVES it (card-actions: its record says «browse» all flow long)', () => {
