@@ -120,8 +120,6 @@ const NOT_A_FLOW: Readonly<Record<string, string>> = {
     '`live` is a field of a lobby SOURCE row («the push channel of this server is carrying») — a fact about a connection, written by the channel\'s own events; the lobby is the page\'s, not a flow',
   'src/client/components/initialDraft/initialDraftSharedState.ts':
     '`active` has no writer left (the desktop initial-draft overlay that raised it went in deletion wave 3) — the awaiting window is DERIVED from the server\'s view (`isInitialDraftAwaiting`), nothing is held by the flag',
-  'src/client/components/actions/actionsPickState.ts':
-    'a desktop-era pick bridge nothing in `src` imports any more (only its own spec) — it goes with the next deletion wave; no flow can stand on it',
 };
 
 type DeclaredState = {file: string, label: string, at: number};

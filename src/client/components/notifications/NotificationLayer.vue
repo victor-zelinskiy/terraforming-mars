@@ -116,7 +116,6 @@ import {
   resetTerraformingCelebration,
   terraformingCelebrationState,
 } from '@/client/components/gameProgress/terraformingCelebration';
-import {resetStartSetupReveal} from '@/client/components/startGameFlow/startSetupRevealState';
 import {resetScaleBonusClaimsSeen} from '@/client/components/board/scaleBonusClaimState';
 import {observeMaCeremony, resetMaCeremony} from '@/client/components/ma/maCeremonyState';
 import {observeQuestCeremony, resetQuestCeremony} from '@/client/console/parliament/questCeremony';
@@ -344,7 +343,6 @@ function handleGenerationAndPass(now: number): void {
     resetTerraformingCelebration(); // same boundary — a different game opened in-session
     resetMaCeremony();
     resetQuestCeremony();
-    resetStartSetupReveal(); // a new game's gen-1 setup must not collide with the old dedup key
     resetMarsBotArchive(); // stale turn scripts belong to the previous game
     // …and the review RENDERS from that archive: left open across the
     // boundary it holds the foreground ('turn-theater') over a game it can

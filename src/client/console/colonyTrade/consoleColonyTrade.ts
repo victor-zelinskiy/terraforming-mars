@@ -314,7 +314,6 @@ let cancelParkedNet: () => void = NO_TIMER;
 /** The parked net is armed (its evidence stands) — `syncParkedEvidence` arms it once and disarms it when the proof goes. */
 let parkedNetArmed = false;
 let cancelAdvanceSafety: () => void = NO_TIMER;
-const glideResolver = owedAnswer('colony-trade:glide', {orphaned: () => []});
 
 /**
  * THE RUN'S OWN IDENTITY (wait graph R6). Bumped by every arm; every ENDING of a transaction — a timer (settle, the
@@ -732,8 +731,6 @@ function releasePreviousRun(): void {
   clearParkedNet();
   clearSettleTimer();
   clearAdvanceSafety();
-  const g = glideResolver.take();
-  g?.();
   const a = ctx.advanceResolve;
   ctx.advanceResolve = undefined;
   a?.();
@@ -1332,8 +1329,6 @@ export function finishColonyTrackReset(): void {
   colonyTradeState.settledCell = colonyTradeState.postTrackPosition;
   colonyTradeState.phase = 'settle';
   tradeLog('track settled at', colonyTradeState.postTrackPosition);
-  const r = glideResolver.take();
-  r?.();
   clearSettleTimer();
   // The settle ends THIS run only (R6) — the next trade armed inside the settle window owns `active` now.
   const run = tradeRun;
@@ -1446,8 +1441,6 @@ export function abortColonyTrade(): void {
       }
       heldReleasedRun = tradeRun;
     }
-    const r = glideResolver.take();
-    r?.();
     // …and the ADVANCE leg's own gate: an abort mid-advance must free the
     // payout's await, or `runColonyTradeRewards` would sit on a promise whose
     // transaction no longer exists.

@@ -419,7 +419,6 @@ import PrivateScoreMask from '@/client/components/overview/PrivateScoreMask.vue'
 import {shouldMaskOwnPassiveVp} from '@/client/components/overview/privateScoreState';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 import {conversionPromptUi} from '@/client/console/conversionPromptUi';
-import {startSetupOverrideFor} from '@/client/components/startGameFlow/startSetupRevealState';
 import {cardResourceCSS} from '@/client/components/common/cardResources';
 import {additionalResourceRoleGroups, additionalResourceMetricKey, AdditionalResourceRoleGroup} from '@/client/components/additionalResources/additionalResources';
 import {heldStock, heldProduction, heldCardResource, heldVictoryPoints, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -630,18 +629,10 @@ const vpReasonSeq = ref(0);
 let cancelVpReason = (() => {}) as () => void;
 
 /**
- * The player numbers the panel displays. During the start-of-game setup
- * reveal (this player's ceremony) the corp bonus + card payment are shown as
- * staged values, so the AnimatedMetricValue delta chips fire per explicit
- * step; the canonical `player` otherwise. Spreading over `player` keeps every
- * non-numeric field (tags, tableau) intact.
+ * The player numbers the panel displays — the canonical `player`. (The desktop start-of-game reveal that staged them
+ * went with its overlay; the console's start tells the corporation's bonus through its own stage and rail holds.)
  */
-const effectivePlayer = computed((): PublicPlayerModel => {
-  const override = startSetupOverrideFor(props.player.color);
-  // The override's `tags` is a partial map (baseline = empty); the readers all
-  // fall back to 0 for a missing tag, so the cast is safe.
-  return override !== undefined ? {...props.player, ...override} as PublicPlayerModel : props.player;
-});
+const effectivePlayer = computed((): PublicPlayerModel => props.player);
 /**
  * Terraforming rating for the score header. Rides `effectivePlayer`, so
  * during the start-of-game setup reveal it shows the STAGED value — the

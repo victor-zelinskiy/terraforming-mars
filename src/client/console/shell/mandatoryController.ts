@@ -36,7 +36,6 @@ import {ConsoleTask, taskFor, taskMinimizable, SHELL_SECTION_KINDS, corpFirstAct
 import {promptSourceResolution} from '@/client/console/promptSource';
 import {sittingReactionOf} from '@/client/console/parliament/agendaReaction';
 import {ConsoleTaskSummary} from '@/client/console/consoleTaskSummary';
-import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/startSetupRevealState';
 import {setConsoleTaskDeferred} from '@/client/console/consoleLeakDetector';
 import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
 import {navigationDefersShellTask, ShellTaskDestination} from '@/client/console/shellTaskSurface';
@@ -916,7 +915,6 @@ export function createMandatoryController(shell: MandatoryPort) {
   // `openMandatoryAnnounce` — the player's A — is the one door, exactly like
   // the draft; the ask is then a step INSIDE the open sitting.)
   function whenConsoleStateTaskDeferredChanges(deferred: boolean): void {
-    setStartSetupRevealSuspended(deferred);
     // Mirror into the leak detector: a deferred task is deliberately set aside
     // (never stranded), and its serving card (`.con-mandatory`) is hidden off
     // the board home — the detector reads this flag instead of a DOM surface.

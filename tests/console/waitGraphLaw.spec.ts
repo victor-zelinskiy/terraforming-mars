@@ -18,6 +18,7 @@ const CONSOLE = path.resolve(__dirname, '../../src/client/console');
 const EXEMPT: Readonly<Record<string, string>> = {
   'cardDiscard/cardDiscardState.ts': 'the store of `consoleCardDiscard.ts`, whose transaction holds `card-discard` (in the graph)',
   'colonyTrade/colonyTrackMove.ts': 'a marker glide of the trade — the trade run (`flow:colony-trade`) bounds it',
+  'colonyTrade/colonyTrackRaise.ts': 'the raise of every colony track — its wave is the run (`scene:colony-track-raise`) and waits only in a ceiling wait (`colony-track:wave-idle`, a node of the graph); «owed and not on stage» never outlives a flush (the seed and the play are ONE synchronous call), so the hold that read it could not be raised and was removed',
   'consoleActionCommit.ts': 'the commit motion of a composer — its rail halves hold `action-commit-rail*` (in the graph)',
   'consoleColoniesModel.ts': 'UI state of the colonies section (focus, berth) — no run, nothing ends it',
   'consoleHandPick.ts': 'a pick the PLAYER drives — the wait is the player\'s, honest and unbounded',

@@ -1,12 +1,9 @@
 {
  "note": "THE KERNEL'S STATE SPACE THAT NO PASS WALKS — each key with the reason it may stand unwalked ('' = nobody has said yet). Rewritten by `node scripts/kernel-walked.mjs <passes…> --write`: a key the passes walked leaves, the reasons are kept. FREEZE ZERO, stage 4.",
  "flows": {
-  "scene:hold:colony-track-raise": "DEAD AS A HOLD — its supplier reads `owed && !live`, and the seed and the play are ONE synchronous call (`colonyController`): no flush ever sees it true. The run itself (`scene:colony-track-raise`) is walked.",
   "scene:hold:tender-bidding-reveal": "RARE — the campaign's «Тендеры»: the first mount of an unfinished bidding deal after a mission ends, with motion on. To walk: finish a campaign mission in the tenders mode.",
-  "scene:start-setup-reveal": "DEAD — `primeStartSetupReveal` has no caller left (the desktop start reveal). A deletion candidate.",
   "step:colony-resolution-release-owed": "FAILURE PATH — raised only when the release of a colony resolution's outcome is REFUSED at the resolution's end (`releaseWorkspaceOutcome('resolution-end')`).",
   "step:law-play-fold": "RARE — an action commit folds while a LAW's card is still landing (Turmoil Redux: a law that plays a project card from «Действия карт»). To walk: enact such a law and let the commit fold under the landing.",
-  "step:owed:colony-trade:glide": "DEAD — only `take()` is ever called on it, never `arm()`. A deletion candidate.",
   "surface:card-album": "OUTSIDE A GAME — the album as a COMPONENT is hosted only by the campaign's carryover picker (between missions); the hand's album is `album-spine`.",
   "surface:card-list": "OUTSIDE A GAME — the `/cards` route.",
   "surface:colony-controller": "FAILURE PATH (re-read 2026-11-24) — the scope waits only in its two bounded nets: the entry's («entered, and nothing ever arrived», `COLONY_BONUS_ENTRY_WAIT_MS`) and the sequence's («another cycle is owed and nothing of it has arrived», `COLONY_BONUS_CYCLE_WAIT_MS`). The remote colony bonus itself IS walked — `console-colony-remote-bonus` (three tests) and `console-pluto-two-colony-sequence` on every whole suite, the `miranda-remote-bonus` / `pluto-settlements-*` tables under the monkey — and arms neither: the evidence is already there when the viewer walks in, and the next cycle rides the answer of the one before. To walk: the fault pass with the colony's answer HELD between the entry and its first evidence, or between two cycles.",
@@ -25,7 +22,6 @@
   "surface:gamepad-focus-ring": "FAILURE PATH — a pad intent the console shell does not claim falls through to the DOM focus engine and is REFUSED there (`deny`).",
   "surface:hydro-track": "OUTSIDE A GAME — rendered only by the legacy `/the-end` page (Delta Project); nothing in the product links to it.",
   "surface:log-panel": "OUTSIDE A GAME — a click on a board-space token in the legacy `/the-end` log.",
-  "surface:played-cards-pick": "DEAD — `enterPlayedCardsPick` has no caller. A deletion candidate (its `owedAnswer` with it).",
   "surface:played-controller": "RARE (the road unproven) — the played-card hero with its host `overlay`: a play confirmed while «Разыграно» stands open, or with no descent of the hand workspace. 3 421 walks never made it — the `host: overlay` branch may be unreachable.",
   "surface:played-overlay": "RARE (the road unproven) — the same overlay-hosted hero scene as `surface:played-controller`.",
   "surface:player-cube-playground": "DEV ONLY — the player-cube playground (a deep link / the dev hub)."
