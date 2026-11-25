@@ -228,33 +228,42 @@ describe('ServeAsset', () => {
     expect(res.statusCode).eq(statusCode.ok);
   });
 
-  // The fullscreen card's archive entry (card_lore.less) is set in the
-  // literary faces (italic + upright), and the console reading surfaces in
-  // Golos Text. Unlike art, a font is NOT covered by the generic extension
-  // branch — it needs an explicit entry in toFile()'s allowlist, and the right
-  // content type (a wrong one makes Chromium refuse the face silently).
-  const LORE_FONTS = [
-    'Literata-Italic-latin.woff2',
-    'Literata-Italic-cyrillic.woff2',
-    'Newsreader-Italic-latin.woff2',
-    'Literata-Regular-latin.woff2',
-    'Literata-Regular-cyrillic.woff2',
-    'Newsreader-Regular-latin.woff2',
-    'GolosText-latin.woff2',
-    'GolosText-cyrillic.woff2',
-    // The game's mono face (the diagnostics journal) — the same glyphs on SteamOS and on Windows.
-    'JetBrainsMono-latin.woff2',
-    'JetBrainsMono-cyrillic.woff2',
-  ];
-  for (const font of LORE_FONTS) {
-    it(`serves ${font} as font/woff2`, async () => {
+  /*
+   * EVERY FONT A STYLE SHEET ASKS FOR IS SERVED — read off the sheets themselves, never off a list kept by hand.
+   *
+   * The faces used to be named one by one in `toFile()` and again here. The styles then self-hosted Ubuntu, Jura and
+   * Play (twenty-six files, 2026-10-22) and neither list was told: for a month every one of them answered 404 and the
+   * text fell back to a system face in silence — found by the first whole game whose log was read whole (FREEZE ZERO,
+   * the zero bar). A font is served by its extension now, and this row walks what the sheets really reference: the
+   * file ships, the route answers 200, and the content type is the font's (a wrong one makes Chromium refuse the face
+   * in silence).
+   */
+  const FONT_URL = /url\(\s*['"]?\.\/assets\/([^'")]+\.(?:woff2|ttf))['"]?\s*\)/g;
+  const styleFonts = [...new Set(fs.readdirSync('src/styles').filter((name) => name.endsWith('.less'))
+    .flatMap((name) => [...fs.readFileSync(`src/styles/${name}`, 'utf8').matchAll(FONT_URL)].map((match) => match[1])))].sort();
+
+  it('the style sheets reference fonts at all (the row below reads them)', () => {
+    expect(styleFonts.length, 'the self-hosted faces').to.be.greaterThan(30);
+    expect(styleFonts, 'the family that named the defect').to.include('Ubuntu-latin.woff2');
+  });
+
+  for (const font of styleFonts) {
+    it(`serves ${font} — a face the styles ask for`, async () => {
       expect(fs.existsSync(`assets/${font}`), `assets/${font} must ship with the app`).is.true;
       instance = new ServeAsset(undefined, false, fileApi);
       scaffolding.url = `/assets/${font}`;
       scaffolding.req.headers['accept-encoding'] = '';
       await scaffolding.get(instance, res);
-      expect(res.statusCode).eq(statusCode.ok);
-      expect(res.headers.get('Content-Type')).eq('font/woff2');
+      expect(res.statusCode, `${font} is served`).eq(statusCode.ok);
+      expect(res.headers.get('Content-Type'), `${font} carries a font's content type`).eq(font.endsWith('.woff2') ? 'font/woff2' : 'font/ttf');
     });
   }
+
+  it('a font outside the assets is not served by its extension', async () => {
+    instance = new ServeAsset(undefined, false, fileApi);
+    scaffolding.url = '/assets/../package.woff2';
+    scaffolding.req.headers['accept-encoding'] = '';
+    await scaffolding.get(instance, res);
+    expect(res.statusCode).eq(statusCode.notFound);
+  });
 });

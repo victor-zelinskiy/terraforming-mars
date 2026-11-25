@@ -163,28 +163,6 @@ export class ServeAsset extends Handler {
       return {file: 'build/index.html'};
 
     case 'assets/curtain-overlay.html': // the Electron curtain overlay page (electron/curtainOverlay.ts)
-    case 'assets/Prototype.ttf':
-    case 'assets/Prototype-ru.ttf':
-    case 'assets/Prototype-pl.ttf':
-    case 'assets/futureforces.ttf':
-    case 'assets/RussoOne-Regular.ttf':
-    case 'assets/Anton-Regular.ttf':
-    case 'assets/Literata-Italic-latin.woff2':
-    case 'assets/Literata-Italic-cyrillic.woff2':
-    case 'assets/Newsreader-Italic-latin.woff2':
-    case 'assets/Literata-Regular-latin.woff2':
-    case 'assets/Literata-Regular-cyrillic.woff2':
-    case 'assets/Newsreader-Regular-latin.woff2':
-    case 'assets/GolosText-latin.woff2':
-    case 'assets/GolosText-cyrillic.woff2':
-    case 'assets/JetBrainsMono-latin.woff2':
-    case 'assets/JetBrainsMono-cyrillic.woff2':
-      // The .woff2 set: Literata / Newsreader are the literary faces of the
-      // fullscreen card's archive entry (card_lore.less) — italic + upright
-      // weight-variable subsets; Golos Text is the console READING face
-      // (rule texts and other long-form sentences — common.less §reading);
-      // JetBrains Mono is the game's MONO face (a diagnostic record's stack and
-      // full text, a report's code — console_diagnostics.less).
       return {file: urlPath};
 
     case 'styles.css':
@@ -230,7 +208,15 @@ export class ServeAsset extends Handler {
         }
       }
 
-      if (urlPath.endsWith('.png') || urlPath.endsWith('.webp') || urlPath.endsWith('.jpg') || urlPath.endsWith('.jpeg') || urlPath.endsWith('.svg') || urlPath.endsWith('.gif') || urlPath.endsWith('.json')) {
+      // …AND THE FONTS, BY THEIR EXTENSION — never by a list of names. The faces were once named here one by one, and
+      // the styles went on to self-host three more families (Ubuntu, Jura, Play — the «no third-party request at boot»
+      // change of 2026-10-22: twenty-six files): the list was not told, so on THIS server every one of them answered 404
+      // for a month and the text fell back to a system face in silence — for a browser and a LAN guest (the desktop's
+      // own protocol serves by extension: `electron/protocol.ts`). It was found by the first whole game whose LOG was read
+      // whole (FREEZE ZERO, the zero bar — «404 GET /assets/Ubuntu-latin.woff2», every game). The guard is the spec's:
+      // every font a style sheet asks for is served.
+      if (urlPath.endsWith('.png') || urlPath.endsWith('.webp') || urlPath.endsWith('.jpg') || urlPath.endsWith('.jpeg') || urlPath.endsWith('.svg') || urlPath.endsWith('.gif') || urlPath.endsWith('.json') ||
+          urlPath.endsWith('.woff2') || urlPath.endsWith('.ttf')) {
         const assetsRoot = path.resolve('./assets');
         const resolvedFile = path.resolve(path.normalize(urlPath));
 
