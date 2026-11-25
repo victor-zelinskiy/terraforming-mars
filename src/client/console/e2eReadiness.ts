@@ -26,6 +26,8 @@
  * (a static chain reaching a webpack-chunk consumer would silently zero
  * mochapack spec files; the menu-safe half lives in `inputEcho.ts` alone).
  */
+import {handRevealState} from '@/client/console/handDock/handRevealState';
+import {handRevealRunningSince, isHandRevealEpisodeRunning, runningHandRevealKind} from '@/client/console/handDock/handRevealDirector';
 import {remoteLandingBehindScreen, remotePlacementState} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {activeAnimationHoldLabels} from '@/client/components/presentation/animationHold';
 import {transportDiagFacts} from '@/client/console/transport/gameTransport';
@@ -104,6 +106,12 @@ export type ConsoleReadinessSnapshot = {
    * viewer's own screen (its clock stands — `consoleRemotePlacement.remoteLandingBehindScreen`).
    */
   remoteLanding: {queued: number, active: boolean, waiting: boolean, behind: boolean};
+  /**
+   * THE HAND's REVEAL EPISODE — the album's phase, whether an episode runs and of which kind, and whether a close is
+   * being prepared. (A running episode OWNS B — «mid-close it is swallowed»: an episode that never ends is a B that
+   * does nothing under a bar that offers it.)
+   */
+  handReveal: {phase: string, running: boolean, kind: string, sinceMs: number};
   at: number;
 };
 
@@ -137,6 +145,10 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
       draining: boardBeatParkState.draining, held: Object.keys(boardBeatParkState.heldParams ?? {}).join(','),
       rating: scaleStepRatingState.phase,
       owed: presentationLedgerSnapshot().stories.map((s) => ({id: s.id, ageMs: s.ageMs, why: s.why, ...(s.waitsOn !== undefined ? {waitsOn: s.waitsOn} : {})})),
+    },
+    handReveal: {
+      phase: handRevealState.phase, running: isHandRevealEpisodeRunning(), kind: runningHandRevealKind() ?? '',
+      sinceMs: handRevealRunningSince() === undefined ? 0 : Date.now() - (handRevealRunningSince() as number),
     },
     remoteLanding: {
       queued: remotePlacementState.queued, active: remotePlacementState.active, waiting: remotePlacementState.waitingForBoard,

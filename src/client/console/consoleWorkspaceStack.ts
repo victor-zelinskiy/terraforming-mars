@@ -712,6 +712,15 @@ export function workspaceStackTop(): WorkspaceFrame | undefined {
   return workspaceStackState.frames[workspaceStackState.frames.length - 1];
 }
 
+/**
+ * THE IDENTITIES OF THE LIVE FRAMES right now (raw records, never proxies) — a witness a caller keeps to ask LATER
+ * «is this frame one that stood then?» (`scaleStepStageAway`: a frame entered after a step is the player's own screen).
+ * Reactive in the frames array (a reader inside a watcher wakes on a push / a pop).
+ */
+export function liveFrameIdentities(): ReadonlySet<object> {
+  return new Set(workspaceStackState.frames.map((frame) => toRaw(frame) as object));
+}
+
 export function workspaceStackRoot(): WorkspaceFrame | undefined {
   return workspaceStackState.frames[0];
 }
@@ -2020,6 +2029,29 @@ export function questionSetAside(kind: TaskKind | undefined): boolean {
  */
 export function workspaceReturnsFromBoard(kind: WorkspaceFrameKind): boolean {
   return workspaceFrameYielded(kind);
+}
+
+/**
+ * A LOOK BESIDE ITS OWN PARK — the live frame of `kind` was opened fresh while the FLOW of the same kind stands parked.
+ *
+ * The wheel's law: a workspace opened from the wheel while something is parked is «посмотреть», never «вернуться»
+ * (`card-actions` and `standard-projects` earn it by resetting on a fresh open). So one kind can stand in two homes at
+ * once — the look on the live stack, the flow in the park — and the look owns NO flow: no step is owed to it, no
+ * outcome plays in it, no prompt is its to serve.
+ *
+ * The readers that asked «is my flow's frame on stage?» by `workspaceFrameMounted(kind)` took the look for the flow:
+ * the Reds' discard — collapsed by the player, its hand parked with it — was said to be OWED to the fresh look the
+ * moment the player opened «Действия карт» from the wheel; the conclusion's debt moved from «parked — the player
+ * restores it» to «owed-step — the server's follow-up», which could never come, and the wait graph named a dead end
+ * over a screen that was doing exactly what the law says (the fourth hundred's game 1210, 2026-11-25).
+ */
+export function workspaceFrameIsLookBesidePark(kind: WorkspaceFrameKind): boolean {
+  return workspaceFrameIndex(kind) !== -1 && workspaceFrameParked(kind);
+}
+
+/** THE FRAME THAT OWNS `kind`'s FLOW stands on the live stack — mounted, and not a look beside its own park. */
+export function workspaceFlowFrameMounted(kind: WorkspaceFrameKind): boolean {
+  return workspaceFrameMounted(kind) && !workspaceFrameIsLookBesidePark(kind);
 }
 
 /** Its frame stands on the live stack and nothing hides it — the rising edge is the frame's RETURN. */

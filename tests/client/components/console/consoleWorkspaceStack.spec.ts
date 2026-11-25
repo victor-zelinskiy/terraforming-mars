@@ -52,6 +52,8 @@ import {
   workspaceFrameAnywhere,
   workspaceFrameKnown,
   workspaceFrameRenders,
+  workspaceFlowFrameMounted,
+  workspaceFrameIsLookBesidePark,
   workspaceStackAwaitsZone,
   workspaceHostForStep,
   workspaceHostYieldsScene,
@@ -470,6 +472,36 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     // gave the right command bar over a blank screen.
     expect(workspaceFrameRenders('colonies'), 'the new workspace is visible').to.eq(true);
     expect(workspaceFrameRenders('hand'), 'the parked one is not').to.eq(false);
+  });
+
+  /*
+   * A LOOK BESIDE ITS OWN PARK (game 1210 of the fourth hundred). The player collapses a card action's discard step
+   * and opens «Действия карт» from the wheel: by the wheel's law a FRESH browse stands beside the parked flow. The
+   * look is mounted — and it is not the flow: the readers that ask «is my flow's frame on stage» must not take it
+   * for one (the Reds' discard was said to be OWED to the look; the wait graph named a dead end).
+   */
+  it('a look opened beside its own parked flow is mounted and owns no flow — until the flow itself comes back', () => {
+    enterWorkspace('card-actions');
+    pushWorkspaceFrame({kind: 'hand', subject: '', stage: '', phase: 'browse', serves: ['handSelect'], anchor: ALWAYS});
+    expect(workspaceFlowFrameMounted('card-actions'), 'the flow stands').to.eq(true);
+    collapseWorkspaceStack();
+    expect(workspaceFlowFrameMounted('card-actions'), 'parked: nothing of it is on stage').to.eq(false);
+    // The wheel: a fresh look of the same kind.
+    enterWorkspace('card-actions');
+    expect(workspaceFrameMounted('card-actions'), 'the look is mounted').to.eq(true);
+    expect(workspaceFrameIsLookBesidePark('card-actions'), 'and it is a look beside its own park').to.eq(true);
+    expect(workspaceFlowFrameMounted('card-actions'), 'the FLOW is still in the park').to.eq(false);
+    expect(workspaceFrameParked('card-actions')).to.eq(true);
+    // B closes the look; the plate restores the flow — the only frame of its kind again.
+    goBoardHome();
+    restoreWorkspaceStack();
+    expect(workspaceFrameIsLookBesidePark('card-actions')).to.eq(false);
+    expect(workspaceFlowFrameMounted('card-actions'), 'the flow is back on stage').to.eq(true);
+    // (A different kind beside a park is no look of that park.)
+    collapseWorkspaceStack();
+    enterWorkspace('colonies');
+    expect(workspaceFrameIsLookBesidePark('colonies')).to.eq(false);
+    expect(workspaceFlowFrameMounted('colonies')).to.eq(true);
   });
 
   it('a fresh frame starts from its registered serves', () => {

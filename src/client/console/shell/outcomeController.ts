@@ -18,7 +18,7 @@ import {intakeBatchSources} from '@/common/models/CardDrawRevealModel';
 import {ConsoleHandEntry} from '@/client/components/console/consoleHandSectionTypes';
 import {ConsoleColonyPick} from '@/client/components/console/consoleColoniesSectionTypes';
 import {hostedStepLiveIn, hostedStepOwedTo} from '@/client/console/parliament/hostedParliamentStep';
-import {closeWorkspaceRoot, workspaceFrameMounted, stackYieldedToBoard, workspaceStackCollapsed, handFrameToQuestion, frameServing, goBoardHome, popWorkspaceFrame, pushWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameDescended, workspaceFrameHasNested, workspaceFrameIndex, workspaceFramePhase, workspaceStackTop, workspaceFrameStage, workspaceFrameAnchor, workspaceFrameHost, workspaceFrameKnown, workspaceFrameParked, workspaceHostForStep, workspaceFrameOffStage, workspaceSceneHidden, workspaceSceneOnStage, FrameAnchor, WorkspaceFrameKind, workspaceStackState} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, workspaceFrameMounted, stackYieldedToBoard, workspaceStackCollapsed, handFrameToQuestion, frameServing, goBoardHome, popWorkspaceFrame, pushWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameDescended, workspaceFrameHasNested, workspaceFrameIndex, workspaceFramePhase, workspaceStackTop, workspaceFrameStage, workspaceFrameAnchor, workspaceFrameHost, workspaceFrameKnown, workspaceFrameParked, workspaceHostForStep, workspaceFrameOffStage, workspaceSceneHidden, workspaceSceneOnStage, FrameAnchor, WorkspaceFrameKind, workspaceStackState, workspaceFrameSelector} from '@/client/console/consoleWorkspaceStack';
 import {workspaceConclusionFor} from '@/client/console/consoleWorkspaceFlow';
 import {openFrameQuestionDoor} from '@/client/console/frameQuestionDoor';
 import {colonyTradeEntryLocked} from '@/client/console/colonyTrade/colonyTradeEntry';
@@ -44,7 +44,7 @@ import {boardCardBonusClaimsReveal} from '@/client/console/boardCardBonus/consol
 import {applyOutcomeAdoption, outcomeAdoptionHost, resolveOutcomeAdoption, sameAdoptionDecision, OutcomeAdoptionDecision} from '@/client/console/consoleOutcomeAdoption';
 import {deckDrawHolds} from '@/client/console/deckDraw/consoleDeckDraw';
 import {ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, touchdownTickAt} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {runResourceTransfers, releasePanelRewardHold, surfaceClear, surfaceHoldsTokens, beginPanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {runResourceTransfers, releasePanelRewardHold, surfaceClear, surfaceHoldsTokens, beginPanelRewardHold, surfaceKeepsItsFrame, boundSurfaceFrameHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ActionCommitPlan, actionCommitHolding, releaseActionCommit, consumeActionCommitPlan} from '@/client/console/consoleActionCommit';
 import {consoleState, closeConsoleLayers} from '@/client/console/consoleRouter';
 import {clearLawPlayDraft, endLawPlayLanding, lawPlayLandingOf} from '@/client/console/consolePlayPick';
@@ -537,7 +537,17 @@ export function createOutcomeController(shell: OutcomePort) {
     {name: 'a party payout is owed', as: 'outcomeLive', ghost: 'never', holds: (kind) => kind === 'card-actions' && shell.politicalPayoutOwed},
     // THE ENACTED LAW'S ACTION still owes a step (RX36): its card landing in the stage, or its live play pick.
     {name: 'the law\'s step is owed', as: 'ownsPrompt', ghost: 'never', holds: (kind) => kind === 'card-actions' && shell.lawStepOwed},
+    // TOKENS STAND ON ITS SURFACE — a price still landing on the card's printed icon, a gain still being born on it
+    // (`surfaceKeepsItsFrame`: reactive, bounded by `surfaceClear`'s ceiling). The claim used to be the only thing
+    // that kept the frame under them, and «Взять всё» on a drawn batch releases the claim at once (game 1289).
+    // `'may'`: a lost end can hide here — it vouches for nothing, and it has its own bound.
+    {name: 'tokens stand on its surface', as: 'outcomeLive', ghost: 'may', holds: (kind) => surfaceKeepsItsFrame(frameSurfaceOf(kind))},
   ];
+
+  /** The band surface of a workspace's frame (the element its tokens are born on and land on). */
+  function frameSurfaceOf(kind: WorkspaceFrameKind): Element | null {
+    return typeof document === 'undefined' ? null : document.querySelector(workspaceFrameSelector(kind));
+  }
 
   /**
    * THE CONCLUSION's DOOR, MEASURED BY FRAME (FREEZE ZERO, stage 2 — S5-rest; `servingOwnerMeasure.noteConcludeSpan`).
@@ -775,6 +785,10 @@ export function createOutcomeController(shell: OutcomePort) {
       conclusionRefusal.last = {kind, reason: conclusion.reason, at: Date.now()};
       if (conclusion.reason === 'owned-prompt') {
         openHeldFrameQuestionDoor(kind);
+      }
+      // (A hold for the tokens on the surface is bounded from its first refusal — a no-op when none stand.)
+      if (conclusion.reason === 'live-outcome') {
+        boundSurfaceFrameHold(frameSurfaceOf(kind));
       }
       return false;
     }

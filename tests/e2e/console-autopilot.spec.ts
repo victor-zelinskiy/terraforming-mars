@@ -541,13 +541,15 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     // 2026-11-24: the pilot browsed the Parliament's delegate stage for four questions in a row, and the door
     // answered each — a habit of the pilot, never a place of the product. What the door answers after this walk is
     // a question the HOME could not serve either.)
-    if (!standing.menu && standing.presses === Math.floor(standing.budget / 2)) {
+    if (!standing.menu && !standing.bonus && standing.presses === Math.floor(standing.budget / 2)) {
       await walkHome(false);
-      if (standing.bonus) {
-        // (…and a bonus action that found nothing to do where it went goes SOMEWHERE ELSE.)
-        standing.intent = [...INTENTS[menus++ % INTENTS.length].keys];
-        log.push(`[INTENT ${INTENTS[(menus - 1) % INTENTS.length].name}]`);
-      }
+    }
+    // (…and a bonus action that found nothing to do where it went goes SOMEWHERE ELSE — a new section every quarter of
+    // its budget: four of them before the door acts.)
+    if (standing.bonus && standing.presses > 1 && standing.presses % Math.max(1, Math.floor(standing.budget / 4)) === 0) {
+      await walkHome(false);
+      standing.intent = [...INTENTS[menus++ % INTENTS.length].keys];
+      log.push(`[INTENT ${INTENTS[(menus - 1) % INTENTS.length].name}]`);
     }
     const seen = await look(page);
     stood = `${seen.frames.join('>') || '-'}${seen.zoom ? '+ZOOM' : ''}${seen.quick ? '+WHEEL' : ''}|${wf.type}#${wf.promptId ?? ''}|${seen.bar.slice(0, 80)}`;
@@ -574,7 +576,14 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     if (PILOT >= 3 && !standing.menu && !standing.bonus && seen.look === '' && !seen.zoom) {
       standing.still = stood === standing.lastStood ? standing.still + 1 : 0;
       standing.lastStood = stood;
-      if (standing.still >= 6 && (seen.frames.length > 0 || seen.quick)) {
+      // (…«does not answer»: the question was SET ASIDE — the page's own word, what a player sees as «this is not my
+      // question's screen». A surface that serves the question stands still under a d-pad walk too: a pick's bar does
+      // not change with the cursor — the first pass of pilot 3 walked home out of a research buy it was laying out.
+      // …or its PLATE stands at home: the draft / the research announced, and the pilot walked into a side screen
+      // before it pressed the plate — `admission:announce-gate` is held until the plate's own press, and the plate is
+      // on the board (the fifth hundred's doors, all of them: the pilot waited in «Действия карт» for a hold whose only
+      // door was home).)
+      if (standing.still >= 6 && (seen.frames.length > 0 || seen.quick) && / held (aside:|admission:announce-gate)/.test(await ownerNow())) {
         standing.still = 0;
         log.push('[HOME]');
         await walkHome(false);

@@ -35,6 +35,7 @@
  * motion: nothing flies, the counter ticks as the marker settles.
  */
 import {nextTick, reactive, watch, WatchStopHandle} from 'vue';
+import {scaleStepStageAway, ScaleStepWitness, stepWitness} from '@/client/console/scaleStepReward/scaleStepStageAway';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {motionSpan} from '@/client/console/session/sessionWaits';
 import {Color} from '@/common/Color';
@@ -76,6 +77,8 @@ export type ScaleStepEntry = {
   own: boolean,
   /** The panel hold still owed (whole gain at seed, released unit by unit). */
   held: number,
+  /** The screens the step was made under (`scaleStepStageAway`). */
+  madeUnder: ScaleStepWitness,
 };
 
 export const scaleStepRewardState = reactive({
@@ -212,7 +215,7 @@ export function seedScaleStepRewardHolds(before: PlayerViewModel | undefined, af
       // (TR24 — the marker is the law), so the record's share is this host's, never the chain's second flight.
       declareHeldAnswers([spec]);
     }
-    scaleStepRewardState.queue.push({record, own, held});
+    scaleStepRewardState.queue.push({record, own, held, madeUnder: stepWitness()});
     queued = true;
   }
   if (claimed.size > 64) {
@@ -261,6 +264,11 @@ function waitForStage(entry: ScaleStepEntry, myEpoch: number): Promise<boolean> 
   if (stageReady(entry)) {
     return Promise.resolve(true);
   }
+  // THE PLAYER HAS GONE TO DO SOMETHING ELSE (`scaleStepStageAway`): the rail is an instrument in view — the hold is let
+  // go at once (the cell ticks, nothing flies), never kept for a stage that is not coming.
+  if (scaleStepStageAway(entry.madeUnder) !== undefined) {
+    return Promise.resolve(false);
+  }
   debt?.settle();
   debt = owePresentation({
     id: 'scale-step-reward',
@@ -298,6 +306,9 @@ function waitForStage(entry: ScaleStepEntry, myEpoch: number): Promise<boolean> 
         }
         if (scaleStepRewardState.due) {
           return 'due';
+        }
+        if (scaleStepStageAway(entry.madeUnder) !== undefined) {
+          return 'away';
         }
         return stageReady(entry) ? 'ready' : 'wait';
       },

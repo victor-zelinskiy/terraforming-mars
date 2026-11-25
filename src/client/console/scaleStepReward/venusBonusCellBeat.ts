@@ -23,6 +23,7 @@
  * never came back to the board → the rows tick, nothing flies). Reduced motion holds nothing.
  */
 import {reactive, watch, WatchStopHandle} from 'vue';
+import {scaleStepStageAway, ScaleStepWitness, stepWitness} from '@/client/console/scaleStepReward/scaleStepStageAway';
 import {motionSpan} from '@/client/console/session/sessionWaits';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -120,7 +121,7 @@ export const venusBonusCellState = reactive({
  */
 deriveFlowRun('venus-bonus-cell', () => venusBonusCellState.phase !== 'idle', {kind: 'story'});
 
-type Entry = {plan: Array<{spec: ResourceTransferSpec, cell: string | undefined}>, held: Array<ResourceTransferSpec>, to: number};
+type Entry = {plan: Array<{spec: ResourceTransferSpec, cell: string | undefined}>, held: Array<ResourceTransferSpec>, to: number, madeUnder: ScaleStepWitness};
 
 let armed: VenusBonusCellArm | undefined;
 let armedAt = 0;
@@ -237,7 +238,7 @@ export function seedVenusBonusCellHold(before: PlayerViewModel | undefined, afte
     return;
   }
   beginPanelRewardHold(held);
-  entry = {plan: plan.filter((p) => held.includes(p.spec)), held: [...held], to: arm.step?.to ?? MAX_VENUS_SCALE};
+  entry = {plan: plan.filter((p) => held.includes(p.spec)), held: [...held], to: arm.step?.to ?? MAX_VENUS_SCALE, madeUnder: stepWitness()};
   venusBonusCellState.due = false;
   venusBonusCellState.degraded = false;
   if (!quietResolve.armed) {
@@ -270,6 +271,11 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
   if (stageReady(e)) {
     return Promise.resolve(true);
   }
+  // THE PLAYER HAS GONE TO DO SOMETHING ELSE (`scaleStepStageAway`): the rail is an instrument in view — the hold is let
+  // go at once (the cell ticks, nothing flies), never kept for a stage that is not coming.
+  if (scaleStepStageAway(e.madeUnder) !== undefined) {
+    return Promise.resolve(false);
+  }
   debt?.settle();
   debt = owePresentation({
     id: VENUS_BONUS_CELL_KEY,
@@ -298,6 +304,9 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
         }
         if (venusBonusCellState.due) {
           return 'due';
+        }
+        if (scaleStepStageAway(e.madeUnder) !== undefined) {
+          return 'away';
         }
         return stageReady(e) ? 'ready' : 'wait';
       },

@@ -33,6 +33,9 @@ import {claimWorkspaceOutcome, resetWorkspaceOutcome} from '@/client/console/con
 import {currentRevealEvent, drawnCardsState, DrawnCardEntry, registerRevealQueuePark} from '@/client/components/drawnCards/drawnCardsState';
 import {HeldGlobalParams} from '@/client/console/planetFocus';
 import {causeOf} from '@/common/diagnostics/cause';
+import {scaleStepStageAway, stepWitness} from '@/client/console/scaleStepReward/scaleStepStageAway';
+import {reportSurfaceBeat} from '@/client/console/workspaceBeatStall';
+import {enterWorkspace, pushWorkspaceFrame, resetWorkspaceStack, setWorkspaceFramePhase} from '@/client/console/consoleWorkspaceStack';
 
 function gameWith(partial: Partial<GameModel>): GameModel {
   return {
@@ -823,4 +826,88 @@ describe('boardBeatPark', function() {
         .to.deep.include({cls: 'wait-graph/ceiling/played-hero:target', tier: 'defect'});
     });
   });
+
+  /*
+   * «THE PLAYER HAS GONE TO DO SOMETHING ELSE» (`scaleStepStageAway` — the zero bar, game 1209 of the fourth hundred).
+   * A step the viewer made pays on the RAIL, held there to be told on the board. Behind a flow past its commit the
+   * hold is honest (the workspace leaves by itself — PL-002). Behind a screen the player walked into, it is a number
+   * held on an instrument in view for a stage that is not coming: thirty-two seconds of it, the park's blocking window
+   * with it, the notifications starved behind both.
+   */
+  describe('the members of the story of a step let go when the player has gone to do something else', () => {
+    afterEach(() => {
+      resetWorkspaceStack();
+      reportSurfaceBeat('card-actions', undefined);
+    });
+
+    it('a board in view, or covered by a scene that leaves it on screen: the stage is coming — nobody lets go', () => {
+      const made = stepWitness();
+      registerBoardCoverReasons(() => []);
+      expect(scaleStepStageAway(made)).to.eq(undefined);
+      registerBoardCoverReasons(() => ['placement']);
+      enterWorkspace('hand');
+      expect(scaleStepStageAway(made), 'a cover that leaves the board on screen').to.eq(undefined);
+    });
+
+    it('made on the board, then a screen the player OPENED and browses (or sets up a reversible step in): gone — the rail ticks at once', () => {
+      const made = stepWitness();
+      registerBoardCoverReasons(() => ['workspace']);
+      enterWorkspace('card-actions');
+      expect(scaleStepStageAway(made), 'browse').to.contain('card-actions');
+      setWorkspaceFramePhase('card-actions', 'configure');
+      expect(scaleStepStageAway(made), 'configure').to.contain('card-actions');
+    });
+
+    it('the screen the player opened is PAST ITS COMMIT: the member waits — that flow leaves by itself, and the story follows (PL-002)', () => {
+      const made = stepWitness();
+      registerBoardCoverReasons(() => ['workspace']);
+      enterWorkspace('hand');
+      for (const phase of ['executing', 'committed', 'completing'] as const) {
+        setWorkspaceFramePhase('hand', phase);
+        expect(scaleStepStageAway(made), phase).to.eq(undefined);
+      }
+    });
+
+    it('…and the phase is read where the surface DERIVES it (card-actions: its record says «browse» all flow long)', () => {
+      const made = stepWitness();
+      registerBoardCoverReasons(() => ['workspace']);
+      enterWorkspace('card-actions');
+      reportSurfaceBeat('card-actions', 'executing');
+      expect(scaleStepStageAway(made), 'the surface reports its beat').to.eq(undefined);
+      reportSurfaceBeat('card-actions', 'browse');
+      expect(scaleStepStageAway(made), 'its own browse').to.contain('card-actions');
+    });
+
+    it('the screen that MADE the step still stands — whatever its record says (the colonies step back to «configure» before their conclusion): the member waits', () => {
+      registerBoardCoverReasons(() => ['workspace']);
+      enterWorkspace('colonies');
+      setWorkspaceFramePhase('colonies', 'committed');
+      const made = stepWitness();
+      setWorkspaceFramePhase('colonies', 'configure');
+      expect(scaleStepStageAway(made), 'the maker on top, reversible again').to.eq(undefined);
+      // …and a follow-up step of the same flow pushed over it: the maker still stands under it.
+      pushWorkspaceFrame({kind: 'hand', subject: '', stage: '', phase: 'configure', serves: [], anchor: {type: 'always'}});
+      expect(scaleStepStageAway(made), 'a step of the flow that made it').to.eq(undefined);
+    });
+
+    it('the maker LEFT and the player opened another screen: gone', () => {
+      registerBoardCoverReasons(() => ['workspace']);
+      enterWorkspace('standard-projects');
+      setWorkspaceFramePhase('standard-projects', 'committed');
+      const made = stepWitness();
+      resetWorkspaceStack();
+      enterWorkspace('card-actions');
+      expect(scaleStepStageAway(made)).to.contain('card-actions');
+    });
+
+    it('a question of the game that waits for the story keeps the clock of the wall — and the members with it', () => {
+      const made = stepWitness();
+      registerBoardCoverReasons(() => ['workspace']);
+      registerBoardStoryWaiter(() => 'a placement');
+      enterWorkspace('hand');
+      expect(scaleStepStageAway(made), 'somebody of the game waits for this story: it is not let go untold').to.eq(undefined);
+      registerBoardStoryWaiter(() => undefined);
+    });
+  });
 });
+

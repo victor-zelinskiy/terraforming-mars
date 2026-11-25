@@ -40,7 +40,7 @@
 | D | PROVE · the bar as numbers, the release gate | **THE GATE THAT NEEDS NO BOX STANDS (2026-11-14 night)** — `npm run gate:freeze` (§5): the replays of every closed class + the monkey in the bottle over every table + the report against the committed baseline. **Its first pass on the current build: 606 walks, 36 360 presses — episodes 0, never cured 0, NEW classes 0; 146 of 280 declared flows walked (52.1 %), 11 of 13 workspace frames.** **After the second seed's two classes were closed (2026-11-15) the gate ran on seed `fz1` over all 606 tables: GREEN in 48.9 min** — no class the union baseline does not hold, no episode left uncured. Run WHOLE, as one command, twice more that night (the second with every walk's world seeded): GREEN in 37.1 and 37.9 min, the same 217 records and 10 classes each time. The baseline holds 10 classes on 7 tables — every one the bottle's own (a hold behind a flight with no measurable end), each **walked again by the box monkey's spec in a real browser on the laptop with the same seed: 0 records** — and says so row by row (`tests/client/bottle/monkeyBaseline.json`, guard `freezeGateBaseline.spec`). A class missing from the baseline turns the gate red (proven: two rows taken out → `GATE: FAIL — 2 NEW`, exit 3). *Open:* the box's half of the bar (the full proof pass and the perturbed passes — when the box is free), the field's window (`npm run diag -- trend` once a release with part A is played), frame budgets, the cost table |
 
 **NEXT, in this order** (each is a milestone: verify → commit → push → main clone → the neighbour told):
-0. ⛔ **Before any box run: is Enshrouded running there?** (the owner, 2026-11-14 — the rule is in the project memory `e2e-only-on-steam-machine`). If it is: no box; the monkey in the bottle on the laptop, pointwise e2e on the laptop with `TM_E2E_LAPTOP_OVERRIDE=1`, the big sets by the owner's CI after the push.
+0. **Before any box run: is Enshrouded running there?** (`pgrep -afi "enshroude[d]"`) — since 2026-11-25 it chooses the MODE, it no longer stops the run (the owner: «гонять можно даже если запущен enshrouded, просто более щадяще»). Running → the gentle mode: at most 3 workers on the box in all (e.g. two count lanes of one worker + one pointwise run), no `chromium-timing`, builds on the laptop and only the snapshot on the box, timing numbers not quoted. Not running → the full 8 tokens.
 1. **The proof pass — DONE 2026-11-15** (row B0+: 606 walks, 0 defects, 0 NEW · 3 gone). **THE PERTURBED PASSES** run as a detached chain on the box (`node C:/Projects/Mods/tm-fz-tools/box-chain.mjs <worktree> <taskA> <taskB> <wait-file> <pattern> <name>:<KEY=V,…> …` — two lanes under TWO task names, passes strictly one after another, 4 tokens, the Enshrouded rule asked before every pass; log `.e2e-remote/box-chain.log`, each pass summed into `.e2e-remote/<name>/report.txt` against the proof pass): `fzpert-cpu4` (`TM_E2E_CPU_THROTTLE=4`) · `fzpert-net400` (`TM_E2E_MONKEY_NET_MS=400`) · `fzpert-reload` (`TM_E2E_MONKEY_RELOAD=1`) · `fzpert-duo` (`TM_E2E_MONKEY_DUO=1`) · `fzproof-fz1` (the second seed, plain). Every class one of them names is a row of §4 — READ THE `report.txt` FILES FIRST when this work is picked up. In the bottle the routine is a NEW SEED per milestone (`node scripts/freeze-gate.mjs --seed fz2 --skip-replays`, ~40 min of a laptop; a class it names is confirmed in a real browser, then fixed or added to the baseline with its reason).
 2. **B2** — the corpus: `monkey-report --corpus` keeps the walks that reached new coverage keys, the monkey replays a kept walk's prefix (its own seeded stream) and diverges; `TM_E2E_MONKEY_REBUILD` (the last line at arbitrary presses).
 3. **B4 as a file** — the monkey writes `{fixture, seed, timed presses, other-seat moves}` beside its walk; `replay(file)` in the bottle — a class replays without hand-writing its test. **B5** — the fast-check search of test 8a over every fixture that boots in the bottle (the sweep of 606), the property being `liveness().ok`.
@@ -2344,6 +2344,44 @@ stage is a real hundred: a flow «declared with a reason» is not covered. The t
   `overlay` host (two rows: every entry point of a play resolves to the workspace host), the law-play fold (the claim
   is placed before the commit, so the fold's branch is skipped) — they leave with their code next; and two are
   FAILURE PATHS no spec injects yet (`colony-resolution-release-owed`, the colony controller's two nets).
+
+**STAGE 6, STEP 11 — «THE AUTOPILOT AT ZERO» (the owner, 2026-11-25 ≈ 11:20).** «Расширим autopilot по максимуму и сделаем
+большую итерацию фикса того, что он находит — чтобы вывести ВСЕ запуски в 0 % ошибок, зависаний и даже ворнингов; когда
+всё будет чисто — вернёмся к доведению этапов до 100 %.» The order of the work changes with it: the autopilot first, every
+stage's last rows after. What «clean» means is now an instrument, not a reading:
+
+- **THE ZERO BAR** (`7a1e2dedda`). A walk keeps the whole page's log (`LogBook` in `console-autopilot.spec.ts`: every
+  console warning / error, every `pageerror`, every HTTP answer ≥ 400 — keyed by shape, numbers folded), marks it in the
+  walk (`[!…]`) and leaves `autopilot-log.txt`; a door's record names its QUESTION (`questionWord`) and the one-owner
+  function's word at that moment (`__conOwnerNow`). `monkey-report --zero` fails on ANY record of any tier (defect,
+  planned, info), on any door, on any MISS / APART / fallback of the one-owner measure and on any line of the log.
+  PILOT 3: the resource distribution has hands, a pick that commits by RT has hands, «six presses that changed nothing
+  inside a workspace → HOME», and at home with no «A» the pilot waits (the fourth hundred's doors were mostly the
+  pilot walking away from a question).
+- **What the first zero-bar runs named, and what became of it:**
+  - 26 self-hosted font faces answered 404 for a month on the web server (`fcdfafa385` — `ServeAsset` serves fonts by
+    extension; the spec reads the faces off the styles).
+  - `game transport used before startGameTransport` at the generation's last income (`3610f6d7a4` — the flights read
+    the view through a getter of the standing root; guard `transportViewGetterGuard`), and «applied after confirming»
+    under a sheet that asks its own question — the false preview gap (`playHasFollowUp` counts the sheet's decisions).
+  - **A LOOK BESIDE ITS OWN PARK OWNS NO FLOW** (game 1210 — `wait-graph/dead-end/conclusion:card-actions`):
+    `workspaceFlowFrameMounted(kind)` — spec `console-look-beside-park`, RED on the old build with the exact line.
+  - **THE TOKENS KEEP THEIR FRAME** (game 1289, CI #140 — `transfer/frame-left-holding/card-actions`): the guarded
+    conclusion's row «tokens stand on its surface» (`surfaceKeepsItsFrame`, reactive, bounded by `surfaceClear`) —
+    spec `console-take-all-under-tokens` (B the moment «Взять всё» is offered), RED with the row off.
+  - **THE STORY OF A STEP LETS GO WHEN THE PLAYER HAS GONE TO DO SOMETHING ELSE** (game 1209; CI #143 #145 #149 #150):
+    each member keeps the screens its step was MADE under (`stepWitness`); `scaleStepStageAway(madeUnder)` — a screen
+    entered after the step, no maker still standing, a reversible phase read where the surface derives it
+    (`surfacePhaseOf` — card-actions' record says «browse» all flow long). The first cut read the top frame's record
+    and was RED on `console-venus-bonus-hosts` H1/H4/H9 (a maker's own record steps back to «configure» between its
+    resolution's end and its conclusion — the Venus bonus token was never born): the family is what caught it.
+- **The fifth hundred, pilot 3 (`fzi-count`, build `7a1e2dedda`):** the first 36 games — 36 to their final scoring, 0
+  defect records; one `planned` (`workspace-anchor/dropped/draft/parked`), one `info` (`net-ended/ruling-change-draw`);
+  the doors are ONE class: the pilot opened a side screen while the draft / research plate stood, and waited there for
+  a hold whose only door is the plate (`admission:announce-gate`) — the pilot now walks home out of it as out of a
+  question set aside. The log: the 404 fonts and the transport rejection (both fixed after that build), and
+  `[long-frame]` at boot in a third of the games (430 ms of script, 211 of it forced layout, in the console shell's
+  first mount — `import.then`) — on the worklist as a performance class, not re-read as noise.
 
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick

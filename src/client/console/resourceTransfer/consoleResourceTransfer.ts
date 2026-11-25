@@ -34,7 +34,7 @@
  */
 
 import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
-import {reactive, nextTick} from 'vue';
+import {reactive, nextTick, shallowRef} from 'vue';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -169,6 +169,54 @@ type LiveEnds = {
 const liveEnds = new Map<number, LiveEnds>();
 const clearWaiters: Array<{surface: Element, settle: () => void}> = [];
 
+/**
+ * THE REGISTRY's REACTIVE EDGE (invariant 17): the ends live in a plain Map, and a cached reader of «does this surface
+ * hold tokens» — the guarded conclusion of a workspace (`surfaceKeepsItsFrame`) — must be woken when one enters or
+ * leaves. Bumped by every writer of the registry and of the surfaces' debts.
+ */
+const tokenEdge = shallowRef(0);
+/** Surfaces whose hold on their frame was waited to `surfaceClear`'s ceiling: a lost end holds no frame. */
+// (Both are renewed by the session's end — `abortResourceTransfers`: a surface of the last game holds no frame.)
+let frameHoldWaitedOut = new WeakSet<Element>();
+let frameHoldBounded = new WeakSet<Element>();
+
+/**
+ * DOES THIS SURFACE KEEP ITS WORKSPACE FRAME STANDING — tokens still born on it or landing on it, read REACTIVELY and
+ * BOUNDED. The question of the guarded conclusion (`outcomeController` — the row «tokens stand on its surface»):
+ *
+ * a finished flow's workspace leaves through one conclusion, which asked about a nested step, an owed step, the
+ * claim, a prompt — and never about the tokens. The claim was what kept the frame while an action's rail half flew;
+ * «Взять всё» on the drawn batch is licensed to release the claim at once, and the frame then left under the price
+ * still landing on its printed icon and the gain still being born on it («a frame left with tokens on its surface —
+ * card-actions», the fourth hundred's game 1289 — «Точная организация»: a discard, a draw, steel in, M€ out).
+ *
+ * Bounded by `surfaceClear`'s own ceiling (`boundSurfaceFrameHold` — armed by the conclusion that refused): past it
+ * the hold is gone and the ceiling has said which end was lost.
+ */
+export function surfaceKeepsItsFrame(surface: Element | null | undefined): boolean {
+  void tokenEdge.value;
+  if (!surfaceHoldsTokens(surface)) {
+    return false;
+  }
+  return !frameHoldWaitedOut.has(surface as Element);
+}
+
+/** The conclusion refused for the tokens: the hold is bounded from here (idempotent per surface). */
+export function boundSurfaceFrameHold(surface: Element | null | undefined): void {
+  if (surface === null || surface === undefined || frameHoldBounded.has(surface) || !surfaceHoldsTokens(surface)) {
+    return;
+  }
+  frameHoldBounded.add(surface);
+  void surfaceClear(surface).then(() => {
+    frameHoldBounded.delete(surface);
+    // Still holding after the wait = the wait ended on its ceiling (it has said so): the frame is let go.
+    if (surfaceHoldsTokens(surface)) {
+      frameHoldWaitedOut.add(surface);
+    }
+    tokenEdge.value++;
+  });
+}
+
 /*
  * A SERIES OF RUNS IS ONE DEBT OF ITS SURFACE (freeze zero, stage 1 — CI's `fz3` · CPU ×4 on `arwind-sitting-win-solo`,
  * 2026-11-18: «surface folded under its token — the birth of stock:titanium off … (section.con-parl.con-ws faded)»).
@@ -188,6 +236,7 @@ export function oweSurfaceTokens(host: string, surface: Element | null | undefin
     return;
   }
   surfaceDebts.set(host, surface);
+  tokenEdge.value++;
   trail(undefined, 'surface:owed', {host, surface: describeEl(surface)});
 }
 
@@ -272,6 +321,7 @@ function liveEndsOn(surface: Element): Array<string> {
 }
 
 function wakeClearWaiters(): void {
+  tokenEdge.value++;
   for (const waiter of [...clearWaiters]) {
     if (!surfaceHoldsTokens(waiter.surface)) {
       waiter.settle();
@@ -286,6 +336,7 @@ export function registerTransferEnds(id: number, spec: ResourceTransferSpec, fro
     fromSurface: from?.closest(FOLDING_SURFACE) ?? undefined,
     toSurface: to?.closest(FOLDING_SURFACE) ?? undefined,
   });
+  tokenEdge.value++;
 }
 
 /** The token has LEFT its source (its pop is over, or it was never born). */
@@ -308,6 +359,7 @@ export function dropTransferEnds(id: number): void {
 export function resetTransferEnds(): void {
   liveEnds.clear();
   surfaceDebts.clear();
+  tokenEdge.value++;
   [...clearWaiters].forEach((w) => w.settle());
 }
 
@@ -1649,6 +1701,8 @@ export function abortResourceTransfers(): void {
   resourceTransferState.surfaceRuns = 0;
   liveEnds.clear();
   surfaceDebts.clear();
+  frameHoldWaitedOut = new WeakSet<Element>();
+  frameHoldBounded = new WeakSet<Element>();
   wakeClearWaiters();
 }
 

@@ -39,6 +39,7 @@
  * conclusion already uses (the claim released with force, so a held verdict falls to the standalone presenter — the
  * result is still SEEN), and tells the player in one notice. A guard that healed invisibly would hide the next bug.
  */
+import {reactive} from 'vue';
 import type {WorkspacePhase} from '@/client/console/consoleWorkspaceFlow';
 
 /**
@@ -58,11 +59,19 @@ export function isTransientBeat(phase: WorkspacePhase | undefined): boolean {
 /**
  * A surface whose phase is DERIVED inside the component (the card-actions workspace — its `workspacePhase` computed;
  * nothing writes it to the stack frame) reports it here. Keyed by the workspace kind the surface IS, so the shell can
- * judge it against the stack (is it the deepest live frame?). A plain Map, deliberately not reactive: its readers are
- * SAMPLERS (the supervisor's tick, a frame's look), never a cached computed — a latch here is impossible by
- * construction (invariant 17).
+ * judge it against the stack (is it the deepest live frame?). REACTIVE (invariant 17): the samplers (the supervisor's
+ * tick, a frame's look) read it, and so does a watcher — «the player has gone to do something else» asks the phase a
+ * frame REALLY stands in (`surfacePhaseOf`), and a cached reader of a plain Map is a latch.
  */
-const surfaceBeats = new Map<string, WorkspacePhase>();
+const surfaceBeats = reactive(new Map<string, WorkspacePhase>());
+
+/**
+ * THE PHASE A FRAME REALLY STANDS IN: the surface's own report where its phase is derived inside it (card-actions —
+ * its stack record says «browse» all flow long), else `undefined` (the record is the truth — read `frame.phase`).
+ */
+export function surfacePhaseOf(kind: string): WorkspacePhase | undefined {
+  return surfaceBeats.get(kind);
+}
 
 /** A surface reports its derived phase (`undefined` = it unmounted / has nothing to report). */
 export function reportSurfaceBeat(kind: string, phase: WorkspacePhase | undefined): void {

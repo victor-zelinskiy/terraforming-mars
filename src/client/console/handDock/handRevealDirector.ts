@@ -146,8 +146,17 @@ export function setHandRevealHooks(h: RevealHooks): void {
  * open kept that answer until an unrelated edge, and the right stick was dead in the album (the start's discard step).
  */
 const episodeEdge = shallowRef(0);
+/** Since when an episode has been running without a break (`undefined` — none runs): the evidence of one that never ends. */
+let runningSince: number | undefined;
 function markEpisodeEdge(): void {
   episodeEdge.value++;
+  const running = building || (episode !== undefined && !episode.finished);
+  runningSince = running ? (runningSince ?? Date.now()) : undefined;
+}
+
+/** Since when the hand's episode has been running (`__conReady().handReveal`). */
+export function handRevealRunningSince(): number | undefined {
+  return runningSince;
 }
 
 /** Declared to the reactivity witness: a write site that forgets its edge is NAMED (red in every unit / e2e run). */

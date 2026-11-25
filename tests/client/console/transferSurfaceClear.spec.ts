@@ -1,7 +1,8 @@
 import {expect} from 'chai';
+import {computed} from 'vue';
 import {
-  dropTransferEnds, markTransferEndLeft, oweSurfaceTokens, registerTransferEnds, resetTransferEnds, settleSurfaceDebt, surfaceClear, surfaceHoldsTokens,
-  witnessFrameLeft,
+  boundSurfaceFrameHold, dropTransferEnds, markTransferEndLeft, oweSurfaceTokens, registerTransferEnds, resetTransferEnds, settleSurfaceDebt, surfaceClear,
+  surfaceHoldsTokens, surfaceKeepsItsFrame, witnessFrameLeft,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {causeOf} from '@/common/diagnostics/cause';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -132,6 +133,47 @@ describe('surfaceClear — a surface never folds under its own token', () => {
    * the fold: a frame left the live stack while its surface held a token's end or an owed series. Counted, by the
    * workspace and with the verb in the line — never an event until its walks are read.
    */
+  /*
+   * THE TOKENS KEEP THEIR FRAME (the zero bar, game 1289 of the fourth hundred — «Точная организация»: «Взять всё» on
+   * the drawn batch released the claim, the one thing that kept the frame, and the workspace left under a price still
+   * landing and a gain still being born). The guarded conclusion asks the surface — through a CACHE (its facts are a
+   * computed's), so the answer must move at a reactive edge (invariant 17), and it is bounded.
+   */
+  it('THE QUESTION OF THE FRAME is reactive: a cached reader hears a token arrive, leave its source and be absorbed', () => {
+    const keeps = computed(() => surfaceKeepsItsFrame(surface));
+    expect(keeps.value, 'a quiet surface keeps nothing').to.eq(false);
+    registerTransferEnds(31, price, rail, icon);   // the price: lands on the printed icon
+    registerTransferEnds(32, gain, icon, rail);    // the gain: born on it
+    expect(keeps.value, 'the cache heard the tokens').to.eq(true);
+    markTransferEndLeft(32);
+    expect(keeps.value, 'the gain has popped off — the price still lands here').to.eq(true);
+    dropTransferEnds(32);
+    dropTransferEnds(31);
+    expect(keeps.value, 'the last token absorbed: the frame may go').to.eq(false);
+    // …and a series a host still owes holds it the same way.
+    oweSurfaceTokens('host', surface);
+    expect(keeps.value).to.eq(true);
+    settleSurfaceDebt('host');
+    expect(keeps.value).to.eq(false);
+  });
+
+  it('…and BOUNDED: the hold is the wait of `surfaceClear` — when the tokens land it is over, and a surface with none is never bounded', async () => {
+    const keeps = computed(() => surfaceKeepsItsFrame(surface));
+    boundSurfaceFrameHold(surface);                 // nothing stands: a no-op
+    expect(keeps.value).to.eq(false);
+    registerTransferEnds(41, price, rail, icon);
+    boundSurfaceFrameHold(surface);
+    boundSurfaceFrameHold(surface);                 // idempotent
+    expect(keeps.value, 'held while the price lands').to.eq(true);
+    dropTransferEnds(41);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(keeps.value, 'landed: the hold is over').to.eq(false);
+    // The next token on the same surface holds it again (nothing was «waited out»).
+    registerTransferEnds(42, gain, icon, rail);
+    expect(keeps.value).to.eq(true);
+    dropTransferEnds(42);
+  });
+
   it('THE FOLD IS WITNESSED WHERE IT HAPPENS: a frame that leaves holding a token is named with its verb — a defect on a page that paints, the honest end of one that does not', () => {
     const said: Array<string> = [];
     const warn = console.warn;

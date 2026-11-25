@@ -31,7 +31,7 @@ import {sittingRiseOwed} from '@/client/console/parliament/sittingRise';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {parliamentPlayerName, resolutionPlayOf} from '@/client/console/parliament/consoleParliamentModel';
 import {SittingInvitationFacts, sittingInvitationFacts} from '@/client/console/parliament/sittingInvitation';
-import {closePhaseRoot, phaseRootAnywhere, enterWorkspace, goBoardHome, leaveWorkspace, popWorkspaceFrame, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameServes, setWorkspaceFrameStage, workspaceFrameDescended, workspaceFrameIndex, workspaceFrameMounted, workspaceFrameRenders, workspaceFrameSlot, workspaceStackTop, workspaceFrameAnchor, workspaceFrameHost, workspaceFrameKnown, workspaceFrameTarget, workspaceSceneOnStage, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {closePhaseRoot, phaseRootAnywhere, enterWorkspace, goBoardHome, leaveWorkspace, popWorkspaceFrame, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameServes, setWorkspaceFrameStage, workspaceFrameDescended, workspaceFrameIndex, workspaceFrameMounted, workspaceFrameRenders, workspaceFrameSlot, workspaceStackTop, workspaceFrameAnchor, workspaceFrameHost, workspaceFrameKnown, workspaceFrameTarget, workspaceSceneOnStage, FrameAnchor, WorkspaceFrameKind, workspaceFlowFrameMounted} from '@/client/console/consoleWorkspaceStack';
 import {draftMandatoryFlowBeat} from '@/client/console/draft/consoleDraftFlow';
 import {Phase} from '@/common/Phase';
 import {armPlayedHero, isPlayedHeroActive, playedHeroState} from '@/client/console/played/consolePlayedHero';
@@ -481,7 +481,7 @@ export function createParliamentController(shell: ParliamentPort) {
   const lawStepOwed = computed((): boolean => {
     // …until the scene's CLOSING: with the card's outcome CLAIMED (`claimLawPlayOutcome`) the workspace concludes on that beat
     // itself (the card-actions `lawPlayHeroPhase` watcher) — the landing record outlives it only to `idle`.
-    return (lawPlayLandingOf() !== undefined && workspaceFrameMounted('card-actions') && playedHeroState.phase !== 'closing') ||
+    return (lawPlayLandingOf() !== undefined && workspaceFlowFrameMounted('card-actions') && playedHeroState.phase !== 'closing') ||
       lawLivePlayStepOwed.value;
   });
 
@@ -508,7 +508,8 @@ export function createParliamentController(shell: ParliamentPort) {
   const politicalDiscardOwed = computed((): boolean => {
     const marker = shell.playerView.waitingFor?.partyActionPrompt;
     return marker !== undefined && marker.stage === 'discard' &&
-      consoleCardActionsUi.draft?.cardName === partyTileKey(marker.party) && workspaceFrameMounted('card-actions');
+      // (THE FLOW's frame — a look opened from the wheel beside the parked flow owns no step: `workspaceFlowFrameMounted`.)
+      consoleCardActionsUi.draft?.cardName === partyTileKey(marker.party) && workspaceFlowFrameMounted('card-actions');
   });
 
   /**
@@ -519,7 +520,7 @@ export function createParliamentController(shell: ParliamentPort) {
   const lawLivePlayStepOwed = computed((): boolean => {
     const play = resolutionPlayOf(shell.playerView.waitingFor);
     // The descent the workspace carries is the law's (the card composer — «один фреймворк»).
-    return play !== undefined && workspaceFrameMounted('card-actions') &&
+    return play !== undefined && workspaceFlowFrameMounted('card-actions') &&
       consoleCardActionsUi.draft?.cardName === resolutionTileKey(play.resolution);
   });
 
