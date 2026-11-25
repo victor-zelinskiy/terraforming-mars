@@ -316,6 +316,11 @@ describe('servingOwner — who serves the question: one total function', functio
     expect(servingOwnerOf({...QUIET, task: ALL_SHAPES.find((t) => t.kind === 'startSequence'), startBehind: 'card-actions', host: 'card-actions', frames: ['card-actions']}))
       .to.deep.include({owner: 'start', hold: {kind: 'scene', by: 'outcome:card-actions'}});
     expect(servingOwnerOf({...QUIET, task: {kind: 'payment'}, startBehind: 'card-actions', host: 'card-actions', frames: ['card-actions']})).to.not.have.property('hold');
+    // A STEP WHOSE OWN FRAME STANDS WITH NO ZONE YET (game 1013 — the colony step of a law, pushed under a card the
+    // player was reading, the sitting's stage still to publish its field): the question is the frame's, and it waits.
+    expect(servingOwnerOf({...QUIET, task: {kind: 'colony'}, servingFrame: 'colonies', host: 'colonies', frames: ['parliament', 'colonies'], zoneAwaited: 'colonies'}))
+      .to.deep.include({owner: 'colonies', hold: {kind: 'claim', by: 'zone of colonies'}});
+    expect(servingOwnerOf({...QUIET, task: {kind: 'colony'}, servingFrame: 'colonies', host: 'colonies', frames: ['parliament', 'colonies']})).to.not.have.property('hold');
     // A PHASE ROOT is never a step in somebody's zone.
     expect(owner({kind: 'cardSelect', mode: 'buy'}, {draftClaims: true, host: 'parliament'})).to.eq('draft');
     expect(owner({kind: 'cardSelect', mode: 'draft'}, {host: 'hand'})).to.eq('draft');

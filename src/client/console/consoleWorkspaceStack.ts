@@ -806,6 +806,22 @@ export function workspaceFrameRenders(kind: WorkspaceFrameKind): boolean {
 }
 
 /**
+ * THE STEP ON TOP OF THE STACK WAITS FOR ITS ZONE — its kind, or `undefined` (the top frame renders, or nothing stands).
+ *
+ * OWNERSHIP AND READINESS ARE SEPARATE QUESTIONS (embed rule 4): a step's frame is pushed the moment the flow owes it
+ * — the question is its — and it renders nowhere until its host's zone stands. «Provably transient» is a frame in
+ * most hosts; in a SITTING it is the whole flight of the payout that came with the question (the stage's field
+ * stands once the tokens have landed): seconds. For those seconds `section` — the projection of the deepest frame —
+ * names a screen that is not on screen. Everything that speaks for «the surface the player sees» asks this first:
+ * the pad (the press is a beat's, never a blind press into a grid nobody can see), the bar (it advertises nothing),
+ * and the one-owner function (the step owns the question and WAITS — `QuestionFacts.zoneAwaited`).
+ */
+export function workspaceStackAwaitsZone(): WorkspaceFrameKind | undefined {
+  const top = workspaceStackTop();
+  return top !== undefined && !workspaceFrameRenders(top.kind) ? top.kind : undefined;
+}
+
+/**
  * IS THIS HOST CURRENTLY HANDING THE SCENE OVER?
  *
  * True while a host that declares `frameSteps: 'scene'` has a nested frame

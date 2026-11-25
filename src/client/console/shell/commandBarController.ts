@@ -17,7 +17,7 @@ import {multiPickConfirmCommand} from '@/client/components/console/consoleHandSe
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {consoleSystemAlertState} from '@/client/console/consoleSystemAlertState';
 import {FINALE_KICKER, finalGreeneryFinishCommand} from '@/client/console/finalGreenery/finalGreeneryModel';
-import {workspaceHostYieldsScene, workspaceFrameIndex, workspaceFrameIsOverlay, workspaceFrameMounted, workspaceFramePhase, workspaceFrameStage, workspaceFrameHost, workspaceFrameRoot, workspaceLateralBackTarget, workspaceStackTopAxis} from '@/client/console/consoleWorkspaceStack';
+import {workspaceHostYieldsScene, workspaceFrameIndex, workspaceFrameIsOverlay, workspaceFrameMounted, workspaceFramePhase, workspaceFrameStage, workspaceFrameHost, workspaceFrameRoot, workspaceLateralBackTarget, workspaceStackTopAxis, workspaceStackAwaitsZone} from '@/client/console/consoleWorkspaceStack';
 import {acceptsInput} from '@/client/console/consoleWorkspaceFlow';
 import {cardDiscardTransaction} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {colonyTradeEntryLocked} from '@/client/console/colonyTrade/colonyTradeEntry';
@@ -586,6 +586,12 @@ export function createCommandBarController(shell: CommandBarPort) {
     // itself out). The trade-reward gate is PHASE-aware: it frees the pad
     // for the reveal take and for a Pluto discard between bonus draws.
     if (isTradeFleetActive() || isColonyTradeInputLocked() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || shell.tilePlacementHolds || isDeckDrawActive()) {
+      noteBarRung('cinematic');
+      return [];
+    }
+    // A STEP WHOSE ZONE IS STILL COMING (`workspaceStackAwaitsZone`): the section the stack names is not on screen yet
+    // — its verbs would be promises about a grid nobody can see. The bar is quiet for the beat, as the pad is.
+    if (workspaceStackAwaitsZone() !== undefined) {
       noteBarRung('cinematic');
       return [];
     }

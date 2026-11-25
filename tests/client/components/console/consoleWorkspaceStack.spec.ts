@@ -52,6 +52,7 @@ import {
   workspaceFrameAnywhere,
   workspaceFrameKnown,
   workspaceFrameRenders,
+  workspaceStackAwaitsZone,
   workspaceHostForStep,
   workspaceHostYieldsScene,
   workspaceKindSpec,
@@ -846,8 +847,13 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     expect(workspaceFrameRenders('hand'), 'the root stands in its own band').to.eq(true);
     addColonyStep();
     expect(workspaceFrameRenders('colonies'), 'claimed, zone not up: nowhere').to.eq(false);
+    // …AND WHOEVER SPEAKS FOR «THE SURFACE THE PLAYER SEES» IS TOLD SO (the pad, the bar, the one-owner function): the
+    // projection already names the step — a screen that is not on screen (the third hundred's game 1013).
+    expect(workspaceStackSection(), 'the projection names the step at once').to.eq('colonies');
+    expect(workspaceStackAwaitsZone(), 'and the stack says it waits for its zone').to.eq('colonies');
     setWorkspaceFrameSlot('hand', '[data-embed-slot="hand-play"]');
     expect(workspaceFrameRenders('colonies')).to.eq(true);
+    expect(workspaceStackAwaitsZone(), 'the zone stands: nobody waits').to.eq(undefined);
     collapseWorkspaceStack();
     expect(workspaceFrameRenders('hand'), 'a parked stack shows nothing').to.eq(false);
     expect(workspaceFrameRenders('colonies')).to.eq(false);

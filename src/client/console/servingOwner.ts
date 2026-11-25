@@ -58,6 +58,13 @@ export type QuestionFacts = {
    * (`startReturnBehindOutcome`). The start owns the question and waits; the press is the outcome's.
    */
   startBehind?: string;
+  /**
+   * THE STEP ON TOP OF THE STACK WAITS FOR ITS ZONE ('' — it renders; else its kind): its frame stands, so the question
+   * is its — and it renders nowhere until its host's zone does (`workspaceStackAwaitsZone`; in a sitting: the flight
+   * of the payout that came with the question). A frame on the stack was «let in» for the admission's purposes, but
+   * a frame that does not render serves nobody yet.
+   */
+  zoneAwaited?: string;
   /** `buildEffectDecision` builds a decision for this prompt (a contextual choice with its marker). */
   effectDecision: boolean;
   /** The draft workspace's frame is known to the stack. */
@@ -274,6 +281,12 @@ export function servingOwnerOf(f: QuestionFacts): Ownership {
   if (f.claimHeld) {
     return {asked: true, ...owner, hold: {kind: 'claim', by: owner.host ?? 'the claiming workspace'}};
   }
+  // …AND A STEP WHOSE OWN FRAME STANDS WITH NO ZONE YET (the third hundred's game 1013 — the colony step of a law
+  // inside the sitting, its frame pushed with the question, the stage's field still to stand: «says colonies,
+  // painted parliament»): the claim is the frame's, the zone its host's.
+  if ((f.zoneAwaited ?? '') !== '' && (f.zoneAwaited === owner.owner || f.zoneAwaited === owner.host)) {
+    return {asked: true, ...owner, hold: {kind: 'claim', by: `zone of ${f.zoneAwaited}`}};
+  }
   // ADMISSION IS A DOOR, NOT A PRESENCE: a workspace whose frame already stands on the stack was let in — a scene that
   // begins beside it does not take it off the screen (the first disagreement the measure named, 2026-11-19: the
   // Parliament standing under a `presentation` block of its own sitting). Only an owner still to ENTER is held.
@@ -306,6 +319,7 @@ export function questionFactsDigest(f: QuestionFacts): string {
     f.scene !== '' ? `scene ${f.scene}` : '',
     f.lateral !== '' ? `lateral ${f.lateral}` : '',
     (f.startBehind ?? '') !== '' ? `startBehind ${f.startBehind}` : '',
+    (f.zoneAwaited ?? '') !== '' ? `zoneAwaited ${f.zoneAwaited}` : '',
     ...(['client', 'startFlow', 'startYielded', 'effectDecision', 'draftFrame', 'draftClaims', 'resolutionDraw', 'aside', 'boardBranch', 'claimHeld'] as const).filter((k) => f[k]),
   ].filter((part) => part !== '').join(' · ');
 }

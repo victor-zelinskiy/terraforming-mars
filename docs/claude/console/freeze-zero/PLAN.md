@@ -2300,6 +2300,20 @@ in how the passes are read:
   tiles' twin; its own unit row). **Still on the wall's clock:** the scale step's rating held on the RAIL — an
   INSTRUMENT in view, so the answer there is not «wait longer» (see below when it is taken up).
 
+**PILOT 2's FIRST TWENTY GAMES, AND WHAT THEY NAMED (the box, `0d93f6bd40`, 2026-11-25).** Twenty to their final
+scoring, no defect record, no episode, four answers through the door of 1 201 (0.3 %) — and the gate red by game 1013:
+«colony — MISS: says colonies, painted parliament». A law of the sitting builds a colony; the colonies' frame is pushed
+the moment the flow owes the step and renders nowhere until its host's zone stands (embed rule 4 — ownership and
+readiness are separate questions). In most hosts that gap is a frame; there it was three seconds (the player was
+reading a card in the viewer; the sitting's stage had not published its field), and for those seconds `section` — the
+projection of the deepest frame — named a screen that was not on screen: the bar offered «A Выбрать», and a press
+after the viewer closed went to a grid nobody could see. The law: **`workspaceStackAwaitsZone()` — one answer for
+everything that speaks for «the surface the player sees»**: the pad (the press is a beat's, absorbed), the bar
+(quiet), the one-owner function (`QuestionFacts.zoneAwaited` → held `claim · zone of <step>`). Proof: the stack's and
+the function's unit rows; `tests/e2e/console-step-zone-awaited.spec.ts` holds the claim over every look of the walk
+(the plain walk publishes the zone with the frame, so the gap itself is the unit row's). The count restarts on the
+build that holds this and the landing law.
+
 **STAGE 4 — THE LEDGER FROM TWENTY-FOUR TO SIX, EVERY ROW BY EVIDENCE (2026-11-25).** The owner's bar for this
 stage is a real hundred: a flow «declared with a reason» is not covered. The twenty-four rows left on
 `kernelUnwalked.json` were read one by one, and most of the reasons did not survive the reading:

@@ -43,7 +43,7 @@ import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue
 import ConsoleEndgameWorkspace from '@/client/components/console/ConsoleEndgameWorkspace.vue';
 import ConsoleRevealOverlay from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
-import {enterWorkspace, goBoardHome, leaveWorkspace, popWorkspaceFrame, workspaceFrameIndex, workspaceFramePhase, workspaceStackBack, workspaceStackBackVerb, workspaceFrameHost, workspaceFrameIsOverlay, workspaceLateralBackTarget, workspaceStackTopAxis} from '@/client/console/consoleWorkspaceStack';
+import {enterWorkspace, goBoardHome, leaveWorkspace, popWorkspaceFrame, workspaceFrameIndex, workspaceFramePhase, workspaceStackBack, workspaceStackBackVerb, workspaceFrameHost, workspaceFrameIsOverlay, workspaceLateralBackTarget, workspaceStackTopAxis, workspaceStackAwaitsZone} from '@/client/console/consoleWorkspaceStack';
 import {acceptsInput, isCommitted} from '@/client/console/consoleWorkspaceFlow';
 import {requestStdProjectCancel, stdProjectsFlowLive} from '@/client/console/consoleStdProjects';
 import {handStageTransitioning} from '@/client/console/consoleHandStageMotion';
@@ -1258,6 +1258,14 @@ export function createPadRouterController(shell: PadRouterPort) {
     // sheet first hands the pad to the parked composer while the player is
     // demonstrably driving the colony grid on top of it. Depth breaks the
     // tie, the same rule presence already uses.
+    // A STEP WHOSE ZONE IS STILL COMING (`workspaceStackAwaitsZone` — embed rule 4: the frame stands, its host's zone
+    // does not yet): `section` / `sheet` already name it, and nothing of it is on screen. The press is the beat's —
+    // absorbed, never handed to a grid the player cannot see. Bounded by the host's own zone (in a sitting: the
+    // payout's flight).
+    if (workspaceStackAwaitsZone() !== undefined) {
+      notePadRung('cinematic');
+      return true;
+    }
     if (consoleState.sheet === 'cardActions' && workspaceStackTopAxis() !== 'section') {
       notePadRung('sheet:cardActions');
       const panel = shell.surfaces.at<ExposedOf<typeof ConsoleCardActions>>('cardActions');
