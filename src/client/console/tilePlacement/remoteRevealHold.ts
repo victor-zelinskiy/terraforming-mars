@@ -91,6 +91,7 @@ export function heldPrevTileOf(spaceId: string): TileType | undefined {
 
 /** Abort / game-switch: every held tile becomes visible at once. */
 export function clearRemoteRevealHolds(): void {
+  landed.clear();
   held.clear();
   heldColors.clear();
   heldStackHeights.clear();
@@ -107,10 +108,27 @@ export function clearRemoteRevealHolds(): void {
  */
 const vacated = reactive(new Map<string, number>());
 let vacatedNonce = 0;
+/**
+ * …AND THE MOVED TILE's LANDING, on the SAME clock (a move — TR14 Re-settlement, a remote seat's move): the order the
+ * scene MADE is a fact of the board, read off its cells (`data-vacated-seq` < `data-landed-seq`) — a slow runner's
+ * frame that paints both at once can no longer hide which came first (CI #151: a strict check of two poses sampled in
+ * one tick had to be read «never after»; the board now says the order itself, and the check is strict again).
+ */
+const landed = reactive(new Map<string, number>());
 
 /** The tile has lifted off `spaceId`: the cell plays its settle once. */
 export function markCellVacated(spaceId: string): void {
   vacated.set(spaceId, ++vacatedNonce);
+}
+
+/** A MOVED tile has come down on `spaceId` (its contact) — stamped on the vacate's own clock. */
+export function markCellLanded(spaceId: string): void {
+  landed.set(spaceId, ++vacatedNonce);
+}
+
+/** The landing's stamp for the cell (undefined = no moved tile landed there this session). */
+export function cellLandedSeq(spaceId: string): number | undefined {
+  return landed.get(spaceId);
 }
 
 /** The settle's nonce for the cell (undefined = never vacated / already cleared). */

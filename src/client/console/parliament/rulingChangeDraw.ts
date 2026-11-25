@@ -181,9 +181,14 @@ function presentedAmounts(rating: RulingRatingOwed): {tr?: number, production?: 
  * with the commit.
  */
 export function seedRulingChangeAnswers(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): void {
-  // The sitting is over: a rating no stage is telling has nowhere left to be told.
+  // The sitting is over: a rating no stage is telling has nowhere left to be told — and THE PARK'S LIFE IS THE SITTING'S
+  // (the server's word, in the apply block — CI Autopilot game 1127): a card parked for the enactment's tail has no tail
+  // left once the phase is gone, however it ended (a close from another device, the early close, a sitting the player
+  // never opened). Kept, it was a reveal nobody could ever present, and every hand-over waited on it to its ceiling:
+  // the draft's entry 45 s, the finale's 45 s — and the card itself was never shown.
   if (after !== undefined && after.game.parliament?.phase === undefined) {
     releaseOrphanRulingRatings('phase-end');
+    letRulingChangeParkGo();
   }
   if (after === undefined || consoleReducedMotionActive() || !(consoleParliamentUi.stageStanding || generationSceneRisesIntoSitting(after) || sittingRiseOwed())) {
     return;

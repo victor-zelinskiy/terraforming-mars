@@ -1,6 +1,8 @@
 <template>
   <div :class="klass"
        :style="placementStyle"
+       :data-vacated-seq="vacatedSeq"
+       :data-landed-seq="landedSeq"
        data-test="tile"
        @animationend="onAnimationEnd"/>
 </template>
@@ -28,7 +30,7 @@ import {
   observeTilePlacement,
 } from '@/client/components/board/tilePlacementAnimation';
 import {placementRenderState} from '@/client/components/board/placementRenderState';
-import {isRemoteRevealHeld, heldPrevTileOf, cellVacatedNonce, clearCellVacated} from '@/client/console/tilePlacement/remoteRevealHold';
+import {isRemoteRevealHeld, heldPrevTileOf, cellVacatedNonce, cellLandedSeq, clearCellVacated} from '@/client/console/tilePlacement/remoteRevealHold';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {tileCssClassOf, tileTypeToCssClass, tileTypeToCssClassAresOverride} from '@/client/components/board/boardSpaceTileModel';
 
@@ -296,4 +298,11 @@ watch(() => props.space.tileType, () => {
   refreshPlacement();
   refreshIntensify();
 }, {immediate: true});
+/**
+ * THE ORDER OF A MOVE, ON THE BOARD ITSELF (`remoteRevealHold` — one clock for the vacate and the landing): the stamps a
+ * moved tile's two cells carry, read by the e2e witness so «the cell settled before the city landed» is a fact the
+ * board states, never a guess from two poses one slow frame painted together (CI #151).
+ */
+const vacatedSeq = computed((): number | undefined => cellVacatedNonce(props.space.id));
+const landedSeq = computed((): number | undefined => (tileType.value === undefined ? undefined : cellLandedSeq(props.space.id)));
 </script>

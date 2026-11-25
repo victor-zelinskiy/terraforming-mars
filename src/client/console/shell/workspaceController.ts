@@ -72,6 +72,7 @@ export type WorkspacePort = {
   maScreenKind: UnwrapRef<MaController['maScreenKind']>,
   playedTableVisible: UnwrapRef<PlayedController['playedTableVisible']>,
   readonly playerView: PlayerViewModel,
+  frameAnchorIsDead(anchor: FrameAnchor): boolean,
   railPlayer: UnwrapRef<RailController['railPlayer']>,
   restoreDeferredTask: UnwrapRef<MandatoryController['restoreDeferredTask']>,
   settleHydroResolution: UnwrapRef<HydroController['settleHydroResolution']>,
@@ -490,7 +491,9 @@ export function createWorkspaceController(shell: WorkspacePort) {
     }
     handoffPendingEntries.add(kind);
     setConsoleTaskHandoffPending(true); // the prompt is served by the entry that is owed — never a strand
-    void waitScreenHandoff(`enter:${kind}`, {...handoff, alive: () => shell.playerView?.game !== undefined}).then((outcome) => {
+    // (…ALIVE while its phase is: a draft whose pick was answered elsewhere, a phase that ended while the entry waited,
+    // has no workspace to enter — the entry stood up a draft in the action phase, unasked, sixteen seconds late.)
+    void waitScreenHandoff(`enter:${kind}`, {...handoff, alive: () => shell.playerView?.game !== undefined && !shell.frameAnchorIsDead(opts.anchor)}).then((outcome) => {
       handoffPendingEntries.delete(kind);
       setConsoleTaskHandoffPending(handoffPendingEntries.size > 0);
       if (outcome !== 'dead' && !workspaceFrameAnywhere(kind)) {

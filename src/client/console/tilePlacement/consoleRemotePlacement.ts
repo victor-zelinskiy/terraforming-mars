@@ -110,7 +110,7 @@ import {
   tilePlacementState, tileStageRemoteEls, measureBoardHexRect, tableSupplyPoint, AresSourceWake,
 } from '@/client/console/tilePlacement/consoleTilePlacement';
 import {
-  holdRemoteReveal, releaseRemoteReveal, isRemoteRevealHeld, clearRemoteRevealHolds, markCellVacated,
+  holdRemoteReveal, releaseRemoteReveal, isRemoteRevealHeld, clearRemoteRevealHolds, markCellVacated, markCellLanded,
   holdStackHeight, releaseStackHeight,
 } from '@/client/console/tilePlacement/remoteRevealHold';
 import {
@@ -1135,6 +1135,7 @@ async function moveRemote(ev: RemoteEvent, move: RemoteMove, myEpoch: number): P
   // cube at rest (it rode the tile — there is no drop), and the proxy goes on
   // the next painted frame. Show, then remove — never a fade.
   releaseRemoteReveal(ev.spaceId);
+  markCellLanded(ev.spaceId);
   if (ev.color !== undefined) {
     restCubeForHeroPlacement(ev.spaceId);
   }

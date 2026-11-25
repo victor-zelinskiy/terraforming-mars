@@ -2,7 +2,8 @@ import {expect} from 'chai';
 import {createManualClock, ManualFlowClock, setFlowClock} from '@/client/console/kernel/flowClock';
 import {beginAnimationHold, resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
 import {consoleParliamentUi, parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
-import {letRulingChangeParkGo, openRulingChangePark, resetRulingChangeDraw, rulingChangeDrawState, rulingChangeParksReveal} from '@/client/console/parliament/rulingChangeDraw';
+import {letRulingChangeParkGo, openRulingChangePark, resetRulingChangeDraw, rulingChangeDrawState, rulingChangeParksReveal, seedRulingChangeAnswers} from '@/client/console/parliament/rulingChangeDraw';
+import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {causeOf} from '@/common/diagnostics/cause';
 
 /**
@@ -103,6 +104,22 @@ describe('rulingChangeDraw — the park waits for the player, and is bounded on 
     expect(rulingChangeParksReveal(ruling), 'the card takes the ordinary road').to.equal(false);
     clock.advance(60_000);
     expect(said.filter((line) => line.includes('untold-enactment')), 'no net ever spoke').to.deep.equal([]);
+  });
+
+  /*
+   * THE PARK's LIFE IS THE SITTING's — the server's word in the apply block (CI Autopilot game 1127): a sitting closed
+   * from another device, the early close, a sitting never opened — however the phase ended, a card parked for its
+   * enactment's tail has no tail left, and every hand-over waited on it to its ceiling (the draft 45 s, the finale 45 s).
+   */
+  it('the phase gone from the view lets the park go — whatever ended it, no client path needed', () => {
+    openRulingChangePark(key);
+    const live = {game: {phase: 'action', parliament: {phase: {step: 'enact'}}}, thisPlayer: {color: 'red'}, players: []} as unknown as PlayerViewModel;
+    const over = {game: {phase: 'drafting', parliament: {}}, thisPlayer: {color: 'red'}, players: []} as unknown as PlayerViewModel;
+    seedRulingChangeAnswers(live, live);
+    expect(rulingChangeDrawState.owedKey, 'a live sitting keeps its park').to.equal(key);
+    seedRulingChangeAnswers(live, over);
+    expect(rulingChangeDrawState.owedKey, 'the phase is gone: the card takes the ordinary road').to.equal(undefined);
+    expect(rulingChangeParksReveal(ruling)).to.equal(false);
   });
 
   it('THE SESSION ENDING UNDER THE PARK lets it go unsaid — nothing of it stands into the next game', () => {

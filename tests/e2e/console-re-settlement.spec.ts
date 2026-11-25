@@ -116,6 +116,9 @@ type MoveProbe = {
   lastProxyAt?: number;
   vacatedAt?: number;
   landedAt?: number;
+  /** The board's own stamps of the move (`data-vacated-seq` / `data-landed-seq` — one clock): the ORDER the scene made. */
+  vacatedSeq?: number;
+  landedSeq?: number;
   /** The source cell stopped painting the city. */
   sourceBareAt?: number;
   phases: Array<string>;
@@ -138,6 +141,9 @@ type MoveFrame = {
   cityA: boolean;
   cityB: boolean;
   vacated: boolean;
+  /** The stamps the board's cells carry (`remoteRevealHold` — the vacate's and the landing's one clock), or null. */
+  vacatedSeq: number | null;
+  landedSeq: number | null;
   phase: string | null;
   degraded: boolean;
   eaten: boolean;
@@ -175,6 +181,8 @@ function readMoveFrame({kind, from, to}: {kind: string, from: string, to: string
     cityA: cityOn(from),
     cityB: cityOn(to),
     vacated: document.querySelector(`.board-space[data_space_id="${from}"] > .board-space-tile--vacated`) !== null,
+    vacatedSeq: Number(document.querySelector(`.board-space[data_space_id="${from}"] > [data-vacated-seq]`)?.getAttribute('data-vacated-seq') ?? NaN) || null,
+    landedSeq: Number(document.querySelector(`.board-space[data_space_id="${to}"] > [data-landed-seq]`)?.getAttribute('data-landed-seq') ?? NaN) || null,
     phase: root?.getAttribute('data-tile-phase') ?? null,
     degraded: root !== null && root.getAttribute('data-tile-move-degraded') !== null,
     eaten: document.querySelector('.con-bmove--eaten') !== null,
@@ -225,6 +233,12 @@ async function readProbe(witness: Witness<MoveFrame>): Promise<MoveProbe> {
     }
     if (v.vacated) {
       p.vacatedAt ??= now;
+    }
+    if (v.vacatedSeq !== null) {
+      p.vacatedSeq ??= v.vacatedSeq;
+    }
+    if (v.landedSeq !== null) {
+      p.landedSeq ??= v.landedSeq;
     }
     const two = (v.cityA && v.cityB) || (centre !== undefined && ((v.cityA && far(centre, p.a)) || (v.cityB && far(centre, p.b))));
     if (two && p.twoCities.length < 6) {
@@ -630,10 +644,13 @@ for (const preset of PRESETS) {
         expect(probe.noCity, `${who}: a sample with NO city`).toEqual([]);
         expect(probe.vacatedAt, `${who}: the vacated cell never settled`).toBeDefined();
         expect(probe.landedAt, `${who}: the city never landed`).toBeDefined();
-        // NEVER AFTER the landing (CI #151 — `1402 < 1402`): a starved runner's clock can advance the scene past both
-        // poses in ONE tick, and the recorder then sees them in the same sample. The order the player reads is the
-        // scene's; what a sample can prove is that the cell did not settle after the city arrived (FLAKE ZERO).
-        expect(probe.vacatedAt!, `${who}: the vacated cell settles no later than the landing`).toBeLessThanOrEqual(probe.landedAt!);
+        // BEFORE THE LANDING — STRICTLY, by the order the scene MADE (CI #151: two poses a starved runner painted in one
+        // frame read `1402 < 1402`). The board stamps both on one clock (`data-vacated-seq` / `data-landed-seq`), so the
+        // order is a fact the product states, whatever the frame rate; the samples only say neither came after the other.
+        expect(probe.vacatedSeq, `${who}: the board stamped the vacate`).toBeDefined();
+        expect(probe.landedSeq, `${who}: the board stamped the landing`).toBeDefined();
+        expect(probe.vacatedSeq!, `${who}: the vacated cell settles BEFORE the landing (the board's own order)`).toBeLessThan(probe.landedSeq!);
+        expect(probe.vacatedAt!, `${who}: and no frame showed the settle after the city`).toBeLessThanOrEqual(probe.landedAt!);
       };
       assertOneMove(own, 'own');
       expect(own.phases, 'the hero plays the move, lands, then pays').toEqual(expect.arrayContaining(['moving', 'landed', 'rewarding']));

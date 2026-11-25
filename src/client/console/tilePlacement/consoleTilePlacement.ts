@@ -146,7 +146,7 @@ import {
   stackLandingRect, tierHoverPoint, coverDescentPlan, tileContactKind,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {beginStackLoad, stackContact, clearStackScene, stackRelease, clearStackRelease, stackDried} from '@/client/console/tilePlacement/cityStackScene';
-import {markCellVacated} from '@/client/console/tilePlacement/remoteRevealHold';
+import {markCellLanded, markCellVacated} from '@/client/console/tilePlacement/remoteRevealHold';
 import {claimTileMove, tileMoveRecordFor} from '@/client/console/tilePlacement/tileMoveRecords';
 import {TileMoveRecordModel} from '@/common/boards/TileMove';
 import {probeTick} from '@/client/console/probeTick';
@@ -1263,6 +1263,9 @@ async function runMove(
   // its cube at rest — the hero paints outside the armed window), and the
   // proxy goes on the next painted frame. Show, then remove — never a fade.
   paintRealTile();
+  if (tilePlacementState.spaceId !== undefined) {
+    markCellLanded(tilePlacementState.spaceId);
+  }
   tilePlacementState.phase = 'landed';
   await nextTick();
   await new Promise<void>((resolve) => probeTick(() => resolve()));
