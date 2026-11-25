@@ -37,6 +37,19 @@ import {answerPrompt, cinematicBeat, fetchPlayerModel, openConsole, seedGameOver
  * A game enters and leaves by a full reload (`App.vue` — «a fresh page guarantees clean per-game module state»), so
  * one page's hours ARE one game's.
  *
+ * THE PILOT GOES SOMEWHERE (stage 6 deepened, 2026-11-25 — the owner: «прогнать реально ВСЕ возможные кейсы»). The
+ * first two hundreds were a seeded thumb on whatever the bar offered: their kernel report read 180 of 285 flows opened
+ * — no colony ever built, no party action, the Hydronetwork a rarity — and 23 answers through the door, most of them a
+ * pilot standing in a look of its own. So, in `TM_E2E_AUTOPILOT_PILOT=2` (the default; `1` is the first pilot, kept
+ * for a pass that must be compared with an old one):
+ *   · A TURN HAS AN INTENT: on most of its action menus the pilot goes to ONE section by the wheel that leads there
+ *     (the hand, the card actions, the trade, the Parliament, the Hydronetwork, the standard projects, a conversion)
+ *     — the sections in rotation, so a game visits them all — and inside it presses what CARRIES a flow on;
+ *   · A LOOK IS CLOSED BEFORE AN ANSWER: the information screen, the journal, the «Разыграно» table and the viewer
+ *     are the pilot's own, and a pilot that is answering leaves them first (the doors of the second hundred);
+ *   · THE LAYOUT OF A LOSS HAS ITS HANDS: «A −1 · X Принять убыток» is walked as a player lays it out.
+ * The door's answers and the kernel's «never opened» are the measure of it, pass against pass.
+ *
  * OPT-IN: `TM_E2E_AUTOPILOT=1 npx playwright test tests/e2e/console-autopilot.spec.ts` · `TM_E2E_AUTOPILOT_GAMES`
  * (`<from>-<to>` or a list; default `1-2`) · `TM_E2E_AUTOPILOT_NAME` (the stream's name, default `ap0`) ·
  * `TM_E2E_AUTOPILOT_PRESSES` (the cap, default 2000 — twenty games of the first pass ended inside 1 250).
@@ -47,6 +60,8 @@ if (ENABLED) {
 }
 const NAME = process.env.TM_E2E_AUTOPILOT_NAME ?? 'ap0';
 const PRESSES = Number(process.env.TM_E2E_AUTOPILOT_PRESSES ?? 2000);
+/** WHICH PILOT walks (`2` — the one that goes somewhere; `1` — the first, a thumb on the bar). */
+const PILOT = Number(process.env.TM_E2E_AUTOPILOT_PILOT ?? 2);
 /** THE SOAK: minutes the page is left alone at each generation's sample point (0 — a plain game). */
 const IDLE_MIN = Number(process.env.TM_E2E_AUTOPILOT_IDLE_MIN ?? 0);
 
@@ -122,7 +137,30 @@ const ANY = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Enter'
 const LOOK_KEYS: ReadonlySet<string> = new Set(['KeyX', 'KeyR', 'KeyC', 'KeyV']);
 
 /** What stands on screen as the pilot reads it: the verbs the bar offers, the stack, the bar's words. */
-type Screen = {offered: Array<{key: string, hot: boolean}>, frames: Array<string>, bar: string, zoom: boolean, quick: boolean, pass: boolean, confirm: boolean};
+type Screen = {
+  offered: Array<{key: string, hot: boolean}>, frames: Array<string>, bar: string, zoom: boolean, quick: boolean, pass: boolean, confirm: boolean,
+  /** A LOOK of the player's own stands (`info` — closed by Y; the journal and the «Разыграно» table — by B). */
+  look: '' | 'info' | 'journal' | 'played',
+  /** The layout of a production loss stands. */
+  prodLoss: boolean,
+};
+
+/**
+ * WHERE A TURN GOES (pilot 2): the wheel that leads to a section and the press that enters it — RT's five and LT's
+ * three that start something. In rotation by the game and the turn, so one game visits them all.
+ */
+const INTENTS: ReadonlyArray<{name: string, keys: ReadonlyArray<string>}> = [
+  {name: 'hand', keys: ['Period', 'Enter']},
+  {name: 'card-actions', keys: ['Period', 'ArrowUp']},
+  {name: 'trading', keys: ['Period', 'ArrowRight']},
+  {name: 'standard-projects', keys: ['Comma', 'Enter']},
+  {name: 'parliament', keys: ['Period', 'ArrowDown']},
+  {name: 'hand', keys: ['Period', 'Enter']},
+  {name: 'hydro', keys: ['Period', 'ArrowLeft']},
+  {name: 'convert-plants', keys: ['Comma', 'ArrowLeft']},
+  {name: 'card-actions', keys: ['Period', 'ArrowUp']},
+  {name: 'convert-heat', keys: ['Comma', 'ArrowRight']},
+];
 
 async function look(page: Page): Promise<Screen> {
   return page.evaluate((glyphs) => {
@@ -144,6 +182,9 @@ async function look(page: Page): Promise<Screen> {
       frames: ready?.wsFrames ?? [],
       bar: (document.querySelector('.con-cmdbar')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 160),
       zoom: document.querySelector('dialog.con-zoom[open]') !== null,
+      look: document.querySelector('.con-info') !== null ? 'info' as const : document.querySelector('.con-journal') !== null ? 'journal' as const :
+        document.querySelector('.con-played:not(.con-played--hero):not(.con-played--embedded)') !== null ? 'played' as const : '' as const,
+      prodLoss: document.querySelector('.con-prodloss') !== null,
       quick: document.querySelector('.con-quick') !== null,
       pass: document.querySelector('.con-quick [data-quick-id="pass"]') !== null,
       confirm: document.querySelector('.con-confirm') !== null,
@@ -167,6 +208,11 @@ function pilotPick(screen: Screen, g: () => number, last: string | undefined, to
   // presses of A inside the viewer while the bar under it read «A К исследованию» — and the door answered.)
   if (screen.zoom) {
     return toTheQuestion || g() < 0.5 ? 'Escape' : ARROWS[Math.floor(g() * ARROWS.length)];
+  }
+  // …AND SO IS EVERY OTHER LOOK OF THE PLAYER's OWN (pilot 2): the information screen closes by Y, the journal and the
+  // «Разыграно» table by B. A pilot that is answering leaves it at once; one that is wandering reads on for a while.
+  if (PILOT >= 2 && screen.look !== '' && (toTheQuestion || g() < 0.35)) {
+    return screen.look === 'info' ? 'KeyY' : 'Escape';
   }
   const offersA = screen.offered.some((o) => o.key === 'Enter');
   if (toTheQuestion && offersA && screen.frames.length === 0 && !screen.quick) {
@@ -261,7 +307,9 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     }
   };
 
-  let standing: {promptId: number | undefined, type: string, menu: boolean, presses: number, budget: number, byApi: boolean} | undefined;
+  let standing: {promptId: number | undefined, type: string, menu: boolean, presses: number, budget: number, byApi: boolean, intent: Array<string>, intentful: boolean} | undefined;
+  /** The menus of the game so far — the intents' rotation (seeded by the game's own number, so two games start apart). */
+  let menus = Math.floor(g() * INTENTS.length);
   let moved = {age: -1, at: Date.now()};
   let sampledGeneration = 0;
   while (played.presses < PRESSES && !page.isClosed()) {
@@ -294,7 +342,15 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         bump(standing.byApi ? played.byApi : played.byUi, standing.menu ? 'or:menu' : standing.type);
       }
       const menu = wf.type === 'or' && (wf.options ?? []).some((o) => o.type === 'option' && o.warnings?.includes('pass') === true);
-      standing = {promptId: wf.promptId, type: wf.type, menu, presses: 0, budget: menu ? (g() < 0.18 ? 0 : 4 + Math.floor(g() * 23)) : 45, byApi: false};
+      // (Pilot 2: three menus in four have an INTENT — the turn goes to one section and plays there; the budget is
+      // then never shorter than the way in and a few presses inside.)
+      const intentful = PILOT >= 2 && menu && g() < 0.75;
+      const intent = intentful ? [...INTENTS[menus++ % INTENTS.length].keys] : [];
+      const budget = menu ? (g() < (intentful ? 0.05 : 0.18) ? 0 : (intentful ? 9 : 4) + Math.floor(g() * 23)) : 45;
+      standing = {promptId: wf.promptId, type: wf.type, menu, presses: 0, budget, byApi: false, intent: budget > 0 ? intent : [], intentful: intentful && budget > 0};
+      if (standing.intent.length > 0) {
+        log.push(`[INTENT ${INTENTS[(menus - 1) % INTENTS.length].name}]`);
+      }
     }
     if (standing.menu && sampledGeneration !== model.game.generation) {
       const sample = await page.evaluate(() => {
@@ -436,7 +492,22 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     }
     const seen = await look(page);
     stood = `${seen.frames.join('>') || '-'}${seen.zoom ? '+ZOOM' : ''}${seen.quick ? '+WHEEL' : ''}|${wf.type}#${wf.promptId ?? ''}|${seen.bar.slice(0, 80)}`;
-    await press(pilotPick(seen, g, lastKey, !standing.menu && standing.presses >= Math.floor(standing.budget / 2)), pause());
+    // THE TURN's INTENT (pilot 2): from the board home, the wheel that leads to the section and the press that enters
+    // it — one after the other, nothing between.
+    if (standing.intent.length > 0) {
+      if (standing.presses === 1) {
+        await walkHome(false);
+      }
+      await press(standing.intent.shift() as string, 500 + Math.round(g() * 400));
+      continue;
+    }
+    // THE LAYOUT OF A LOSS (pilot 2): a unit off the focused row, another, the next row, and «Принять убыток» — until
+    // the server has the answer.
+    if (PILOT >= 2 && wf.type === 'productionToLose' && seen.prodLoss && seen.look === '' && !seen.zoom) {
+      await press((['Enter', 'Enter', 'ArrowDown', 'KeyX'] as const)[standing.presses % 4], pause());
+      continue;
+    }
+    await press(pilotPick(seen, g, lastKey, standing.menu ? standing.intentful : standing.presses >= Math.floor(standing.budget / 2)), pause());
   }
   if (played.phase === 'end') {
     // THE FINALE: the ceremony's screens are the page's own — pressed through like everything else.
