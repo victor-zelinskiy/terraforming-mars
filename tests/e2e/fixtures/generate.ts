@@ -14138,6 +14138,7 @@ maClaimFixture('ma-claim-helion', true);
 //      · `board-of-directors-poor`    — 7 M€: the play refused «need 5 more M€», the discard the sole outcome (`max 0`);
 //      · `board-of-directors-burn`    — Loan, M€ production −4: the play burns (+15), the price still paid;
 //      · `board-of-directors-variant` — Atmospheric Enhancers: «РАЗЫГРАТЬ» opens the «ВАРИАНТ» step (the third host);
+//      · `board-of-directors-draw`    — Soil Bacteria: the played prelude draws two microbe cards (a reveal after it);
 //      · `board-of-directors-tile`    — Early Settlement: the prelude asks a city on the board;
 //      · `board-of-directors-helion`  — Helion, 5 M€ + 20 heat: the price is a payment the server ASKS (on the marker);
 //      · `board-of-directors-last`    — 1 director: after the play the action is blocked «0 of 1 director»;
@@ -14206,6 +14207,9 @@ boardOfDirectorsFixture('board-of-directors-loan', {megacredits: 40, max: 1});
 boardOfDirectorsFixture('board-of-directors-poor', {megacredits: 7, max: 0});
 boardOfDirectorsFixture('board-of-directors-burn', {megacredits: 40, mcProduction: -4, max: 1});
 boardOfDirectorsFixture('board-of-directors-variant', {top: CardName.ATMOSPHERIC_ENHANCERS, megacredits: 40, max: 1});
+// #169 (CI's autopilot, game 260 — `console-leak-detector/batch-overlap`): a prelude whose own effect DRAWS (Soil
+// Bacteria: two microbe cards) played off the verdict — the reveal of what it drew must not stand beside the verdict.
+boardOfDirectorsFixture('board-of-directors-draw', {top: CardName.SOIL_BACTERIA, megacredits: 40, max: 1});
 boardOfDirectorsFixture('board-of-directors-tile', {top: CardName.EARLY_SETTLEMENT, megacredits: 40, max: 1});
 boardOfDirectorsFixture('board-of-directors-helion', {megacredits: 5, helion: true, max: 1});
 boardOfDirectorsFixture('board-of-directors-last', {megacredits: 40, directors: 1, max: 1});

@@ -274,6 +274,41 @@ test.describe(`P45 Board of Directors · the verdict after the reveal · ${PRESE
     await expect.poll(async () => onTable(await wireOf(request, id), 'Atmospheric Enhancers'), {timeout: 30_000}).toBe(true);
   });
 
+  /*
+   * #169 (CI's autopilot, game 260 — `console-leak-detector/batch-overlap`: «a deck pick and a reveal are both showing
+   * cards Soil Bacteria · Symbiotic Fungus#0»). The verdict played a prelude whose OWN effect draws (Soil Bacteria: two
+   * microbe cards) and the pilot pressed B on the «Разыграно» beat: the reveal of what it drew stood beside the verdict
+   * that had played it. ONE batch on the screen at a time — the verdict leaves before the drawn cards are shown.
+   */
+  test('K: «РАЗЫГРАТЬ» on Soil Bacteria — what the prelude DRAWS is shown after the verdict has left, never beside it (B on its beat too)', async ({page, request}) => {
+    test.setTimeout(300_000);
+    const id = await bootFixture(page, request, 'board-of-directors-draw', {query: PRESET.query});
+    await settle(page);
+    const posts = watchPosts(page);
+    await openSetup(page);
+    await drawToVerdict(page, posts);
+    await expect(page.locator(`${PICK} [data-deckpick-slot="Soil Bacteria"]`), 'Soil Bacteria drawn').toHaveCount(1);
+    await focusRow(page, 'play');
+    // (RECORDED from before the press: every frame's «both batches show cards».)
+    await armWitness<boolean>(page, 'p45-one-batch', () => {
+      const shown = (el: Element | null): boolean => el !== null && (el as HTMLElement).offsetParent !== null;
+      return shown(document.querySelector('.con-deckpick [data-deckpick-slot]')) && shown(document.querySelector('.con-reveal [data-zoom-slot]'));
+    });
+    await commitOnce(page, posts, posts.length, 'the play');
+    // The pilot's road: B on the «Разыграно» beat, and again.
+    await press(page, 'Escape', 600);
+    await press(page, 'Escape', 600);
+    await expect.poll(async () => onTable(await wireOf(request, id), 'Soil Bacteria'), {timeout: 30_000, message: 'Soil Bacteria played'}).toBe(true);
+    await expect(page.locator('.con-reveal [data-zoom-slot]').first(), 'what Soil Bacteria drew is shown').toBeVisible({timeout: 40_000});
+    expect((await witnessOf<boolean>(page, 'p45-one-batch').values()).some((both) => both), 'never the verdict AND the reveal at once').toBe(false);
+    // …and the cards are taken: the draw's own end.
+    for (let i = 0; i < 8 && await page.locator('.con-reveal [data-zoom-slot]').count() > 0; i++) {
+      await press(page, 'Enter', 700);
+    }
+    await settle(page, {timeoutMs: 40_000});
+    expect((await witnessOf<boolean>(page, 'p45-one-batch').values()).some((both) => both), 'never the verdict AND the reveal at once').toBe(false);
+  });
+
   test('G: Early Settlement — the city on the board, the hand never mounts', async ({page, request}) => {
     test.setTimeout(300_000);
     const id = await bootFixture(page, request, 'board-of-directors-tile', {query: PRESET.query});
@@ -427,5 +462,39 @@ test.describe(`P45 Board of Directors · the verdict after the reveal · ${PRESE
     await expect(page.locator(`.con-cardactions__tile[data-action-card="${CARD}"]`), 'the tile is listed').toHaveCount(1);
     await expect(page.locator('.con-cardactions'), 'the reason names the directors with its count').toContainText('0 из 1 директора');
     await shoot(page, 'i-spent');
+  });
+});
+
+/*
+ * #169 ON THE AUTOPILOT's SCREEN: the CI game was a 1280×720 handheld, and its B came on the «Разыграно» beat itself
+ * (the bar reading «Разыграно», the played prelude on its way to the table) — the same law at that size and moment.
+ */
+test.describe(`P45 Board of Directors · what a played prelude draws · deck`, () => {
+  test.use({viewport: {width: 1280, height: 720}});
+
+  test('K2: the drawn cards after the verdict has left — B pressed through the beat of the play, at a quick pace', async ({page, request}) => {
+    test.setTimeout(300_000);
+    const id = await bootFixture(page, request, 'board-of-directors-draw', {query: '&consoleProfile=handheld'});
+    await settle(page);
+    const posts = watchPosts(page);
+    await openSetup(page);
+    await drawToVerdict(page, posts);
+    await focusRow(page, 'play');
+    await armWitness<boolean>(page, 'p45-one-batch-deck', () => {
+      const shown = (el: Element | null): boolean => el !== null && (el as HTMLElement).offsetParent !== null;
+      return shown(document.querySelector('.con-deckpick [data-deckpick-slot]')) && shown(document.querySelector('.con-reveal [data-zoom-slot]'));
+    });
+    await commitOnce(page, posts, posts.length, 'the play');
+    // (B while the played prelude is on its way — the beat — at a player's quick pace, four times.)
+    for (let i = 0; i < 4; i++) {
+      await press(page, 'Escape', 250);
+    }
+    await expect.poll(async () => onTable(await wireOf(request, id), 'Soil Bacteria'), {timeout: 30_000, message: 'Soil Bacteria played'}).toBe(true);
+    await expect(page.locator('.con-reveal [data-zoom-slot]').first(), 'what Soil Bacteria drew is shown').toBeVisible({timeout: 40_000});
+    for (let i = 0; i < 8 && await page.locator('.con-reveal [data-zoom-slot]').count() > 0; i++) {
+      await press(page, 'Enter', 700);
+    }
+    await settle(page, {timeoutMs: 40_000});
+    expect((await witnessOf<boolean>(page, 'p45-one-batch-deck').values()).some((both) => both), 'never the verdict AND the reveal at once').toBe(false);
   });
 });

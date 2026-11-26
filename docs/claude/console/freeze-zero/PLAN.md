@@ -2728,7 +2728,18 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
     (`card:preludeSelection`, `option:corporationPay`) judged in the frame before the scene had anything of it to
     focus or to move (`startServesOf`: focusables 0, no motion → `none`), healed by itself a frame later. The level
     door waits its quiet frames and never acts on them; the measure counts each judged state. Open: the scene's serve
-    state should name a question it is still mounting (a bounded entry beat) — not the measure relaxed.
+    state should name a question it is still mounting (a bounded entry beat) — not the measure relaxed. **Done**
+    (`ab15e5c624`): from a new question until the scene has painted twice under it, the scene is MOUNTING it.
+- **CI on `8632b1f10e` (Autopilot 45895766688, E2E 45895771416):** the whole e2e GREEN; the autopilot's browser half
+  48 games — #168 gone (game 269 to generation 59, the class absent: closed), three capped duos (the second seat's
+  futile asteroid — fixed in the harness since), two doors (the heat bill, a resolution's draw held by its claim —
+  the pilot's, fixed since) and ONE new class, #169 `console-leak-detector/batch-overlap` (game 260: Board of
+  Directors' verdict played Soil Bacteria, whose own effect draws two microbe cards; B twice on the «Разыграно» beat;
+  the leak tick saw the verdict's deck pick and the reveal of the drawn cards both visible). A fixture
+  (`board-of-directors-draw`) and two guards (K at tv4k, K2 at 1280×720 with B through the beat) record every frame —
+  green; the CI road (the server already back on its menu when the cards were shown) is not reproduced yet. Open.
+  CI red on `8f0c410589` (#51): the autopilot's table-module set spelled as a literal `['base', 'corpera'` —
+  `premiumScope.spec`'s guard; built from the table now.
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read
