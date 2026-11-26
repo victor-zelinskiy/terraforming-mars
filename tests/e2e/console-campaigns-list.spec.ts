@@ -1,6 +1,12 @@
 import {expect, test, Page} from './consoleTest';
 import {press, settle} from './consoleStart';
 import {createCampaign, devCommit, launchMission, seedIdentity, campaignBase} from './campaignFixtures';
+
+/**
+ * A campaign's row BY ITS ID (`data-lobby-key`): the server draws a campaign's name from a short pool, so two campaigns
+ * of one worker's server can share it — a row found by its name was two rows (CI #158, «Stable Gravity Point»).
+ */
+const campRow = (page: import('@playwright/test').Page, id: string) => page.locator(`.cm-camp[data-lobby-key="${id}"]`);
 import {readSettled} from './settledRead';
 
 /**
@@ -36,10 +42,10 @@ async function openCampaignsList(page: Page, name: string): Promise<void> {
 
 test.describe('my campaigns list', () => {
   test('a fresh campaign is listed before any mission exists; A opens the map; B returns to the same row', async ({page, request}) => {
-    const {name} = await createCampaign(request);
+    const {id, name} = await createCampaign(request);
     await openCampaignsList(page, 'Alice');
 
-    const row = page.locator('.cm-camp', {hasText: name});
+    const row = campRow(page, id);
     await expect(row).toHaveCount(1);
     await expect(row).toContainText('Миссия 1 из 4');
     // The creator's launch-ready state names itself.
@@ -68,7 +74,7 @@ test.describe('my campaigns list', () => {
     await launchMission(request, id);
 
     await openCampaignsList(page, 'Alice');
-    const row = page.locator('.cm-camp', {hasText: name});
+    const row = campRow(page, id);
     await expect(row).toHaveCount(1);
     // The active mission leads the row: the viewer's move or the calm state.
     await expect(row).toContainText(/Ваш ход|Миссия идёт/);
@@ -104,11 +110,11 @@ test.describe('my campaigns list', () => {
 
     await openCampaignsList(page, 'Alice');
     // Gone from the active slice…
-    await expect(page.locator('.cm-camp', {hasText: name})).toHaveCount(0);
+    await expect(campRow(page, id)).toHaveCount(0);
     // …and found behind L3 (KeyC is the stickL keyboard parity binding).
     await press(page, 'KeyC', 600);
     await expect(page.locator('.cm-gametab--on')).toContainText('Завершённые');
-    const row = page.locator('.cm-camp', {hasText: name});
+    const row = campRow(page, id);
     await expect(row).toHaveCount(1);
     await expect(row).toContainText('Кампания завершена');
 
@@ -124,7 +130,7 @@ test.describe('my campaigns list', () => {
     // A commits; the row leaves both the list and the server.
     await press(page, 'Enter', 1200);
     await expect(page.locator('.cm-overlay--nested')).toHaveCount(0);
-    await expect(page.locator('.cm-camp', {hasText: name})).toHaveCount(0);
+    await expect(campRow(page, id)).toHaveCount(0);
     // The campaign document is gone…
     const afterDelete = await request.get(`${campaignBase()}/api/campaign?id=${id}&name=Alice`);
     expect(afterDelete.status()).toBe(404);
@@ -139,18 +145,18 @@ test.describe('my campaigns list', () => {
   });
 
   test('the creator may cascade-delete an ACTIVE campaign — with the louder warning', async ({page, request}) => {
-    const {id, name} = await createCampaign(request);
+    const {id} = await createCampaign(request);
     const {gameId} = await launchMission(request, id);
 
     await openCampaignsList(page, 'Alice');
-    const row = page.locator('.cm-camp', {hasText: name});
+    const row = campRow(page, id);
     await row.hover();
     await press(page, 'KeyX', 500);
     const confirm = page.locator('.cm-overlay--nested');
     await expect(confirm).toBeVisible();
     await expect(confirm).toContainText('Эта кампания ещё не завершена.');
     await press(page, 'Enter', 1200);
-    await expect(page.locator('.cm-camp', {hasText: name})).toHaveCount(0);
+    await expect(campRow(page, id)).toHaveCount(0);
     const game = await request.get(`${campaignBase()}/api/game?id=${gameId}`);
     expect(game.ok()).toBeFalsy();
     const gone = await request.get(`${campaignBase()}/api/campaign?id=${id}&name=Alice`);
@@ -163,10 +169,10 @@ test.describe('my campaigns list', () => {
     // is push-driven: campaign save → lobby revision bump → lobby channel →
     // refresh → the row — never a manual RT and never a 15 s poll wait.
     await openCampaignsList(page, 'Alice');
-    const {name} = await createCampaign(request);
-    await expect(page.locator('.cm-camp', {hasText: name})).toHaveCount(1, {timeout: 10_000});
+    const {id} = await createCampaign(request);
+    await expect(campRow(page, id)).toHaveCount(1, {timeout: 10_000});
     // Before the first mission exists, too: the row leads with launch-ready.
-    await expect(page.locator('.cm-camp', {hasText: name})).toContainText('Миссия 1 из 4');
+    await expect(campRow(page, id)).toContainText('Миссия 1 из 4');
   });
 
   test('REALTIME: the menu-ROOT badge learns of a new campaign by push', async ({page, request}) => {
@@ -236,9 +242,9 @@ test.describe('my campaigns list', () => {
   ]) {
     test(`fit: the list renders without overflow @ ${vp.label}`, async ({page, request}) => {
       await page.setViewportSize({width: vp.width, height: vp.height});
-      const {name} = await createCampaign(request);
+      const {id} = await createCampaign(request);
       await openCampaignsList(page, 'Alice');
-      const row = page.locator('.cm-camp', {hasText: name});
+      const row = campRow(page, id);
       await expect(row).toHaveCount(1);
       const overflowX = await page.evaluate(() =>
         document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -257,10 +263,10 @@ test.describe('my campaigns list', () => {
   }
 
   test('a non-creator cannot delete the shared campaign (UI inert, server refuses)', async ({page, request}) => {
-    const {id, name} = await createCampaign(request);
+    const {id} = await createCampaign(request);
 
     await openCampaignsList(page, 'Bruno');
-    const row = page.locator('.cm-camp', {hasText: name});
+    const row = campRow(page, id);
     await expect(row).toHaveCount(1);
     // Bruno's row waits for the creator — and X opens nothing.
     await expect(row).toContainText('Ожидание запуска миссии создателем кампании');

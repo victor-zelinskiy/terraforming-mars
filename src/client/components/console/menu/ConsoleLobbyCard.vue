@@ -4,6 +4,7 @@
     class="cm-lcard cm-game"
     :class="rootClasses"
     :data-lobby-card="view.kind"
+    :data-lobby-key="view.key"
     :data-lobby-tone="view.state.tone"
     :style="{'--map-accent': accent}"
     @click="$emit('activate')"
