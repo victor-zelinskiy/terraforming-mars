@@ -60,7 +60,7 @@ import {answerPrompt, cinematicBeat, fetchPlayerModel, NO_PAYMENT, openConsole, 
  *
  * OPT-IN: `TM_E2E_AUTOPILOT=1 npx playwright test tests/e2e/console-autopilot.spec.ts` · `TM_E2E_AUTOPILOT_GAMES`
  * (`<from>-<to>` or a list; default `1-2`) · `TM_E2E_AUTOPILOT_NAME` (the stream's name, default `ap0`) ·
- * `TM_E2E_AUTOPILOT_PRESSES` (the cap, default 2000 — twenty games of the first pass ended inside 1 250).
+ * `TM_E2E_AUTOPILOT_PRESSES` (the cap, default 3200 — see `PRESSES`).
  */
 const ENABLED = process.env.TM_E2E_AUTOPILOT === '1';
 if (ENABLED) {
@@ -717,6 +717,16 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         await walkHome(false);
         continue;
       }
+      // …AND AT HOME, THE WAY BACK: the question set aside (or held by its plate) with «A» on the bar — «Вернуться к
+      // выбору», «Открыть» — is a player's next press. The pilot wandered into a wheel instead, its budget ran out and
+      // the door answered the parked research buy: the draft's frame was dropped with its phase, a line of the log
+      // that was the PILOT's (the sixth count, games 1631 and 1673 — both right after a door).
+      if (seen.frames.length === 0 && !seen.quick && seen.offered.some((o) => o.key === 'Enter') &&
+          / held (aside:|admission:announce-gate)/.test(await ownerNow())) {
+        log.push('[WAY-BACK]');
+        await press('Enter', pause());
+        continue;
+      }
       if (seen.frames.length === 0 && !seen.quick && !seen.offered.some((o) => o.key === 'Enter') && standing.presses >= Math.floor(standing.budget / 2)) {
         await press(ARROWS[Math.floor(g() * ARROWS.length)], pause());
         continue;
@@ -738,6 +748,14 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     if (PILOT >= 3 && wf.type === 'card' && !standing.menu && standing.presses >= Math.floor(standing.budget / 3) && seen.look === '' && !seen.zoom && !seen.quick &&
         seen.offered.some((o) => o.key === 'Enter') && seen.offered.some((o) => o.key === 'Period')) {
       await press((['Enter', 'Period', 'ArrowRight'] as const)[standing.presses % 3], pause());
+      continue;
+    }
+    // …AND A SINGLE PICK THAT COMMITS BY A («Выбрать» on the focused card — the table's answer to the Career's step, a
+    // resource onto a card): once it has stood a third of its budget, A on the card, the next card if it was not one
+    // the question takes. The pilot thumbed the bar around it until the door answered (the box's game 1676).
+    if (PILOT >= 3 && wf.type === 'card' && !standing.menu && (wf.max ?? 1) === 1 && standing.presses >= Math.floor(standing.budget / 3) &&
+        seen.look === '' && !seen.zoom && !seen.quick && seen.offered.some((o) => o.key === 'Enter') && !seen.offered.some((o) => o.key === 'Period')) {
+      await press((['Enter', 'ArrowRight'] as const)[standing.presses % 2], pause());
       continue;
     }
     await press(pilotPick(seen, g, lastKey, standing.menu || standing.bonus ? standing.intentful : standing.presses >= Math.floor(standing.budget / 2)), pause());

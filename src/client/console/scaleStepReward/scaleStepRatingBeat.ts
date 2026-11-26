@@ -385,8 +385,11 @@ function scaleStepRatingMarkerCovered(): boolean {
 registerBoardBeatStoryMember(SCALE_STEP_RATING_KEY, {busy: scaleStepRatingBusy, quiet: scaleStepRatingQuiet, endCovered: scaleStepRatingMarkerCovered});
 
 // NOTIFICATION-ONLY (a reaction never delays a decision the player owes, and a blocking hold here would wait on the
-// very workspace that waits on it): the feed waits for the rating's story, nothing else does.
-registerAnimationHoldSupplier(SCALE_STEP_RATING_KEY, scaleStepRatingBusy, {
+// very workspace that waits on it): the feed waits for the rating's story, nothing else does — and only while it is a
+// story that will PLAY. A rating owed behind the player's own screen waits for a stage only they can uncover, and the
+// feed does not wait with it: it stood thirteen seconds frozen behind such a rating, and the moment the player uncovered
+// the board the reason was gone and the starvation line called it a leak (CI #150 — the 1101–1200 count, game 1153).
+registerAnimationHoldSupplier(SCALE_STEP_RATING_KEY, () => scaleStepRatingBusy() && scaleStepRatingHeldForPlayer() === undefined, {
   scope: 'notification-only',
   diagnose: () => ({phase: scaleStepRatingState.phase, tokens: scaleStepRatingState.tokens, due: scaleStepRatingState.due,
     owed: entry !== undefined, paying: paying !== undefined}),

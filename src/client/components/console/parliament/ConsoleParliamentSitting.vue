@@ -34,7 +34,7 @@
           <!-- …AND THE RECEIPT OF THE TABLE (Sponsored Projects): a card payout that asked nobody — the seat's receiving
                cards stand here once the draw's take has left the zone, the tokens land on them in turn, and the
                receipt folds away (the zone's own layer phrase both ways). The director stands it and takes it down. -->
-          <transition :css="false" @enter="onReceiptEnter" @leave="onReceiptLeave" @enter-cancelled="onLedgerCancelled" @leave-cancelled="onLedgerCancelled">
+          <transition :css="false" appear @enter="onReceiptEnter" @leave="onReceiptLeave" @enter-cancelled="onLedgerCancelled" @leave-cancelled="onLedgerCancelled">
             <div v-if="receipt !== undefined" class="con-sit__receiptpane" data-sit-receipt :data-sit-receipt-key="receipt.key">
               <ConsoleTableReceipt :receipt="receipt" :phase="receiptPhase" />
             </div>
@@ -45,7 +45,11 @@
              walks). A LAYER over the reward chassis: the asker on its hero, the receipt / the picker in its zone; it
              enters by the zone's own layer phrase and folds down when its work is over (never a `v-if` cut of the
              chassis under it). -->
-        <transition :css="false" @enter="onAnswerEnter" @leave="onAnswerLeave" @enter-cancelled="onLedgerCancelled" @leave-cancelled="onLedgerCancelled">
+        <!-- (APPEAR: the layer's ENTRANCE is its signal — the zone is published, the picker teleported in, only once it has
+             entered. A sitting mounted with the layer already up — taken back from «Свернуть», a reload — played no
+             entrance: the zone never stood, the question had nowhere to stand, and the screen was deaf until the liveness
+             ladder parked the sitting — FREEZE ZERO, the sixth count's game 1676, reproduced on `arwind-sitting-win`.) -->
+        <transition :css="false" appear @enter="onAnswerEnter" @leave="onAnswerLeave" @enter-cancelled="onLedgerCancelled" @leave-cancelled="onLedgerCancelled">
           <div v-if="answerUp" class="con-sit__answer" data-sit-answer-layer>
             <ConsoleParliamentTableAnswer :answer="answer" :asking="asking" :askerModel="askerModel" embedded />
           </div>
@@ -53,7 +57,7 @@
         <!-- «ПРИЁМКА» (2026-11-02): a card the sitting DREW (the enactment's tail — a card answering the change of power;
              a step of the Career) is received HERE — the one reveal teleported into the stage's zone, the player's take
              awaited by the walk. A LAYER over the reward chassis, the answer's own phrase both ways. -->
-        <transition :css="false" @enter="onDrawEnter" @leave="onAnswerLeave" @enter-cancelled="onLedgerCancelled" @leave-cancelled="onLedgerCancelled">
+        <transition :css="false" appear @enter="onDrawEnter" @leave="onAnswerLeave" @enter-cancelled="onLedgerCancelled" @leave-cancelled="onLedgerCancelled">
           <div v-if="drawUp" class="con-sit__draw" data-sit-draw-layer>
             <ConsoleParliamentDrawStage :source="drawSource" :heroLive="drawHero" />
           </div>

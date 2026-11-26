@@ -82,7 +82,7 @@ import {reactive} from 'vue';
 import {FlowScope} from '@/client/console/kernel/flowScope';
 import {sessionChild, sessionState} from '@/client/console/session/consoleSession';
 import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
-import {announceMachine} from '@/client/console/consoleMandatoryAnnounce';
+import {ANNOUNCE_PENDING_MAX_MS, announceMachine} from '@/client/console/consoleMandatoryAnnounce';
 import {ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {sittingAskResolution} from '@/client/console/promptSource';
@@ -415,6 +415,54 @@ function endAnnounceRun(reason: string): void {
   run?.scope.end({how: 'cancelled', reason});
 }
 
+/** The player's time as the door reads it (`whoseTime`) — '' when it is the game's, or when the door cannot tell. */
+function announcePlayersTime(): string {
+  try {
+    return announceDoor?.whoseTime?.() ?? '';
+  } catch (error) {
+    console.warn('[mandatory-gate] the plate\'s door threw', error);
+    return '';
+  }
+}
+
+/**
+ * THE BOUND OF A FIRST PRESENTATION IS THE GAME's, NEVER THE PLAYER's (the landing law — `boardCoverWitness`'s clock;
+ * FREEZE ZERO, the autopilot's zero bar: «the first presentation of draft:gen2 did not come in its bound (planned: the
+ * player keeps the turn review open)» — a line, and a door run over a look the player had opened themselves). When
+ * all that stands in front of the plate is the player's own (the turn review, a reveal to take), nothing is said and
+ * nothing is done: the plate presents itself the moment they close it. The bound starts again from the moment the
+ * time is the game's — a latch the player's time hid is still the door's to run, said as the defect it is.
+ */
+function announceOverdue(run: LiveAnnounce): void {
+  if (liveAnnounce !== run) {
+    return;
+  }
+  const owedYet = (): boolean => liveAnnounce === run && mandatoryGateState.presentedKey !== run.key && mandatoryGateState.acknowledgedKey !== run.key;
+  if (announcePlayersTime() !== '') {
+    run.scope.every(500, 'the plate\'s bound waits for the game\'s time', () => {
+      if (!owedYet()) {
+        return false;
+      }
+      if (announcePlayersTime() !== '') {
+        return true;
+      }
+      run.scope.after(ANNOUNCE_PENDING_MAX_MS, 'the plate\'s bound, counted from the game\'s time', () => {
+        if (owedYet()) {
+          announceOverdue(run);
+        }
+      });
+      return false;
+    });
+    return;
+  }
+  console.warn(`[mandatory-gate] the first presentation of «${run.key}» did not come in its bound — the plate's door is run`);
+  try {
+    announceDoor?.run(run.key);
+  } catch (error) {
+    console.warn('[mandatory-gate] the plate\'s door threw', error);
+  }
+}
+
 function startAnnounceRun(key: string): void {
   announceRoot = sessionChild(announceRoot, 'chain', 'announce');
   const scope = announceRoot.open('announce', key);
@@ -423,23 +471,7 @@ function startAnnounceRun(key: string): void {
   });
   const run: LiveAnnounce = {key, scope, flow};
   liveAnnounce = run;
-  flow.actor.on('overdue', () => {
-    if (liveAnnounce !== run) {
-      return;
-    }
-    let whose = '';
-    try {
-      whose = announceDoor?.whoseTime?.() ?? '';
-    } catch (error) {
-      console.warn('[mandatory-gate] the plate\'s door threw', error);
-    }
-    console.warn(`[mandatory-gate] the first presentation of «${key}» did not come in its bound — the plate's door is run${whose !== '' ? ` (planned: ${whose})` : ''}`);
-    try {
-      announceDoor?.run(key);
-    } catch (error) {
-      console.warn('[mandatory-gate] the plate\'s door threw', error);
-    }
-  });
+  flow.actor.on('overdue', () => announceOverdue(run));
   if (mandatoryGateState.presentedKey === key) {
     flow.send({type: 'PRESENTED'});
   }

@@ -74,27 +74,41 @@ describe('mandatory gate · the beat\'s run', () => {
   });
 
   /*
-   * WHOSE TIME THE BOUND WAS (the gated pass of whole games on CI, 45370636119 — game 9: the pilot read the bot's
-   * turn review for fifteen seconds, the draft's plate could not be presented under it, and the bound's line was
-   * filed as a defect of the gate). The door is still run — the beacon is the player's notice — and the line says
-   * what the presentation waited for when that was the player's own; the classifier reads the tier off the line.
+   * THE BOUND IS THE GAME's, NEVER THE PLAYER's (the landing law; the gated pass of whole games on CI, 45370636119 —
+   * game 9, and the sixth count's game 1668: the pilot read the bot's turn review, the draft's plate could not be
+   * presented under it, and the bound said a line and ran the door over a look the player had opened). While all that
+   * stands in front of the plate is the player's own, nothing is said and nothing is done; the bound starts again from
+   * the moment the time is the game's — a latch the player's time hid is still the door's, said as the defect it is.
    */
-  it('a presentation that waited for the player\'s own look: the door is run all the same, and the line says whose time it was', () => {
-    registerAnnounceDoor((key) => doors.push(key), () => 'the player keeps the turn review open');
+  it('a presentation that waits for the player\'s own look: no line, no door — the bound counts again from the game\'s time', () => {
+    let players = 'the player keeps the turn review open';
+    registerAnnounceDoor((key) => doors.push(key), () => players);
     noteMandatoryBeatIdentity('task:discard#7');
     clock.advance(ANNOUNCE_PENDING_MAX_MS);
-    expect(doors, 'the door runs — the beacon is lit').to.deep.eq(['task:discard#7']);
-    const line = warned.find((l) => l.includes('did not come in its bound')) ?? '';
-    expect(line).to.match(/ \(planned: the player keeps the turn review open\)$/);
-    expect(causeOf(line, 'warn')?.tier).to.eq('planned');
-    // …and with nothing of the player's standing, the line is the defect it always was.
-    warned.length = 0;
-    registerAnnounceDoor((key) => doors.push(key), () => '');
-    noteMandatoryBeatIdentity('task:discard#8');
-    clock.advance(ANNOUNCE_PENDING_MAX_MS);
+    clock.advance(60_000);
+    expect(doors, 'a minute of the player\'s look: no door').to.deep.eq([]);
+    expect(warned.filter((l) => l.includes('did not come in its bound')), 'and nothing said').to.deep.eq([]);
+    players = '';
+    clock.advance(1_000);
+    clock.advance(ANNOUNCE_PENDING_MAX_MS - 1_000);
+    expect(doors, 'the game\'s own bound has not passed yet').to.deep.eq([]);
+    clock.advance(1_000);
+    expect(doors, 'the game\'s bound passed with no presentation: the door runs').to.deep.eq(['task:discard#7']);
     const bare = warned.find((l) => l.includes('did not come in its bound')) ?? '';
     expect(bare).to.match(/the plate's door is run$/);
     expect(causeOf(bare, 'warn')?.tier).to.eq('defect');
+  });
+
+  it('…and a presentation once the player closes their look ends it — no door, nothing said', () => {
+    let players = 'the player keeps the turn review open';
+    registerAnnounceDoor((key) => doors.push(key), () => players);
+    noteMandatoryBeatIdentity('task:discard#7');
+    clock.advance(ANNOUNCE_PENDING_MAX_MS + 5_000);
+    players = '';
+    markMandatoryBeatPresented('task:discard#7');
+    clock.advance(ANNOUNCE_PENDING_MAX_MS * 3);
+    expect(doors).to.deep.eq([]);
+    expect(warned.filter((l) => l.includes('did not come in its bound'))).to.deep.eq([]);
   });
 
   it('the door acknowledging in place ends the wait', () => {

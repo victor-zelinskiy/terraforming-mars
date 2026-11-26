@@ -312,12 +312,19 @@ export function rivalSpecsOf(group: CardReactionGroup): Array<ResourceTransferSp
 const CARD_REACTION_HOLD_MAX_MS = 4 * BLOCKING_QUIET_MAX_MS + SITTING_QUIET_MAX_MS + SCALE_STEP_STAGE_DUE_MS + BLOCKING_QUIET_MAX_MS +
   DECISION_WAIT_MAX_MS + DEFAULT_MAX_HOLD_MS;
 
-registerAnimationHoldSupplier('card-reaction', () => cardReactionState.phase !== 'idle', {
+/** The chain waits on the PLAYER (their screen over the stage, their decision) — the reason, or `undefined`. */
+function cardReactionWaitsOnPlayer(): string | undefined {
+  return cardReactionState.phase === 'waiting' && cardReactionState.waitingOnPlayer !== '' ? cardReactionState.waitingOnPlayer : undefined;
+}
+
+// (…and a chain that waits on the PLAYER holds no feed: nothing of it plays until they move, and the toasts do not wait
+// for a stage the player has not gone back to — the law of the score's shares and the scales' rating, `scaleStepRatingBeat`.)
+registerAnimationHoldSupplier('card-reaction', () => cardReactionState.phase !== 'idle' && cardReactionWaitsOnPlayer() === undefined, {
   scope: 'notification-only',
   maxHoldMs: CARD_REACTION_HOLD_MAX_MS,
   // WHO OWNS THE WAIT (stage 1's law): while the chain waits on the PLAYER, the hold is theirs — said in the present
   // tense, so a net that would call a long hold «leaked» (the feed's starvation, this ceiling) reads the reason.
-  heldForPlayer: () => (cardReactionState.phase === 'waiting' && cardReactionState.waitingOnPlayer !== '' ? cardReactionState.waitingOnPlayer : undefined),
+  heldForPlayer: cardReactionWaitsOnPlayer,
   diagnose: () => ({phase: cardReactionState.phase, chain: cardReactionState.chain, hurried, faces: cardReactionState.faces.map((f) => f.name)}),
   expire: () => abortCardReactions(),
 });

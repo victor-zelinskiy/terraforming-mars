@@ -2488,6 +2488,28 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   count's game 1656 («hand:committed > parliament:executing», B three times). Two shapes built to reproduce it — a plain
   play and a play whose vote is hosted in the hand, B ×3 through the beat — are green three runs each and stand as
   guards (`console-hand-play-back-in-beat`); the field case is still open.
+- **THE NIGHT OF 2026-11-26 (the owner: «большая стабилизирующая итерация … без уменьшения строгости проверок»).** CI's
+  queue read against the evidence: the Autopilot 49–72 on `f58e7e4263` (0 records), the 100-game count 1101–1200 on
+  `943b14c7b9` (none of the earlier classes kept), the Freeze gate on `974671bd10` and the Monkey on the adjourn tables
+  (green) closed 20 of the 21 open findings; #150 was read to its root. The night's product lines:
+  - **A SITTING TAKEN BACK STANDS ITS ANSWER LAYER** (the sixth count's game 1676 — `liveness/stall/presses-no-effect/
+    cardselect/parliament:committed/deaf`, eight seconds): B over the table's answer to the Career's step (TR78 Arwind
+    Inc. — «add 1 fighter to ANY card»), A on the plate — the sitting came back with the asker on its hero and an empty
+    zone: the layer's ENTRANCE is the signal that publishes the zone (`paneIn` → `answerZone`), and a sitting mounted
+    with the layer already up played none. The answer, the draw and the receipt layers enter on mount too (`appear`).
+    Reproduced deterministically on `arwind-sitting-win` (`console-sitting-pick-collapse-restore`): red twice without
+    the fix, green with it; the autopilot's own seed 1676 was red two runs in four.
+  - **THE FEED NEVER WAITS FOR THE PLAYER** (#150 — the scales' rating stood thirteen seconds behind a board the player
+    kept covered; the moment they uncovered it the reason was gone and the starvation line called it a leak): the
+    rating's and the card reaction's feed holds stand only for a story that will PLAY — the law the score's shares
+    already keep.
+  - **THE BOUND OF A FIRST PRESENTATION IS THE GAME's** (`mandatory-gate/overdue` while the player keeps the bot's turn
+    review open): no line, no door over the player's own look; the bound counts again from the game's time, and a latch
+    it hid is still the door's, said as the defect it is.
+  - The PILOT: at home, with the question set aside (or held by its plate) and «A» on the bar, it takes the way back —
+    the dropped parked drafts of the count were all the door answering the parked research buy right after it.
+  - The box: eight browsers at once (8 tokens) bring the boot's long frame back on the box (load 10 – 17 on 12
+    threads); CI's runner (one browser) says nothing at boot since the two halves. Night counts run four at a time.
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read

@@ -42,8 +42,11 @@ describe('a hold that hands the screen over is not waited out (the wiring)', () 
     // The longest single wait it stands through (the rating's story on a covered stage) is below the hold's ceiling.
     expect(stageDue + blocking, 'the covered rating\'s wait').to.be.lessThan(4 * blocking + sitting + stageDue + blocking + decision + defaultMax);
     expect(stageDue + blocking, '…which the DEFAULT ceiling did not clear — the class').to.be.greaterThan(defaultMax);
-    // …and the hold says whose time a wait on the player is.
-    expect(director).to.match(/heldForPlayer: \(\) => \(cardReactionState\.phase === 'waiting' && cardReactionState\.waitingOnPlayer !== ''/);
+    // …and the hold says whose time a wait on the player is — and holds no feed through it (the player's time is
+    // nobody's motion: the score's shares, the scales' rating, the chain — one law).
+    expect(director).to.match(/function cardReactionWaitsOnPlayer\(\): string \| undefined \{\s*return cardReactionState\.phase === 'waiting' && cardReactionState\.waitingOnPlayer !== ''/);
+    expect(director).to.contain('heldForPlayer: cardReactionWaitsOnPlayer,');
+    expect(director).to.contain("registerAnimationHoldSupplier('card-reaction', () => cardReactionState.phase !== 'idle' && cardReactionWaitsOnPlayer() === undefined, {");
     expect(director).to.contain('cardReactionState.waitingOnPlayer = covered ? ');
     expect(director).to.contain('cardReactionState.waitingOnPlayer = \'the decision at the centre\';');
   });
