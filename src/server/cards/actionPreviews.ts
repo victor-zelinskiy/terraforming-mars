@@ -925,6 +925,17 @@ export function delegateFromReserve(player: IPlayer, amount: number): ActionEffe
  * NAMES the effect itself (heading + a muted chip) so a card with SEVERAL effects
  * never leaves the player guessing WHICH one is lost — always pass it.
  */
+/**
+ * SOLO: an attack whose one target is the neutral opponent, and nothing a player can see changes (Sabotage without
+ * Mons Insurance, Virus — their live path in solo asks nothing and moves nothing). The sheet SAYS it: a sheet with no
+ * row read «the card effect will be applied after confirming» over a play that does nothing, and the audit filed the
+ * card as a preview gap in every solo game it was played (the box's count on `b9254000a8`, game 2169: «no computable
+ * preview for Sabotage»). Not for a solo STEAL — that one gains from the neutral opponent, and says so by its chips.
+ */
+export function soloNeutralTargetNote(): ActionPreviewStep {
+  return {kind: 'note', noteKind: 'generic', text: 'Solo game: the neutral opponent is the target — nothing changes'};
+}
+
 export function warningNote(
   text: string | Message,
   opts?: {resource?: CardResource, skipped?: SkippedEffect},

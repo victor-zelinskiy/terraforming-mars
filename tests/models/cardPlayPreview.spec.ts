@@ -33,6 +33,7 @@ import {Insulation} from '../../src/server/cards/base/Insulation';
 import {CrashSiteCleanup} from '../../src/server/cards/promo/CrashSiteCleanup';
 import {Sabotage} from '../../src/server/cards/base/Sabotage';
 import {EnergyTapping} from '../../src/server/cards/base/EnergyTapping';
+import {SelectPlayer} from '../../src/server/inputs/SelectPlayer';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {ProjectInspection} from '../../src/server/cards/promo/ProjectInspection';
 import {RoboticWorkforce} from '../../src/server/cards/base/RoboticWorkforce';
@@ -408,21 +409,36 @@ describe('cardPlayPreview', () => {
     expect(branch.steps.some((s) => s.kind === 'note' && (s as {noteKind?: string}).noteKind === 'warning')).is.false;
   });
 
-  it('EnergyTapping (bespoke): a "no production can be reduced" WARNING when no player has energy production', () => {
-    const [/* game */, player] = testGame(2); // both players start with 0 energy production → no target
+  it('EnergyTapping (bespoke): nobody holding energy production, the picker asks for the player THEMSELF before the commit', () => {
+    // Both players start with 0 energy production: the play gains its +1 FIRST and only then decreases — the one
+    // production it can take is the player's own (the box's count on `b9254000a8`, game 2181: the preview said «no
+    // production can be reduced», and the live path asked the player to pick themself AFTER the commit).
+    const [/* game */, player, player2] = testGame(2);
     const branch = cardPlayPreview(player, new EnergyTapping()).branches[0];
-    // The +1 energy production chip still shows; the "decrease any player's energy
-    // production" target has no picker, so a warning takes its place (non-solo).
-    expect(branch.steps.some((s) => s.kind === 'input')).is.false;
-    const warn = branch.steps.find((s) => s.kind === 'note' && (s as {noteKind?: string}).noteKind === 'warning');
-    expect(warn, 'no-production warning').is.not.undefined;
-    // Named + quantified: the card's OWN +1 energy production still applies, so the
-    // warning must say it's the OPPONENT-facing decrease that is skipped.
-    const skipped = (warn as {skipped?: {label: string, effect?: {icon: string, amount: number, note?: string}}}).skipped;
-    expect(skipped?.label).eq('Reduce another player\'s production');
-    expect(skipped?.effect?.icon).eq(Resource.ENERGY);
-    expect(skipped?.effect?.amount).eq(1);
-    expect(skipped?.effect?.note, 'marked as a production attack').eq('production');
+    expect(branch.steps.some((s) => s.kind === 'note' && (s as {noteKind?: string}).noteKind === 'warning'), 'nothing is skipped').is.false;
+    const step = branch.steps.find((s) => s.kind === 'input');
+    const input = step?.kind === 'input' ? step.input as {type: string, players?: ReadonlyArray<string>,
+      disabledPlayers?: ReadonlyArray<{color: string}>, targetImpacts?: ReadonlyArray<{color: string, changes: ReadonlyArray<{from: number, to: number}>}>} : undefined;
+    expect(input?.type).eq('player');
+    expect(input?.players, 'the player themself — the one production the gain leaves').deep.eq([player.color]);
+    expect(input?.disabledPlayers?.map((d) => d.color), 'the opponent shown, at its minimum').deep.eq([player2.color]);
+    // The player's own row reads the production the gain leaves: 1 → 0.
+    const own = input?.targetImpacts?.find((i) => i.color === player.color)?.changes[0];
+    expect(own === undefined ? undefined : [own.from, own.to]).deep.eq([1, 0]);
+  });
+
+  it('EnergyTapping: the picker the preview hosts IS the one the live path asks after the gain — the answer replays', () => {
+    const [game, player] = testGame(2);
+    const card = new EnergyTapping();
+    const step = cardPlayPreview(player, card).branches[0].steps.find((s) => s.kind === 'input');
+    const asked = step?.kind === 'input' ? (step.input as {players?: ReadonlyArray<string>}).players : undefined;
+    card.play(player);
+    runAllActions(game);
+    const live = cast(player.popWaitingFor(), SelectPlayer);
+    expect(live.players.map((p) => p.color)).deep.eq(asked);
+    live.process({type: 'player', player: player.color});
+    runAllActions(game);
+    expect(player.production.energy).eq(0);
   });
 
   it('Virus (bespoke): a "no valid target" WARNING when there is nobody to remove animals/plants from', () => {
@@ -436,6 +452,21 @@ describe('cardPlayPreview', () => {
     // No chip: the removal is an EITHER/OR (up to 2 animals OR 5 plants), so no
     // single magnitude would be honest — the label alone names the effect.
     expect(skipped?.effect, 'no invented magnitude for an either/or removal').is.undefined;
+  });
+
+  it('Sabotage / Virus in SOLO: the sheet says the neutral opponent is the target — never an empty sheet', () => {
+    // The box's count on `b9254000a8`, game 2169 (solo): «no computable preview for Sabotage» — a sheet with no row,
+    // over a play whose live path in solo asks nothing and moves nothing.
+    for (const card of [new Sabotage(), new Virus()]) {
+      const [game, player] = testGame(1);
+      const steps = cardPlayPreview(player, card).branches[0].steps;
+      expect(steps.map((s) => s.kind), card.name).deep.eq(['note']);
+      expect((steps[0] as {text?: unknown}).text, card.name).eq('Solo game: the neutral opponent is the target — nothing changes');
+      // …and the live path indeed asks nothing.
+      player.playCard(card);
+      runAllActions(game);
+      expect(player.getWaitingFor(), card.name).is.undefined;
+    }
   });
 
   it('Comet (declarative): the plant attack IS pre-collected, the ocean placement noted after', () => {

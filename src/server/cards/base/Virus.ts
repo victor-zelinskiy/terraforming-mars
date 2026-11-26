@@ -123,6 +123,11 @@ export class Virus extends Card implements IProjectCard {
   // builds (introspected by type + metadata), so the pre-collected pick replays
   // byte-for-byte. Built read-only.
   public cardPlayPreview(player: IPlayer): ActionPreview {
+    if (player.game.isSoloMode()) {
+      // The live path in solo asks nothing and removes nothing (`bespokePlay`) — even an own animal card is not
+      // offered there, so the sheet offers none either: the neutral opponent is the target.
+      return actionPreviews.playPreview(this, player, [], [actionPreviews.soloNeutralTargetNote()]);
+    }
     const orOptions = this.buildRemovalOptions(player);
     const protectedTargets = this.protectedPlantTargets(player);
     if (orOptions === undefined) {

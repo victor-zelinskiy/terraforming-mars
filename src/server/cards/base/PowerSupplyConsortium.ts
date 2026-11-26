@@ -49,10 +49,14 @@ export class PowerSupplyConsortium extends Card implements IProjectCard {
 
   // A "+1 your energy production" chip + the SAME target picker the decrease
   // defers, so the player chooses WHOSE energy production to reduce in the modal.
+  //
+  // Nobody holding energy production, the play GAINS first and then asks (bespokePlay): the picker counts that gain,
+  // so the player sees — before the commit — that the one production it can take is their own (1 → 0).
   public cardPlayPreview(player: IPlayer): ActionPreview {
+    const gainsFirst = player.game.players.filter((p) => p.production.energy > 0).length === 0;
     const step = actionPreviews.targetStepOrWarning(player,
       actionPreviews.inputStep(
-        new DecreaseAnyProduction(player, Resource.ENERGY, {count: 1, stealing: true}).previewSelectPlayer()),
+        new DecreaseAnyProduction(player, Resource.ENERGY, {count: 1, stealing: true}).previewSelectPlayer(gainsFirst ? 1 : 0)),
       'No production can be reduced.',
       {
         label: actionPreviews.SKIPPED_LABEL.reduceProduction,

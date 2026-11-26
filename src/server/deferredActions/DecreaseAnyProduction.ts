@@ -97,16 +97,37 @@ export class DecreaseAnyProduction extends DeferredAction<boolean> {
    * production and its `current → resulting`. Used by the action-preview builder to
    * host the target picker INSIDE the confirmation modal — no mutation. Mirrors
    * `execute` exactly so the pre-collected pick replays byte-for-byte.
+   *
+   * `ownGain` — the steps of THIS production the player gains BEFORE the decrease runs («gain your own in order to
+   * lose it»: Energy Tapping / Power Supply Consortium when nobody holds energy production — the box's count on
+   * `b9254000a8`, game 2181: the preview said «no production can be reduced», and the live path then asked the
+   * player to pick THEMSELVES after the commit). The preview counts that gain, so the picker it hosts is the very one
+   * the live path asks after it, and the player's own `current → resulting` reads the production the gain leaves.
    */
-  public previewSelectPlayer(): SelectPlayerModel | undefined {
+  public previewSelectPlayer(ownGain: number = 0): SelectPlayerModel | undefined {
     if (this.player.game.isSoloMode()) {
       return undefined;
     }
-    const targets = this.player.game.players.filter((p) => p.canHaveProductionReduced(this.resource, this.options.count, this.player));
+    const floor = this.resource === Resource.MEGACREDITS ? -5 : 0;
+    const gainedSelf = (p: IPlayer): boolean => ownGain > 0 && p === this.player && !p.isMarsBot &&
+      p.production[this.resource] + ownGain - floor >= this.options.count;
+    const targets = this.player.game.players.filter((p) => p.canHaveProductionReduced(this.resource, this.options.count, this.player) || gainedSelf(p));
     if (targets.length === 0) {
       return undefined;
     }
-    return this.buildSelectPlayer(targets).toModel();
+    const model = this.buildSelectPlayer(targets).toModel();
+    if (ownGain === 0 || model.targetImpacts === undefined) {
+      return model;
+    }
+    const count = this.options.count;
+    return {
+      ...model,
+      targetImpacts: model.targetImpacts.map((impact) => impact.color !== this.player.color ? impact : {
+        ...impact,
+        changes: impact.changes.map((change) => change.scope !== 'production' ? change :
+          {...change, from: change.from + ownGain, to: Math.max(floor, change.from + ownGain - count)}),
+      }),
+    };
   }
 
   /**

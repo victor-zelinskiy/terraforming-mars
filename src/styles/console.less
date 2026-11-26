@@ -31935,6 +31935,23 @@ html.con-profile-handheld .con-mandatory--sitting .con-mandatory__ask { grid-col
     from { opacity: 0; transform: translate(-50%, -.5rem) scale(.97); }
     to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
 }
+/* THE BAND UNDER THE STRIP YIELDS TO A SEAT'S INTAKE (#168 — CI's game 269: a plants token «painted under
+   span.con-mandatory__glyph at the approach»). A seat's plaque hangs under the status strip and the tokens it reads
+   rise to it through the band the pending decision's card and the banner chips stand in; that band floats above every
+   scene (a notification surface — `.con-banner`), so it cannot step under the lit layer (11715). For the plaque's read
+   it steps out of the column instead: a short fade (`filter` — the entrance animation fills `opacity`), then
+   `visibility: hidden`, so it neither paints over a token nor answers its paint test; back the moment the plaque
+   folds. */
+.con-mandatory,
+.con-banner {
+    transition: filter calc(180ms * var(--motion-scale, 1)) ease-out, visibility 0s;
+}
+.con-root.con-root--strip-intake .con-mandatory,
+.con-root.con-root--strip-intake .con-banner {
+    filter: opacity(0);
+    visibility: hidden;
+    transition: filter calc(140ms * var(--motion-scale, 1)) ease-out, visibility 0s linear calc(140ms * var(--motion-scale, 1));
+}
 @media (prefers-reduced-motion: reduce) {
     .con-mandatory { animation: none; }
 }

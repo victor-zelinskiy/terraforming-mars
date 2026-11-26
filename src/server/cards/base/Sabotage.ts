@@ -63,6 +63,10 @@ export class Sabotage extends Card implements IProjectCard {
   // attacks live in `andThen`).
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const options = this.buildOptions(player);
+    if (options === undefined && player.game.isSoloMode()) {
+      // Solo without Mons Insurance: the neutral opponent is the target, and the play asks and moves nothing.
+      return actionPreviews.playPreview(this, player, [], [actionPreviews.soloNeutralTargetNote()]);
+    }
     // No chip: the removal is an EITHER/OR of different resources (3 titanium /
     // 4 steel / 7 M€), so no single magnitude is honest — the label alone names
     // which of the card's effects is the one being skipped.

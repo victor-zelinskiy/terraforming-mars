@@ -44,6 +44,7 @@ import type {NoticeController} from '@/client/console/shell/noticeController';
 import type {StartController} from '@/client/console/shell/startController';
 import type {StdProjectsController} from '@/client/console/shell/stdProjectsController';
 import {setQuestionAside, takeUpQuestion} from '@/client/console/setAside';
+import {statusIntakeState} from '@/client/console/statusIntake';
 
 /** A collapse owed until the band surfaces' tokens have landed (a plain flag — read only by the collapse itself). */
 let collapseOwedOnTokens = false;
@@ -200,6 +201,12 @@ export function createWorkspaceController(shell: WorkspacePort) {
       // ways), `--board-peek` while the board IS the screen (the workspace and the shared dim recede).
       'con-root--peeking': boardPeekState.peek !== undefined,
       'con-root--board-peek': boardPeekState.shown,
+      // A SEAT'S INTAKE PLAQUE STANDS under the status strip (a foreign gain told on its owner's chip): the plates of
+      // the band below the strip — the pending decision's card, the banner chips — yield their paint for its beat,
+      // because the tokens rise to the plaque through that very band (#168 — CI's game 269: a plants token «painted
+      // under span.con-mandatory__glyph at the approach»). The band is a notification surface above every scene, so
+      // it cannot step under the lit layer; it steps out of the column for the plaque's read instead.
+      'con-root--strip-intake': statusIntakeState.intakes.length > 0,
     };
     // The inspected player's ACCENT tokens (--con-insp-accent*) — consumed
     // by the rail ring, the workspace seam AND the hand dock's inspection
