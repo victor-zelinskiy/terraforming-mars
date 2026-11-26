@@ -1061,6 +1061,19 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       await press(standing.intent.shift() as string, 500 + Math.round(g() * 400));
       continue;
     }
+    // THE START SCENE, WALKED AS A PLAYER WALKS IT (the opening through the screen — the first such game on the box,
+    // 2403, toggled the cards on and off and stepped BACK with LT until the door answered): a card under the cursor
+    // not yet taken is taken (A «Выбрать»); a taken one is passed by, or the step is done (RT «След. шаг», lit) —
+    // a player takes one card or a few; a lone verb on the bar (the summary's launch, «Пропустить») is pressed. Never
+    // LT (the step before) nor B: an opening goes forward.
+    if (PILOT >= 3 && wf.type === 'initialCards' && /^start:/.test(seen.frames[seen.frames.length - 1] ?? '') && seen.look === '' && !seen.zoom) {
+      const nextLit = seen.offered.some((o) => o.key === 'Period');
+      const key = seen.bar.includes('AСнять выбор') ? (nextLit && g() < 0.6 ? 'Period' : 'ArrowRight') :
+        seen.bar.includes('AВыбрать') ? 'Enter' :
+          nextLit ? 'Period' : seen.offered.some((o) => o.key === 'Enter') ? 'Enter' : 'ArrowRight';
+      await press(key, pause());
+      continue;
+    }
     // THE PROJECT A TURN GOES TO (stage 6, total coverage — the box's 84 games never opened a colony's build: no
     // `scene:colony-city`, no `colony-roster`, no track's raise — a thumb in the standard projects' grid pressed
     // whatever row stood under it). On a visit of the grid the pilot goes to ONE project, in rotation over the ones
@@ -1307,6 +1320,10 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       const t0 = Date.now();
       // THE WEATHER of this game (see `WEATHER`): a storm in one game of three by default, seeded by the game's number.
       const storm = WEATHER === 'storm' || (WEATHER === 'auto' && n % 3 === 0);
+      // THE SLOW MACHINE of this game (see `SLOW`) — and the frames it makes long: on a page run at a third of the speed a
+      // long frame is the machine's by construction, booked apart (`slowFrames`), never a line of the game.
+      const slow = slowRateOf(n);
+      let slowFrames = 0;
       const weather = {next: 12 + (n % 7), submits: 0, faults: 0, kind: n % WEATHER_KINDS.length, said: 0,
         explains: [] as Array<{until: number, says: ReadonlyArray<RegExp>}>};
       const weatherSaid = (text: string): boolean => {
@@ -1351,6 +1368,10 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       }
       const said = (type: string, text: string): void => {
         if (weatherSaid(text)) {
+          return;
+        }
+        if (slow > 1 && text.startsWith('[long-frame]')) {
+          slowFrames++;
           return;
         }
         const key = logKey(type, text);
@@ -1414,7 +1435,6 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
           }
         }
       });
-      const slow = slowRateOf(n);
       if (slow > 1) {
         test.info().annotations.push({type: 'autopilot-slow', description: `CPU ×${slow}`});
         const cdp = await page.context().newCDPSession(page);
@@ -1448,7 +1468,7 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
           monkey: {seed, fixture: `game-${n}`, mode: 'autopilot', landing: 'boot', duo: table.duo, reload: false, hidden: false, presses: played?.presses ?? log.filter((l) => !l.startsWith('[')).length,
             perturb: {netMs: 0, cpu: slow > 1 ? slow : Number(process.env.TM_E2E_CPU_THROTTLE ?? 0), motion: process.env.TM_E2E_MOTION ?? ''}},
           autopilot: {
-            ...played, table: table.word, pilot: PILOT, cards: tableau, slow, sent,
+            ...played, table: table.word, pilot: PILOT, cards: tableau, slow, slowFrames, sent,
             weather: storm ? {faults: weather.faults, submits: weather.submits, said: weather.said} : undefined,
             // THE LOG's BOOK: every class of line the page said in the whole game (the count, the first occurrence).
             log: [...book.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 80).map(([key, row]) => ({key, type: row.type, n: row.n, atMs: row.atMs, stood: row.stood.slice(0, 160)})),

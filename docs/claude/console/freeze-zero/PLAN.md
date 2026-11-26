@@ -2700,6 +2700,13 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
     on their own stream (random milestones and awards, fast mode, the others' points, the shuffled map, a starting-TR
     bonus); and ONE MORE HUMAN at one table in five of those that already seat another or MarsBot (the creator seats
     one to four humans against the bot).
+  - The first games of `fzw` (on `5b91495ec0`): the opening through the screen had no hands — the pilot toggled the
+    start's cards on and off and stepped back with LT until the door answered (game 2403); it now walks the start as
+    a player does (an untaken card is taken, a taken one passed by or the step done, never LT nor B). The slow game
+    (2402, CPU ×3) said 44 `[long-frame]` lines — the machine's by construction, booked apart (`slowFrames`) — and
+    three opening states APART for 3 – 41 ms (`card:preludeSelection · queue>none · heal → agree`, `or:actionMenu ·
+    bonusAction>none · heal → agree`): the start director expected the queue / the bonus action a frame or two before
+    its surface mounted. Open: a reactive order a slow page shows and a fast one hides — read on the next slow games.
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read
