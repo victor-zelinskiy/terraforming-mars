@@ -104,6 +104,10 @@ export const LAYOUT_BLIND: ReadonlyArray<{cls: RegExp, why: string}> = [
   // autopilot always does. The whole e2e suite walks that start in a real browser and has never named it.)
   {cls: /^invariant\/broken\/start-flight:no-source$/, why: '«the corporation is carried from its source» — the source is a measured face of the start (`transferEndVerdict`); a 0×0 rect is no source, the card is revealed in place'},
   {cls: /^wait-graph\/overdue\/admission:host:card-arrival$/, why: 'the arrival of a drawn card into the dock is a flight to a measured slot; the admission block that waits for it runs to its bound'},
+  // (2026-11-26 — CI's autopilot run 45746039803 played the SAME seeds in a real browser beside the bottle: games 226 and
+  // 244 there said nothing of either — the whole browser report of 48 games held one info line.)
+  {cls: /^wait-graph\/ceiling\/start-bonus:visible-source$/, why: '«the visible ends (source card · rail rows) of the bonus gain» — ends whose rects are VISIBLE (`transferEndVerdict`); a 0×0 rect is no end'},
+  {cls: /^wait-graph\/ceiling\/board-card-bonus:hover$/, why: '«the end of the lift rise» of the board card bonus — a GSAP rise the wait counts in painted frames (61, `ConsoleBoardCardBonusLayer.waitForHover`); the bottle\'s frames and the motion\'s clock part (one game in 48)'},
 ];
 
 export type BottleLiveness = {

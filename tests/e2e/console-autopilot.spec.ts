@@ -145,7 +145,7 @@ function tableOf(n: number): {config: Record<string, unknown>, word: string, duo
 }
 
 type Wire = {
-  game: {phase: string, generation: number, gameAge: number},
+  game: {phase: string, generation: number, gameAge: number, temperature?: number, oxygenLevel?: number, oceans?: number, venusScaleLevel?: number},
   thisPlayer?: {tableau?: Array<{name: string}>},
   waitingFor?: {
     type: string, promptId?: number, bonusActionPrompt?: unknown, title?: unknown, min?: number, max?: number, cards?: Array<unknown>,
@@ -509,6 +509,12 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       log.push(`[PLAYED ${tableau.slice(seenTableau).map((card) => card.name).join(' + ')}]`);
     }
     seenTableau = tableau.length;
+    // THE TABLE's CLOCK, once a generation (`[GEN n · T · O · W · V]`): a duo table that stood on the cap at generation 92
+    // (the night count's 1823) read nothing of who was terraforming — the next one says it.
+    if (model.game.generation !== played.generation && played.generation > 0) {
+      const g = model.game;
+      log.push(`[GEN ${g.generation} · T${g.temperature ?? '?'} · O${g.oxygenLevel ?? '?'} · W${g.oceans ?? '?'}${g.venusScaleLevel === undefined ? '' : ` · V${g.venusScaleLevel}`}]`);
+    }
     played.generation = model.game.generation;
     played.phase = model.game.phase;
     if (model.game.phase === 'end') {
@@ -731,6 +737,22 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       await press((['Enter', 'Enter', 'ArrowDown', 'KeyX'] as const)[standing.presses % 4], pause());
       continue;
     }
+    // THE COMPOSITES WHOSE COMMIT IS NOT «A» — read BEFORE the home's wait below, which takes a bar with no «A» for a
+    // question the screen does not answer and only nudges the stick (the night count's game 1826: «Распределение
+    // ресурсов · LB/RB −1 / +1 · X Забрать», the pilot nudged the stick until the door answered).
+    // THE HEAT SPENT AS M€ (pilot 3 — the fifth hundred's first doors, thirteen of them on one question): the composite
+    // asks «how much heat»: RT takes the most it may, X pays — a player reads both off the bar.
+    if (PILOT >= 3 && (wf as {spendHeatPrompt?: unknown}).spendHeatPrompt !== undefined && seen.look === '' && !seen.zoom && seen.frames.length === 0) {
+      await press((['Period', 'KeyX'] as const)[standing.presses % 2], pause());
+      continue;
+    }
+    // THE DISTRIBUTION OF RESOURCES (pilot 3): a unit onto the focused row (RB where the layout steps by LB/RB, A where A
+    // adds), the next row, another — and the take.
+    if (PILOT >= 3 && wf.type === 'resources' && seen.bar.startsWith('Распределение ресурсов') && seen.look === '' && !seen.zoom) {
+      const add = seen.offered.some((o) => o.key === 'KeyE') ? 'KeyE' : 'Enter';
+      await press(([add, 'ArrowDown', add, 'KeyX'] as const)[standing.presses % 4], pause());
+      continue;
+    }
     // A QUESTION THE SCREEN IN FRONT OF THE PILOT DOES NOT ANSWER (pilot 3). A player who presses and gets nothing
     // does not keep pressing: six presses in a row that changed nothing of what stands, inside a workspace → HOME,
     // where the question's plate or its way back stands. And AT home, with the question standing and no «A» on the
@@ -772,17 +794,6 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         await press(ARROWS[Math.floor(g() * ARROWS.length)], pause());
         continue;
       }
-    }
-    // THE HEAT SPENT AS M€ (pilot 3 — the fifth hundred's first doors, thirteen of them on one question): the composite
-    // asks «how much heat»: RT takes the most it may, X pays — a player reads both off the bar.
-    if (PILOT >= 3 && (wf as {spendHeatPrompt?: unknown}).spendHeatPrompt !== undefined && seen.look === '' && !seen.zoom && seen.frames.length === 0) {
-      await press((['Period', 'KeyX'] as const)[standing.presses % 2], pause());
-      continue;
-    }
-    // THE DISTRIBUTION OF RESOURCES (pilot 3): a unit onto the focused row, the next row, another — and the take.
-    if (PILOT >= 3 && wf.type === 'resources' && seen.bar.startsWith('Распределение ресурсов') && seen.look === '' && !seen.zoom) {
-      await press((['Enter', 'ArrowDown', 'Enter', 'KeyX'] as const)[standing.presses % 4], pause());
-      continue;
     }
     // A PICK OF CARDS THAT COMMITS BY RT (pilot 3): once the question has stood a third of its budget — a card, the
     // commit, the next card (never the same card on and off). The commit may stand GREY until the layout is complete
