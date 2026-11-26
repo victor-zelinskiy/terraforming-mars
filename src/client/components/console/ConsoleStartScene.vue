@@ -5251,6 +5251,26 @@ const footHints = computed((): Array<StartCommand> => {
  * beat, never a strand by itself».
  */
 const sceneUp = ref(false);
+/**
+ * THE QUESTION'S ENTRY (FREEZE ZERO, stage 6 — the opening measure's apart states on the box: `card:preludeSelection ·
+ * queue>none`, `option:corporationPay · queue>none`, 14 – 65 ms, each healed by itself a frame later): from a NEW
+ * question of the start until the scene has painted twice under it, the scene is MOUNTING it — its pay panel, its
+ * selection's cards are not focusable yet — a beat, never «serving nothing». Bounded by the paint wait itself (two
+ * frames, 100 ms with none): past it, what the scene shows is what it serves, and a scene that shows nothing for its
+ * question is the director's to cure, as ever. Set in the very reaction of the question's change (`sync`): the judge
+ * of the next flush reads it.
+ */
+const questionEntering = ref(false);
+let questionEntry = 0;
+watch(() => props.playerView.waitingFor?.promptId, (): void => {
+  const entry = ++questionEntry;
+  questionEntering.value = true;
+  void whenPainted(2, 100, flow).then(() => {
+    if (entry === questionEntry) {
+      questionEntering.value = false;
+    }
+  });
+}, {flush: 'sync'});
 const servesNow = computed((): StartServes => {
   if (!sceneUp.value) {
     return props.yielded ? 'yielded' : 'beat';
@@ -5260,7 +5280,7 @@ const servesNow = computed((): StartServes => {
     yielded: props.yielded,
     nestedStep: workspaceFrameHasNested('start') || orderStep.value !== undefined,
     flowBeat: state.flow !== 'idle' && state.flow !== 'deploying',
-    motion: heroState.active || queueArriving.value.size > 0 || deal.value.state.active ||
+    motion: questionEntering.value || heroState.active || queueArriving.value.size > 0 || deal.value.state.active ||
       embedSourceArriving.value || embedSourceDeparting.value ||
       deckDrawHolds() || isHandDeliveryActive() || currentRevealEvent() !== undefined,
     outcomePresenting: embedPresenting.value,

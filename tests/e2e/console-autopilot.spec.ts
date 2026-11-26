@@ -242,7 +242,10 @@ function tableOf(n: number): {config: Record<string, unknown>, word: string, duo
   const on = Object.entries(expansions).filter(([, v]) => v).map(([k]) => k);
   // (The modules the table plays, by the scope's keys: the base game and the Corporate Era always — `dealFor` adds
   // classic Turmoil with Redux.)
-  const modules = new Set<string>(['base', 'corpera', ...on]);
+  // (Not a module list of the scope — the TABLE's: the expansions it seats, and the two every table plays.)
+  const modules = new Set<string>(on);
+  modules.add('base');
+  modules.add('corpera');
   const deal = DEAL === 'rotate' ? dealFor(n, modules, prelude) : {projects: [], corporations: [], preludes: []};
   // THE RULES THE CREATOR SETS (stage 6, total coverage — `create/premium/buildCreateGamePayload.ts`: the random
   // milestones and awards, the fast mode, the others' points in real time, the shuffled map, the starting-TR bonus):

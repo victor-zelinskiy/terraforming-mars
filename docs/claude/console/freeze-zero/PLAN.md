@@ -2723,6 +2723,12 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
     start stood over the game's menu with an empty bar until the director's level door released it. Which term held it
     was nobody's word: the settle is now a list of NAMED terms (`DEPLOYMENT_SETTLE_TERMS`, one source), the scene
     exposes them, and the director's cure line says them (`unsettled: …`) — read on the next one.
+  - The opening measure's new apart states (six in `fzx`'s first six games — the UI opening 2503 at the box's speed,
+    the slow 2507): always `<question> · queue>none · heal → agree:queue>beat` for 14 – 65 ms — a question of the start
+    (`card:preludeSelection`, `option:corporationPay`) judged in the frame before the scene had anything of it to
+    focus or to move (`startServesOf`: focusables 0, no motion → `none`), healed by itself a frame later. The level
+    door waits its quiet frames and never acts on them; the measure counts each judged state. Open: the scene's serve
+    state should name a question it is still mounting (a bounded entry beat) — not the measure relaxed.
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read
