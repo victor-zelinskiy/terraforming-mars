@@ -221,6 +221,11 @@ export function runEnergyConversion(event: EnergyConversionEvent, opts?: {leadIn
   // preset scales it here (the caller), keeping the model unit-testable.
   const duration = motionMs(conversionDurationMs(event.amount, reduced));
   const frameGate = createFrameGate();
+  // THE CONVERSION IS MOTION THE KERNEL CAN NAME (#166 — CI's game 257, twice: «card-actions:executing» quiet 626 ms,
+  // the conversion's overlay standing over the action that caused it and «nothing in flight» — its glide a frame loop
+  // and a safety, neither a row the wait table counts as motion). The lead-in and the glide, as one span of the run:
+  // ended with the run, whichever comes first.
+  void run.sleep(leadInMs + duration);
 
   const promise = new Promise<void>((resolve) => {
     resolveActive.arm(resolve);

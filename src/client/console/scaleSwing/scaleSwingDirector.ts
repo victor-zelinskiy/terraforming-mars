@@ -372,7 +372,10 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
             wait.met();
           } else if (verdict === 'due') {
             wait.update(standing());
-            wait.ceiling();
+            // (…THE DUE OVER THE PLAYER's OWN SCREEN is the story they did not watch — applied untold, a planned end,
+            // never a defect: #167, CI's bottle game 270 again, the swing's due met with the board under the player's
+            // section and workspace. With the board in plain view the same due is still a defect.)
+            wait.ceiling(boardStoryHeldByPlayer());
           } else {
             wait.end();
           }

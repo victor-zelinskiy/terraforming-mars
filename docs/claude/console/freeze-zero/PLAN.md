@@ -2610,6 +2610,15 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
     wait node carries no bound for that time (`heldByPlayer`) — the scale step's rating's law.
   - #166 (`card-actions:executing` quiet 652 ms, game 257): not reproduced on a replay with a diagnostic build; a quiet
     beat's row now names the owner's state (`claim:<stage>`, `fold`, `dismiss`, `composer`) so the next one says it.
+    **It said it on the next CI run** (45815151010 on `b9254000a8`: `claim:- composer`, the tree holding
+    `energy-conversion-overlay`): the energy's turn into heat, played over the action that caused it, is a frame loop
+    and a safety — no row the wait table counts as motion, so the beat read «nothing in flight» for its 626 ms. The
+    conversion's lead-in and glide are now one span of its run (`run.sleep`).
+  - #167 (the same run's bottle, game 270 again — the swing's stage wait ended on its DUE over the player's own
+    screen, now that the overdue and the hold no longer fired first): the due over a board the player keeps covered is
+    the story they did not watch, applied untold — `ceiling(planned)` with the player's reason; in plain view it is
+    still a defect. The run otherwise: #128, #138, #164, #165 gone (bottle 1 defect — this one; browser 0 defects,
+    0 STUCK, the one-owner law at zero).
   - #150 closed (not seen since its fix in three runs); the bottle's border: `console-start:summary-tiles-unmeasured`
     (five games in the bottle, none in the browser on the same seeds).
   - The harness: the `400 STALE_PROMPT` of the box's game 2009 was the pilot pressing a tenth of a second after the
