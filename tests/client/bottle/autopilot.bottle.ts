@@ -42,6 +42,8 @@ function seedsOf(spec: string): Array<number> {
   return spec.split(',').map((part) => Number(part.trim())).filter((n) => Number.isFinite(n));
 }
 const SEEDS = seedsOf(env.TM_BOTTLE_AUTOPILOT_SEEDS ?? '1-4');
+/** THE DEAL (`tests/testing/autopilotDeal.ts`): `rotate` (the default) — the scope's cards to the opening hand in turn. */
+const DEAL = (env.TM_BOTTLE_AUTOPILOT_DEAL ?? 'rotate') === 'rotate';
 
 type Filed = {cls: string, shape: string, tier: string, family: string, page: number, count: number, lines: number, atMs: number, title: string, dims: Record<string, string>};
 const filed = (cls: string, tier: string, count: number, text: string): Filed => ({
@@ -89,7 +91,7 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
       try {
         // THE GAME'S WHOLE WORLD IS ITS SEED (as a walk's): every roll that is not the engine's own seeded one.
         restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`${seed}:world`)());
-        table = bottleServer().bootPilotTable(n, `-${NAME}-${n}`);
+        table = bottleServer().bootPilotTable(n, `-${NAME}-${n}`, DEAL);
         bottle = await bootBottle(table, {query: 'coverage=1', layout: LAYOUT});
         await bottle.advance(3_000);
         const page = bottle;
@@ -231,6 +233,8 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
         autopilot: played === undefined ? undefined : {
           end: played.end, generation: played.generation, phase: played.phase, presses: played.presses, byUi: played.byUi, byApi: played.byApi,
           passes: played.passes, seatMoves: played.seatMoves, tookMs: played.tookMs, rebuilds, table: table?.config, doors: played.doors, soak: played.soak,
+          // (The cards axis — the viewer's tableau at the game's end: what the pilot played through the console.)
+          cards: table === undefined ? [] : bottleServer().seatTableau(table.seats[0].id),
         },
         walk: played?.log.join(' ') ?? '',
       }, null, 1));

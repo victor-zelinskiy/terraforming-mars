@@ -2627,6 +2627,61 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
     walks the lanes; the second seat tries every terraforming project it can afford and names a refusal; the table's
     clock carries the second seat's purse and its menu's projects (`sp[…✓/✗]`) — the duo tables still stand on the
     cap with the seat's TR frozen after the temperature's max (open: its menu offers what?).
+- **The box's count on `b9254000a8` (84 games: 78 to the final scoring, 5 capped, 1 STUCK; records 1, the log 2
+  classes, 14 answers through the door) and CI's #168:**
+  - **THE BAND UNDER THE STRIP YIELDS TO A SEAT's INTAKE** (#168 — CI's game 269: a plants token «painted under
+    span.con-mandatory__glyph at the approach»): a foreign gain is told on its owner's chip, the plaque hangs under the
+    strip and the tokens rise to it through the band where the pending decision's card and the banner chips stand —
+    a notification surface above every scene, so it cannot step under the lit layer. For the plaque's read it steps
+    out of the column (`con-root--strip-intake`: a short fade, then `visibility: hidden`), back when the plaque folds.
+  - **«GAIN YOUR OWN IN ORDER TO LOSE IT» IS ASKED BEFORE THE COMMIT** (game 2181 — `POST-COMMIT CHOICE: the player of
+    Energy Tapping`): nobody holding energy production, the play gains first and then asks — and the preview said «no
+    production can be reduced». `DecreaseAnyProduction.previewSelectPlayer(ownGain)` counts the gain: the picker the
+    sheet hosts is the one the live path asks (the player themself, 1 → 0), the answer replays (Energy Tapping, Power
+    Supply Consortium; spec rows).
+  - **A SOLO ATTACK ON THE NEUTRAL OPPONENT SAYS SO** (game 2169 — `no computable preview for Sabotage`): Sabotage
+    without Mons Insurance and Virus ask and move nothing in solo; their sheet now reads «the neutral opponent is the
+    target — nothing changes» (Virus's preview no longer offers an own animal card the solo path never asks for).
+  - The harness: the second seat pays from its own stock in both orders (M€ first / metals first) — a payment prompt,
+    a standard project, and a card the prompt itself asks to play (game 2123's STUCK — «Play a card ignoring its global
+    requirements», its one answer refused); a refusal names the server's word. The pilot lays out EVERY budget
+    composite by its meter (`[data-prompt-meter]`: X lit → pay; short → pour on the lane in focus; over → take a unit
+    back — twelve doors of the count on the heat and a payment's lanes), and walks a pick by what the cursor stands
+    on (a card already taken or refused is passed by — the «2..2» doors of the Reds' discard and a deck's keep: a fixed
+    A / RT / → whose → did not move at a row's end). The second seat's moves are named (`[RIVAL×n sp:Aquifer,…]`) and
+    its action menu once a generation (`[RIVAL-MENU g…]`): the five capped duos stood with the temperature and oxygen
+    at their max and the oceans at 1 – 7 for sixty generations, the seat holding 50 – 120 M€ and no
+    `[RIVAL-SP-REFUSED]`. **The replay of game 2125 with the ledger said why**: `[RIVAL×2 sp:Asteroid:SP,sp:Asteroid:SP]`
+    fifty times — the seat bought the asteroid every turn at +8 °C (the server's order puts it first, the fork lets a
+    futile project be taken), and its M€ never reached the oceans. The harness's: the seat now takes only a project
+    that terraforms (`standardProjectPreview.futile` absent), in an order of its own.
+- **TOTAL COVERAGE — THE AXES GROW (the owner, 2026-11-26: «покрывал АБСОЛЮТНО все игровые ситуации … этап 6 не может
+  быть завершён на 100 %, пока … все возможные математически кейсы не проверены»).** The box's 84 games walked 191 of
+  the kernel's 274 flows, 12 of 13 frames — and two of the submit machine's eight moves: never `sending → failed`,
+  never `sending → refused`. Every road a press takes when the network or the server lets it down was a road no game
+  had walked; and the cards were what chance dealt. Two axes, each with its denominator from the code:
+  - **THE WEATHER** (`TM_E2E_AUTOPILOT_WEATHER` — `auto`: one game in three is a storm): the submits meet what a couch
+    on Wi-Fi meets — `lost` (the request never arrives), `lost-answer` (the server made the move, the answer is lost:
+    the page's question is stale, its next press refused and the truth fetched again), `busy` (503), `stale` (the
+    promptId of the prompt before) — and once a game, a RELOAD between two presses. What the page honestly says of a
+    fault the weather made (`[net] the submit — …`, the refused POST) is booked as the weather's; every other line of
+    the game is still the game's. The pilot reads the system alert and presses A, as a player does (`[ALERT …]`).
+  - **THE DEAL** (`TM_E2E_AUTOPILOT_DEAL` — `rotate`): the 673 cards of the premium scope come to the opening hand in
+    turn — game `n` deals the next five projects of the scope whose module its table plays, the next corporation and
+    two preludes (on the decks' tops: `customProjectCards` / `customCorporationsList` / `customPreludes`), and the
+    opening takes them. The report sums the cards the pilot then played through the console (the viewer's tableau);
+    `npx tsx scripts/autopilot-cards.mts <monkey-report.json …>` prints the scope's never-played list by module.
+  - **THE QUESTIONS' SHAPES**: every question the screen answered is summed by its type × the server's markers; the
+    report sets the input types against the ones `common/input/PlayerInputType.ts` declares (read from the source —
+    a new type is a new row of the denominator the day it lands).
+  - **THE PILOT GOES WHERE THE GAPS ARE**: a visit of the standard projects goes to ONE project in rotation, the ones
+    that open a flow of their own first (Build Colony, Aquifer, Greenery, City, …) — the 84 games never built a colony
+    (`scene:colony-city`, `colony-roster`, a track's raise: never opened); and once a question past its commit, one in
+    four, the pilot folds the workspace («B Свернуть») and comes back by its plate — the frame machine had never walked
+    a committed frame off stage and back (`committed → *.away`).
+  - **THE SLOW MACHINE** (`TM_E2E_AUTOPILOT_SLOW` — `auto`: one game in five at a third of the speed, CDP's CPU
+    throttling): the announce machine had never walked an announce that came late; a handheld's CPU is not the box's,
+    and the product's motions and nets are right on a slow frame by construction — a slow game's bar is the same zero.
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read

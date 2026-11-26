@@ -1,6 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
-import {answerPrompt, cinematicBeat, fetchPlayerModel, NO_PAYMENT, openConsole, seedGameOverApi, sendPlayerInput, soloGameConfig, syncClient} from './consoleStart';
+import {answerPrompt, cinematicBeat, fetchPlayerModel, NO_PAYMENT, openConsole, reloadConsole, seedGameOverApi, sendPlayerInput, soloGameConfig, syncClient} from './consoleStart';
+import {dealFor, ScopeCard, SCOPE_CARDS} from '../testing/autopilotDeal';
 
 /**
  * THE AUTOPILOT — A WHOLE GAME THROUGH THE REAL CONSOLE, IN A REAL BROWSER (FREEZE ZERO, stage 6 — «whole games and
@@ -78,6 +79,55 @@ const PRESSES = Number(process.env.TM_E2E_AUTOPILOT_PRESSES ?? 3200);
 const PILOT = Number(process.env.TM_E2E_AUTOPILOT_PILOT ?? 3);
 /** THE SOAK: minutes the page is left alone at each generation's sample point (0 — a plain game). */
 const IDLE_MIN = Number(process.env.TM_E2E_AUTOPILOT_IDLE_MIN ?? 0);
+/**
+ * THE WEATHER (stage 6, total coverage — the owner, 2026-11-26: «чтобы на продакшене потом не было сюрпризов»): the
+ * kernel's submit machine had walked two of its eight moves in the box's count of 84 games — never `sending → failed`,
+ * never `sending → refused`: every road a press takes when the network or the server lets it down (a couch on Wi-Fi)
+ * was a road no game had walked. In a STORM game the submits meet the weather a player meets, now and then:
+ *   · `lost` — the request never reaches the server (the fetch fails);
+ *   · `lost-answer` — the server MADE the move and the answer is lost on the way back (the page says «cannot contact»,
+ *     its question is stale, the next press is refused `STALE_PROMPT` and the truth fetched again);
+ *   · `busy` — the server answers 503 (a restart, a proxy);
+ *   · `stale` — the press answers a prompt the server has moved on from (the promptId of the one before);
+ *   · and ONCE a storm game, a RELOAD between two presses (the app restarted, the Deck woke from its sleep) — the
+ *     page boots on whatever stood: a flow mid-way, a question parked, a story owed.
+ * `TM_E2E_AUTOPILOT_WEATHER`: `clear` · `storm` · `auto` (the default — one game in three is a storm).
+ */
+const WEATHER = process.env.TM_E2E_AUTOPILOT_WEATHER ?? 'auto';
+/**
+ * THE SLOW MACHINE (stage 6, total coverage — the kernel's announce machine had walked three of its six moves, never
+ * an announce that came LATE): a handheld's CPU is not the box's. One game in five (`auto`, by the game's number — not
+ * where `TM_E2E_CPU_THROTTLE` already slows every page) runs its page at a third of the speed (CDP's CPU throttling);
+ * the product's motions and nets are right on a slow frame by construction (invariant 18), so a slow game's bar is the
+ * same zero. `TM_E2E_AUTOPILOT_SLOW`: `auto` · `off` · a rate (`4`).
+ */
+const SLOW = process.env.TM_E2E_AUTOPILOT_SLOW ?? 'auto';
+/**
+ * THE OPENING THROUGH THE SCREEN (stage 6, total coverage — the box's 84 games never opened `scene:start-first-act`
+ * nor `scene:first-action-rail`: every opening was answered over the API, so the start scene — the corporation, the
+ * preludes, the buy, the first action — was a screen no game walked). In `auto` one game in four opens on the start
+ * scene and the pilot walks it as a player does; `api` / `ui` force one way.
+ */
+const OPENING = process.env.TM_E2E_AUTOPILOT_OPENING ?? 'auto';
+function slowRateOf(n: number): number {
+  if (Number(process.env.TM_E2E_CPU_THROTTLE ?? 0) > 1 || SLOW === 'off') {
+    return 1;
+  }
+  return SLOW === 'auto' ? (n % 5 === 2 ? 3 : 1) : Math.max(1, Number(SLOW) || 1);
+}
+
+/** The standard projects a visit of the grid goes to first — each opens a flow of its own (a colony, a tile, a scale). */
+const SP_ROTATION: ReadonlyArray<string> = ['Build Colony', 'Aquifer', 'Greenery', 'City', 'Air Scrapping', 'Asteroid:SP', 'Power Plant:SP',
+  'Buffer Gas', 'Excavate:SP', 'Sell Patents'];
+const WEATHER_KINDS = ['lost', 'stale', 'busy', 'lost-answer'] as const;
+type WeatherKind = typeof WEATHER_KINDS[number];
+/** What the page honestly says of a fault the weather made — booked as the weather's, never as the game's log. */
+const WEATHER_SAYS: Record<WeatherKind, ReadonlyArray<RegExp>> = {
+  'lost': [/^\[net\] the submit — /],
+  'lost-answer': [/^\[net\] the submit — /, /^400 POST \/player\/input/],
+  'busy': [/^503 POST \/player\/input/, /^\[net\] the submit — the server answered 503/],
+  'stale': [/^400 POST \/player\/input/],
+};
 
 function gamesOf(spec: string): Array<number> {
   const range = /^(\d+)-(\d+)$/.exec(spec);
@@ -106,6 +156,17 @@ function rng(seed: string): () => number {
   };
 }
 
+/**
+ * THE DEAL (stage 6, the cards axis — the owner, 2026-11-26: «покрывал АБСОЛЮТНО все игровые ситуации»): a random
+ * deal brings a card to the pilot's hand when chance does, and the box's 84 games played what chance gave. In
+ * `rotate` (the default) the cards of the premium scope come to the opening hand IN TURN — game `n` deals the next
+ * five projects of the scope's list whose module its table plays, the next corporation and the next two preludes
+ * (`customProjectCards` / `customCorporationsList` / `customPreludes`: on the top of their decks, the first seat's
+ * deal), and the opening buys them. Over the games every card of the scope is dealt; the report sums which ones the
+ * pilot then PLAYED (`scripts/autopilot-cards.mts` — the never-played list). `TM_E2E_AUTOPILOT_DEAL=random` keeps
+ * the plain deal.
+ */
+const DEAL = process.env.TM_E2E_AUTOPILOT_DEAL ?? 'rotate';
 /** The boards MarsBot plays on (`common/automa/automaCompatibility.ts`), by the names the creator sends. */
 const BOARDS = ['tharsis', 'hellas', 'elysium', 'utopia planitia', 'terra cimmeria nova', 'vastitas borealis nova', 'vastitas borealis',
   'amazonis p.', 't. cimmeria', 'arabia terra', 'Hollandia'] as const;
@@ -115,7 +176,7 @@ const BOARDS = ['tharsis', 'hellas', 'elysium', 'utopia planitia', 'terra cimmer
  * in-scope expansions under their dependencies (Redux needs Colonies, Prelude 2 needs Prelude), Solar Phase with Venus
  * and without the bot, no pre-game draft. Not `testMode`: a real game's economy and its real length.
  */
-function tableOf(n: number): {config: Record<string, unknown>, word: string, duo: boolean} {
+function tableOf(n: number): {config: Record<string, unknown>, word: string, duo: boolean, deal: Array<string>} {
   const r = rng(`${NAME}:${n}:table`);
   const flip = (p: number) => r() < p;
   const bot = flip(0.75);
@@ -141,7 +202,33 @@ function tableOf(n: number): {config: Record<string, unknown>, word: string, duo
     ...(bot ? {automa: {difficulty: (['easy', 'normal', 'hard'] as const)[Math.floor(r() * 3)], secondShift: flip(0.6), extraCorporations: flip(0.5)}} : {}),
   });
   const on = Object.entries(expansions).filter(([, v]) => v).map(([k]) => k);
-  return {config, duo, word: `${bot ? 'vs MarsBot' : duo ? 'duo' : 'solo'} · ${board} · ${on.join('+') || 'base'}${draft ? ' · draft' : ''}`};
+  // (The modules the table plays, by the scope's keys: the base game and the Corporate Era always — `dealFor` adds
+  // classic Turmoil with Redux.)
+  const modules = new Set<string>(['base', 'corpera', ...on]);
+  const deal = DEAL === 'rotate' ? dealFor(n, modules, prelude) : {projects: [], corporations: [], preludes: []};
+  // THE RULES THE CREATOR SETS (stage 6, total coverage — `create/premium/buildCreateGamePayload.ts`: the random
+  // milestones and awards, the fast mode, the others' points in real time, the shuffled map, the starting-TR bonus):
+  // every switch a player can throw in the creator is a table some game sits at. Their own stream — the tables
+  // drawn above stay the ones they were.
+  const rules = rng(`${NAME}:${n}:rules`);
+  const ruled = {
+    randomMA: rules() < 0.3 ? 'All milestones and awards' : 'No randomization',
+    fastModeOption: rules() < 0.25,
+    showOtherPlayersVP: rules() < 0.5,
+    shuffleMapOption: rules() < 0.3,
+  };
+  const boost = rules() < 0.2 ? 1 + Math.floor(rules() * 5) : 0;
+  Object.assign(config, ruled);
+  if (boost > 0) {
+    (config.players as Array<Record<string, unknown>>)[0].handicap = boost;
+  }
+  const said = [ruled.randomMA !== 'No randomization' ? 'random M&A' : '', ruled.fastModeOption ? 'fast' : '', ruled.showOtherPlayersVP ? 'VP shown' : '',
+    ruled.shuffleMapOption ? 'shuffled map' : '', boost > 0 ? `TR +${boost}` : ''].filter((s) => s !== '');
+  if (DEAL === 'rotate') {
+    Object.assign(config, {customProjectCards: deal.projects, customCorporationsList: deal.corporations, customPreludes: deal.preludes});
+  }
+  return {config, duo, deal: [...deal.corporations, ...deal.preludes, ...deal.projects],
+    word: `${bot ? 'vs MarsBot' : duo ? 'duo' : 'solo'} · ${board} · ${on.join('+') || 'base'}${draft ? ' · draft' : ''}${said.length > 0 ? ` · ${said.join(' · ')}` : ''}`};
 }
 
 type Wire = {
@@ -149,7 +236,8 @@ type Wire = {
   thisPlayer?: {tableau?: Array<{name: string}>},
   waitingFor?: {
     type: string, promptId?: number, bonusActionPrompt?: unknown, title?: unknown, min?: number, max?: number, cards?: Array<unknown>,
-    options?: Array<{type: string, warnings?: Array<string>, cards?: Array<{name: string, isDisabled?: boolean, calculatedCost?: number}>}>,
+    options?: Array<{type: string, warnings?: Array<string>, cards?: Array<{name: string, isDisabled?: boolean, calculatedCost?: number,
+      standardProjectPreview?: {futile?: unknown}}>}>,
   } & Record<string, unknown>,
 };
 
@@ -178,6 +266,16 @@ type Screen = {
   prodLoss: boolean,
   /** The heat-spending composite stands on screen (`.con-heat`). */
   heat: boolean,
+  /** A budget composite's coverage meter (`[data-prompt-meter]` — «ПОКРЫТО done / of»), when one stands. */
+  meter: {done: number, of: number} | undefined,
+  /** The card under the cursor of a pick is already TAKEN (the hand's «✓», a slot's band) — or the pick refuses it. */
+  focusTaken: boolean,
+  /** The system alert stands (`.con-alert` — a refused / failed press, the server out of reach): its title. */
+  alert: string | undefined,
+  /** The hand's album in plain browse (a card to play): every slot — its card, playable or not, where it stands. */
+  hand: {focused: number, cards: Array<{name: string, playable: boolean, page: number, row: number, col: number}>} | undefined,
+  /** The standard projects' grid, when it stands in browse: the focused row and every row (its project, lit or not). */
+  stdp: {focused: number, cards: Array<{name: string, go: boolean, futile: boolean}>} | undefined,
   /**
    * The keys of the bar's commands that stand DISABLED — not offered, yet the screen's own word for the next press once
    * the layout is complete (a pick of exactly two cards: «RT Сбросить» stays grey until the second card).
@@ -234,6 +332,44 @@ async function look(page: Page): Promise<Screen> {
         document.querySelector('.con-played:not(.con-played--hero):not(.con-played--embedded)') !== null ? 'played' as const : '' as const,
       prodLoss: document.querySelector('.con-prodloss') !== null,
       heat: document.querySelector('.con-heat') !== null,
+      hand: (() => {
+        const slots = [...document.querySelectorAll('.con-hand__slot')];
+        if (slots.length === 0 || !slots.some((s) => s.classList.contains('con-hand__slot--playable') || s.classList.contains('con-hand__slot--unplayable') ||
+            s.classList.contains('con-hand__slot--notnow'))) {
+          return undefined;
+        }
+        return {
+          focused: slots.findIndex((s) => s.classList.contains('con-hand__slot--selected')),
+          // (Where a card stands, by the album's own structure — its page, its row, its place in the row — never a
+          // rect: the pilot reads the grid the way the cursor walks it.)
+          cards: slots.map((s) => {
+            const row = s.closest('.con-hand__row');
+            const page = s.closest('.con-hand__page');
+            const index = (el: Element | null, of: Element | null | undefined, selector: string): number =>
+              el === null || of === null || of === undefined ? -1 : [...of.querySelectorAll(`:scope > ${selector}`)].indexOf(el);
+            return {name: s.getAttribute('data-zoom-slot') ?? '', playable: s.classList.contains('con-hand__slot--playable'),
+              page: index(page, page?.parentElement, '.con-hand__page'), row: index(row, page, '.con-hand__row'), col: index(s, row, '.con-hand__slot')};
+          }),
+        };
+      })(),
+      stdp: (() => {
+        const cards = [...document.querySelectorAll('.con-stdp__browse:not(.con-stdp__browse--parked) .con-stdp__card')];
+        return cards.length === 0 ? undefined : {
+          focused: cards.findIndex((c) => c.classList.contains('con-stdp__card--focused')),
+          cards: cards.map((c) => ({name: c.getAttribute('data-stdp-card') ?? '', go: c.classList.contains('con-stdp__card--go'),
+            futile: c.hasAttribute('data-stdp-futile')})),
+        };
+      })(),
+      alert: document.querySelector('.con-alert') === null ? undefined :
+        (document.querySelector('.con-alert__title')?.textContent ?? '').trim().slice(0, 60),
+      focusTaken: document.querySelector('.con-hand__slot--selected.con-hand__slot--select-picked, .con-hand__slot--selected.con-hand__slot--select-disabled, ' +
+        '.con-cards__slot--focused.con-cards__slot--picked') !== null,
+      meter: (() => {
+        const el = document.querySelector('[data-prompt-meter]');
+        const done = Number(el?.querySelector('b')?.textContent ?? 'NaN');
+        const of = Number(/(\d+)/.exec(el?.querySelector('.con-prompt-outcome__meter-of')?.textContent ?? '')?.[1] ?? 'NaN');
+        return el === null || Number.isNaN(done) || Number.isNaN(of) ? undefined : {done, of};
+      })(),
       quick: document.querySelector('.con-quick') !== null,
       pass: document.querySelector('.con-quick [data-quick-id="pass"]') !== null,
       confirm: document.querySelector('.con-confirm') !== null,
@@ -288,6 +424,8 @@ function pilotPick(screen: Screen, g: () => number, last: string | undefined, to
 type Played = {
   end: 'finished' | 'capped' | 'stuck', presses: number, generation: number, phase: string,
   byUi: Record<string, number>, byApi: Record<string, number>, passes: {ui: number, api: number}, doors: Array<string>, tookMs: number,
+  /** The SHAPES of the questions the screen answered (`questionShape`) — an axis of the coverage. */
+  shapes: Record<string, number>,
   /**
    * THE SOAK's SAMPLES — once a generation, at the same place every time (the viewer's action menu with nothing on the
    * stack): the DOM's nodes, the kernel's scopes and waits, the heap. A page that leaks grows from generation to generation.
@@ -308,14 +446,28 @@ type SoakEars = {longFrames: number, warnings: number, lastWarnings: Array<strin
  * deck pick, a start prompt, a choice's context…) and its count: «card» alone said nothing about which of a dozen
  * card questions the screen could not be walked to (the 82 doors of the fourth hundred).
  */
-function questionWord(wf: NonNullable<Wire['waitingFor']>): string {
-  const title = typeof wf.title === 'string' ? wf.title : String((wf.title as {message?: string} | undefined)?.message ?? '');
-  const markers = Object.keys(wf).filter((key) => /(Prompt|Context|reveal)$/i.test(key) && wf[key] !== undefined && wf[key] !== null)
+/** The server's markers on a question (a draft, a deck pick, a start prompt, a choice's context — with its kind). */
+function questionMarkers(wf: NonNullable<Wire['waitingFor']>): Array<string> {
+  return Object.keys(wf).filter((key) => /(Prompt|Context|reveal)$/i.test(key) && wf[key] !== undefined && wf[key] !== null)
     .map((key) => {
       const kind = (wf[key] as {kind?: unknown, mode?: unknown, source?: {kind?: unknown}} | undefined);
       const of = kind?.kind ?? kind?.mode ?? kind?.source?.kind;
       return typeof of === 'string' ? `${key}:${of}` : key;
-    });
+    }).sort();
+}
+
+/**
+ * THE QUESTION's SHAPE — its type and the server's markers on it, nothing of its title or count: the axis of the
+ * coverage that asks «which kinds of question has the screen answered» (`or:menu` for the action menu).
+ */
+function questionShape(wf: NonNullable<Wire['waitingFor']>, menu: boolean): string {
+  const markers = questionMarkers(wf);
+  return `${menu ? 'or:menu' : wf.type}${markers.length > 0 ? `[${markers.join(',')}]` : ''}`;
+}
+
+function questionWord(wf: NonNullable<Wire['waitingFor']>): string {
+  const title = typeof wf.title === 'string' ? wf.title : String((wf.title as {message?: string} | undefined)?.message ?? '');
+  const markers = questionMarkers(wf);
   const count = wf.type === 'card' ? ` ${wf.min ?? '?'}..${wf.max ?? '?'} of ${(wf.cards ?? []).length}` : '';
   return `${wf.type}${count} «${title.slice(0, 48)}»${markers.length > 0 ? ` [${markers.join(',')}]` : ''}`;
 }
@@ -354,7 +506,7 @@ async function seedRivalOpening(request: APIRequestContext, rival: string): Prom
 }
 
 async function playGame(page: Page, request: APIRequestContext, viewer: string, seed: string, log: Array<string>, ears?: SoakEars, where?: {stood: string},
-  rivals: ReadonlyArray<string> = []): Promise<Played> {
+  rivals: ReadonlyArray<string> = [], storm?: {reloadAt: number, reloaded: boolean}, dealt: ReadonlyArray<string> = []): Promise<Played> {
   const g = rng(`${seed}:pilot`);
   const rivalRng = rng(`${seed}:rival`);
   /**
@@ -363,11 +515,60 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
    * asks the same seat again). Its moves reach this console as another player's: the foreign classes of the console.
    */
   const rivalStuck = new Set<number>();
+  /** The seat's stock, as a payment reads it. */
+  type Purse = {megacredits: number, heat: number, steel: number, titanium: number, steelValue?: number, titaniumValue?: number};
+  const purseOf = async (seat: string): Promise<Purse> => (await fetchPlayerModel(request, seat) as unknown as {thisPlayer: Purse}).thisPlayer;
+  /**
+   * A PAYMENT FROM THE SEAT's OWN STOCK — M€ first, then what the prompt lets it spend (heat, steel, titanium) — and
+   * its variants: the plain M€-first one, and the metals FIRST (a card a seat pays with steel it holds, M€ for the rest).
+   * One builder for a payment prompt, a project's play and a standard project — each its own answers the server weighs.
+   */
+  const paymentsFor = (purse: Purse, amount: number, can: Record<string, boolean | undefined>): Array<Record<string, number>> => {
+    const out: Array<Record<string, number>> = [];
+    for (const metalsFirst of [false, true]) {
+      let owed = amount;
+      const pay: Record<string, number> = {...NO_PAYMENT};
+      const metals = (): void => {
+        for (const [unit, value] of [['steel', purse.steelValue ?? 2], ['titanium', purse.titaniumValue ?? 3]] as const) {
+          if (owed > 0 && can[unit] === true) {
+            const n = Math.min(purse[unit], Math.ceil(owed / value));
+            pay[unit] = n;
+            owed = Math.max(0, owed - n * value);
+          }
+        }
+      };
+      if (metalsFirst) {
+        metals();
+      }
+      pay.megacredits = Math.min(purse.megacredits, owed);
+      owed -= pay.megacredits;
+      if (owed > 0 && can.heat === true) {
+        pay.heat = Math.min(purse.heat, owed);
+        owed -= pay.heat;
+      }
+      if (!metalsFirst) {
+        metals();
+      }
+      if (!out.some((seen) => JSON.stringify(seen) === JSON.stringify(pay))) {
+        out.push(pay);
+      }
+    }
+    return out;
+  };
   /** The rival's project tries (the response object → the project's name), and the projects whose refusal was named. */
   const spTries = new Map<unknown, string>();
   const spRefusedNamed = new Set<string>();
+  /**
+   * WHAT THE SECOND SEAT DID (the box's count on `b9254000a8`: five duo tables on the cap, the oceans at 1 – 7 for
+   * sixty generations while the seat held 50 – 120 M€ — and no line said whether it ever stood on its action menu, or
+   * what that menu offered): each answered move by its kind (`sp:<project>`, `pass`, `<type>#<option>`), and once a
+   * generation, on the action menu, the terraforming projects it showed (`✓` lit, `✗` grey).
+   */
+  let rivalDid: Array<string> = [];
+  const spSeenGen = new Set<number>();
   const rivalsMove = async (): Promise<number> => {
     let moves = 0;
+    rivalDid = [];
     for (const rival of rivals) {
       for (let i = 0; i < 6; i++) {
         const asked = (await fetchPlayerModel(request, rival) as unknown as Wire).waitingFor;
@@ -384,17 +585,28 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         // by a pass: the night count's duo tables stood on the cap with the oceans at 1 – 4 for forty generations, the
         // seat's one project try refused and its pass taken instead. The price is paid from its own stock, M€ first, and
         // a refusal is named once per project — `[RIVAL-SP-REFUSED …]`.)
-        const projects = options.findIndex((o) => o.type === 'projectCard' && (o.cards ?? []).some((c) => TERRAFORMING_SP.includes(c.name) && c.isDisabled !== true));
+        // (…and only a project that TERRAFORMS: the box's replay of game 2125 named the five capped duos' cause — the
+        // seat bought «Астероид» every turn at +8 °C, the server's order putting it first, and its M€ never reached
+        // the oceans. A project whose whole result is a maxed step is `standardProjectPreview.futile`; the seat takes
+        // the others, in an order of its own.)
+        const terraforms = (c: {name: string, isDisabled?: boolean, standardProjectPreview?: {futile?: unknown}}): boolean =>
+          TERRAFORMING_SP.includes(c.name) && c.isDisabled !== true && c.standardProjectPreview?.futile === undefined;
+        const projects = options.findIndex((o) => o.type === 'projectCard' && (o.cards ?? []).some(terraforms));
+        const menuGen = pass >= 0 ? ((await fetchPlayerModel(request, rival)) as unknown as {game?: {generation?: number}}).game?.generation ?? 0 : 0;
+        if (pass >= 0 && !spSeenGen.has(menuGen)) {
+          spSeenGen.add(menuGen);
+          const shown = options.flatMap((o) => (o.cards ?? []).filter((c) => TERRAFORMING_SP.includes(c.name)).map((c) => `${c.name}${c.isDisabled === true ? '✗' : '✓'}`));
+          log.push(`[RIVAL-MENU g${menuGen}: ${shown.length > 0 ? shown.join(' ') : 'no terraforming project'} · ${options.map((o) => o.type).join(',')}]`);
+        }
         if (projects >= 0 && rivalRng() < 0.8) {
-          const me = (await fetchPlayerModel(request, rival) as unknown as {thisPlayer: {megacredits: number, heat: number}}).thisPlayer;
+          const purse = await purseOf(rival);
           const can = (options[projects] as {paymentOptions?: Record<string, boolean | undefined>}).paymentOptions ?? {};
-          for (const project of (options[projects].cards ?? []).filter((c) => TERRAFORMING_SP.includes(c.name) && c.isDisabled !== true)) {
-            const cost = project.calculatedCost ?? 0;
-            const megacredits = Math.min(me.megacredits, cost);
-            const heat = can.heat === true ? Math.min(me.heat, cost - megacredits) : 0;
-            const response = {type: 'or', index: projects, response: {type: 'projectCard', card: project.name, payment: {...NO_PAYMENT, megacredits, heat}}};
-            spTries.set(response, project.name);
-            tries.push(response);
+          for (const project of (options[projects].cards ?? []).filter(terraforms).sort(() => rivalRng() - 0.5)) {
+            for (const payment of paymentsFor(purse, project.calculatedCost ?? 0, can)) {
+              const response = {type: 'or', index: projects, response: {type: 'projectCard', card: project.name, payment}};
+              spTries.set(response, project.name);
+              tries.push(response);
+            }
           }
         }
         if (pass >= 0 && rivalRng() < 0.3) {
@@ -417,25 +629,22 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         // A PAYMENT the seat cannot make in M€ alone (CI's game 246 replayed on the box — «Select how to pay N M€ for the
         // trade fleet», refused at M€ 8: the seat had fewer): its own stock, M€ first, then what the prompt lets it spend.
         if (asked.type === 'payment') {
-          const me = (await fetchPlayerModel(request, rival) as unknown as {thisPlayer: {megacredits: number, heat: number, steel: number, titanium: number,
-            steelValue?: number, titaniumValue?: number}}).thisPlayer;
           const can = (asked as {paymentOptions?: Record<string, boolean | undefined>}).paymentOptions ?? {};
-          let owed = (asked as {amount?: number}).amount ?? 0;
-          const pay = {...NO_PAYMENT};
-          pay.megacredits = Math.min(me.megacredits, owed);
-          owed -= pay.megacredits;
-          if (owed > 0 && can.heat === true) {
-            pay.heat = Math.min(me.heat, owed);
-            owed -= pay.heat;
+          for (const payment of paymentsFor(await purseOf(rival), (asked as {amount?: number}).amount ?? 0, can)) {
+            tries.push({type: 'payment', payment});
           }
-          for (const [unit, value] of [['steel', me.steelValue ?? 2], ['titanium', me.titaniumValue ?? 3]] as const) {
-            if (owed > 0 && can[unit] === true) {
-              const n = Math.min(me[unit], Math.ceil(owed / value));
-              pay[unit] = n;
-              owed -= n * value;
+        }
+        // A CARD TO PLAY that the prompt itself asks for (CI's game 2123 on the box — STUCK: «Play a card ignoring its
+        // global requirements (Live Experiments)», the harness's one answer refused): every card it offers, each paid
+        // from the seat's stock in both orders, until the server takes one.
+        if (asked.type === 'projectCard') {
+          const purse = await purseOf(rival);
+          const can = (asked as {paymentOptions?: Record<string, boolean | undefined>}).paymentOptions ?? {};
+          for (const card of ((asked as {cards?: Array<{name: string, isDisabled?: boolean, calculatedCost?: number}>}).cards ?? []).filter((c) => c.isDisabled !== true)) {
+            for (const payment of paymentsFor(purse, card.calculatedCost ?? 0, {...can, steel: true, titanium: true})) {
+              tries.push({type: 'projectCard', card: card.name, payment});
             }
           }
-          tries.push({type: 'payment', payment: pay});
         }
         try {
           tries.push(answerPrompt(asked as never, {}));
@@ -453,10 +662,16 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
           try {
             await sendPlayerInput(request, rival, {...(response as object), promptId: asked.promptId} as never);
             answered = true;
+            const r = response as {type?: string, index?: number};
+            rivalDid.push(spTries.has(response) ? `sp:${spTries.get(response)}` :
+              r.type === 'or' && r.index === pass ? 'pass' :
+                `${asked.type}${r.type === 'or' && r.index !== undefined ? `#${r.index}` : ''}`);
             break;
           } catch (e) {
             // the server refused this one — the next (its word kept: a stuck seat names why)
-            refused = String((e as Error).message ?? e).split('\n').find((line) => /rejected/.test(line))?.slice(0, 220) ?? '';
+            // (…the server's own word — what follows the payload: «… : 400 {"message": …}».)
+            const said = String((e as Error).message ?? e).split('\n').find((line) => /rejected/.test(line)) ?? '';
+            refused = (/: (\d{3} .*)$/.exec(said)?.[1] ?? said).slice(0, 220);
             const sp = spTries.get(response);
             if (sp !== undefined && !spRefusedNamed.has(sp)) {
               spRefusedNamed.add(sp);
@@ -487,7 +702,7 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     return moves;
   };
   const started = Date.now();
-  const played: Played = {end: 'capped', presses: 0, generation: 0, phase: '', byUi: {}, byApi: {}, passes: {ui: 0, api: 0}, doors: [], tookMs: 0, soak: [], spells: []};
+  const played: Played = {end: 'capped', presses: 0, generation: 0, phase: '', byUi: {}, byApi: {}, passes: {ui: 0, api: 0}, doors: [], tookMs: 0, soak: [], spells: [], shapes: {}};
   const bump = (into: Record<string, number>, key: string): void => {
     into[key] = (into[key] ?? 0) + 1;
   };
@@ -549,7 +764,19 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     /** Presses in a row that changed nothing of what stands (pilot 3 — a player who gets no answer goes home). */
     still: number, lastStood: string,
     /** Looks in a row in a side screen while the one function names the question held by its plate or set aside. */
-    heldAway: number} | undefined;
+    heldAway: number,
+    /** The question was COLLAPSED once past its commit (see «THE INTERRUPTION») — once a question is enough. */
+    collapsed: boolean,
+    /** Its shape (`questionShape`) — summed when it is answered. */
+    shape: string,
+    /** The standard project this visit of the grid goes to (see «THE PROJECT A TURN GOES TO»). */
+    stdpTarget: string | undefined,
+    /** The card of the hand this visit goes to play (see «THE CARD A TURN PLAYS»). */
+    handTarget: string | undefined} | undefined;
+  /** The standard projects' visits of the game so far — the projects' rotation (`SP_ROTATION`). */
+  let stdpVisits = 0;
+  let stdpSteps = 0;
+  let handSteps = 0;
   /** The menus of the game so far — the intents' rotation (seeded by the game's own number, so two games start apart). */
   let menus = Math.floor(g() * INTENTS.length);
   /** The tableau's length at the last look (-1 before the first: the opening's cards are no play of the walk). */
@@ -557,6 +784,13 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
   let moved = {age: -1, at: Date.now()};
   let sampledGeneration = 0;
   while (played.presses < PRESSES && !page.isClosed()) {
+    // THE WEATHER's RELOAD (a storm game, once — see `WEATHER`): between two presses, whatever stands.
+    if (storm !== undefined && !storm.reloaded && played.presses >= storm.reloadAt) {
+      storm.reloaded = true;
+      log.push(`[WEATHER reload at ${played.presses}]`);
+      await reloadConsole(page);
+      continue;
+    }
     const model = await truth();
     // WHAT THE SEAT PLAYED, in the walk (`[PLAYED <card>]`): a line of the log is read against the card that made it —
     // the box's game 1656, whose level door stood after a card nobody could name from the walk.
@@ -594,6 +828,9 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       // reveal's take, a plate, a result's acknowledge) — the pilot looks on. Ten minutes of a table nobody moves is stuck.
       if (standing !== undefined) {
         bump(standing.byApi ? played.byApi : played.byUi, standing.menu ? 'or:menu' : standing.type);
+        if (!standing.byApi) {
+          bump(played.shapes, standing.shape);
+        }
         standing = undefined;
       }
       if (Date.now() - moved.at > 10 * 60_000) {
@@ -604,7 +841,7 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       if (rivals.length > 0) {
         const moves = await rivalsMove();
         if (moves > 0) {
-          log.push(`[RIVAL×${moves}]`);
+          log.push(`[RIVAL×${moves} ${rivalDid.join(',')}]`);
           continue;
         }
       }
@@ -614,6 +851,9 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     if (standing === undefined || standing.promptId !== wf.promptId) {
       if (standing !== undefined) {
         bump(standing.byApi ? played.byApi : played.byUi, standing.menu ? 'or:menu' : standing.type);
+        if (!standing.byApi) {
+          bump(played.shapes, standing.shape);
+        }
       }
       const menu = wf.type === 'or' && (wf.options ?? []).some((o) => o.type === 'option' && o.warnings?.includes('pass') === true);
       // (Pilot 2: three menus in four have an INTENT — the turn goes to one section and plays there; the budget is
@@ -626,7 +866,8 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       const intentful = PILOT >= 2 && (bonus || (menu && g() < 0.75));
       const intent = intentful ? [...INTENTS[menus++ % INTENTS.length].keys] : [];
       const budget = bonus ? 60 : menu ? (g() < (intentful ? 0.05 : 0.18) ? 0 : (intentful ? 9 : 4) + Math.floor(g() * 23)) : 45;
-      standing = {promptId: wf.promptId, type: wf.type, menu, bonus, presses: 0, budget, byApi: false, intent: budget > 0 ? intent : [], intentful: intentful && budget > 0, still: 0, lastStood: '', heldAway: 0};
+      standing = {promptId: wf.promptId, type: wf.type, menu, bonus, presses: 0, budget, byApi: false, intent: budget > 0 ? intent : [], intentful: intentful && budget > 0, still: 0, lastStood: '', heldAway: 0, collapsed: false,
+        shape: questionShape(wf, menu), stdpTarget: undefined, handTarget: undefined};
       if (standing.intent.length > 0) {
         log.push(`[INTENT ${INTENTS[(menus - 1) % INTENTS.length].name}]`);
       }
@@ -766,7 +1007,7 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     if (rivals.length > 0 && standing.presses % 4 === 0) {
       const moves = await rivalsMove();
       if (moves > 0) {
-        log.push(`[RIVAL×${moves}]`);
+        log.push(`[RIVAL×${moves} ${rivalDid.join(',')}]`);
         continue;
       }
     }
@@ -786,6 +1027,13 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       log.push(`[INTENT ${INTENTS[(menus - 1) % INTENTS.length].name}]`);
     }
     const seen = await look(page);
+    // THE SYSTEM ALERT (a press the network or the server let down — the weather's, or a defect's in clear weather):
+    // a player reads it and presses A. Named in the walk, so a clear game's alert is a line to read.
+    if (seen.alert !== undefined) {
+      log.push(`[ALERT ${seen.alert}]`);
+      await press('Enter', 600 + Math.round(g() * 900));
+      continue;
+    }
     stood = `${seen.frames.join('>') || '-'}${seen.zoom ? '+ZOOM' : ''}${seen.quick ? '+WHEEL' : ''}|${wf.type}#${wf.promptId ?? ''}|${seen.bar.slice(0, 80)}`;
     // THE TURN's INTENT (pilot 2): from the board home, the wheel that leads to the section and the press that enters
     // it — one after the other, nothing between.
@@ -794,6 +1042,72 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         await walkHome(false);
       }
       await press(standing.intent.shift() as string, 500 + Math.round(g() * 400));
+      continue;
+    }
+    // THE PROJECT A TURN GOES TO (stage 6, total coverage — the box's 84 games never opened a colony's build: no
+    // `scene:colony-city`, no `colony-roster`, no track's raise — a thumb in the standard projects' grid pressed
+    // whatever row stood under it). On a visit of the grid the pilot goes to ONE project, in rotation over the ones
+    // the grid lights (`SP_ROTATION` first — the projects that open a flow of their own), and presses it.
+    if (PILOT >= 3 && standing.menu && seen.stdp !== undefined && seen.look === '' && !seen.zoom && seen.stdp.focused >= 0) {
+      const grid = seen.stdp;
+      if (standing.stdpTarget === undefined || (standing.stdpTarget !== '' && !grid.cards.some((c) => c.name === standing?.stdpTarget && c.go))) {
+        stdpSteps = 0;
+        // (…a project that changes something first — the table goes on to its end; a futile one, the row that says so,
+        // is still taken now and then: the last of the rotation.)
+        const lit = grid.cards.filter((c) => c.go && !c.futile).map((c) => c.name);
+        const futile = grid.cards.filter((c) => c.go && c.futile).map((c) => c.name);
+        const order = [...SP_ROTATION.filter((name) => lit.includes(name)), ...lit.filter((name) => !SP_ROTATION.includes(name)), ...futile.slice(0, 1)];
+        standing.stdpTarget = order.length === 0 ? undefined : order[stdpVisits++ % order.length];
+        if (standing.stdpTarget !== undefined) {
+          log.push(`[SP ${standing.stdpTarget}]`);
+        }
+      }
+      const at = standing.stdpTarget === undefined || standing.stdpTarget === '' ? -1 : grid.cards.findIndex((c) => c.name === standing?.stdpTarget);
+      // (…bounded: a grid laid out otherwise than the two columns read here is left to the thumb after a dozen steps.)
+      if (at >= 0 && ++stdpSteps > 12) {
+        standing.stdpTarget = '';
+      } else if (at >= 0) {
+        // (A grid of two columns: a row, then a column — one step a press.)
+        const [row, col, toRow, toCol] = [Math.floor(grid.focused / 2), grid.focused % 2, Math.floor(at / 2), at % 2];
+        await press(toRow > row ? 'ArrowDown' : toRow < row ? 'ArrowUp' : toCol > col ? 'ArrowRight' : toCol < col ? 'ArrowLeft' : 'Enter', pause());
+        continue;
+      }
+    }
+    // THE CARD A TURN PLAYS (stage 6, total coverage — the cards axis: a card dealt is a card to PLAY). On a visit of the
+    // hand's album the pilot goes to ONE playable card — the deal's first (`dealt`, the scope's rotation), else one in
+    // turn — walks the cursor to it by where it stands (a row, then along it) and presses A.
+    if (PILOT >= 3 && standing.menu && seen.hand !== undefined && seen.look === '' && !seen.zoom && seen.hand.focused >= 0 &&
+        /^hand:browse/.test(seen.frames[seen.frames.length - 1] ?? '')) {
+      const album = seen.hand;
+      const playable = album.cards.filter((c) => c.playable).map((c) => c.name);
+      if (standing.handTarget === undefined || (standing.handTarget !== '' && !playable.includes(standing.handTarget))) {
+        handSteps = 0;
+        const wanted = playable.filter((name) => dealt.includes(name));
+        standing.handTarget = wanted[0] ?? (playable.length === 0 ? '' : playable[Math.floor(g() * playable.length)]);
+        if (standing.handTarget !== '') {
+          log.push(`[HAND ${standing.handTarget}]`);
+        }
+      }
+      const at = standing.handTarget === '' ? -1 : album.cards.findIndex((c) => c.name === standing?.handTarget);
+      if (at >= 0 && ++handSteps > 16) {
+        standing.handTarget = '';
+      } else if (at >= 0) {
+        const [from, to] = [album.cards[album.focused], album.cards[at]];
+        await press(to.page !== from.page ? (to.page > from.page ? 'ArrowRight' : 'ArrowLeft') :
+          to.row !== from.row ? (to.row > from.row ? 'ArrowDown' : 'ArrowUp') :
+            to.col !== from.col ? (to.col > from.col ? 'ArrowRight' : 'ArrowLeft') : 'Enter', pause());
+        continue;
+      }
+    }
+    // THE INTERRUPTION (stage 6, total coverage — the kernel's frame machine had walked 18 of its 35 moves, never a frame
+    // past its commit set OFF STAGE and brought back: `committed → *.away`, `completing.away → …`). A player who has
+    // committed a move and wants the board folds the workspace («B Свернуть» — the decision stays live) and comes back
+    // to it by its plate («A Вернуться»). Once a question, on one in four of those that offer it past the commit.
+    if (PILOT >= 3 && !standing.collapsed && seen.look === '' && !seen.zoom && seen.bar.includes('BСвернуть') &&
+        seen.frames.some((f) => /:(committed|completing|executing)/.test(f)) && g() < 0.25) {
+      standing.collapsed = true;
+      log.push('[COLLAPSE]');
+      await press('Escape', pause());
       continue;
     }
     // THE LAYOUT OF A LOSS (pilot 2): a unit off the focused row, another, the next row, and «Принять убыток» — until
@@ -810,9 +1124,18 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     // does not cover it (A on the one-step layout) — a player reads all of it off the bar. ONLY ON ITS OWN SCREEN: read
     // at home with the question set aside, its X was «Разыграно» — the pilot opened its own table over the way back
     // (the new count's seven doors, a regression of the reorder above).
-    if (PILOT >= 3 && (wf as {spendHeatPrompt?: unknown}).spendHeatPrompt !== undefined && seen.heat && seen.look === '' && !seen.zoom) {
-      const take = seen.offered.some((o) => o.key === 'Period') || seen.greyed.includes('Period') ? 'Period' : 'Enter';
-      await press(([take, 'KeyX', 'ArrowDown'] as const)[standing.presses % 3], pause());
+    // EVERY BUDGET COMPOSITE (the heat, a payment's lanes, the Venus bonus — the box's count on `b9254000a8`: twelve
+    // doors on «… X Оплатить» left grey): its meter says what is owed, and a player lays the lanes out by it — the bill
+    // paid (X lit) is paid; short of it, the rest poured onto the lane in focus (RT, A in the one-step layout) and the
+    // next lane; over it — or a lane one unit too many (the cover rule refuses a redundant unit) — a unit taken back
+    // (LB, A) and the next lane. A cycle of RT / X alone never left an over-covered bill.
+    if (PILOT >= 3 && seen.meter !== undefined && seen.look === '' && !seen.zoom &&
+        (seen.offered.some((o) => o.key === 'KeyX') || seen.greyed.includes('KeyX'))) {
+      const dial = seen.offered.some((o) => o.key === 'Period') || seen.greyed.includes('Period');
+      const key = seen.offered.some((o) => o.key === 'KeyX') ? 'KeyX' :
+        standing.presses % 2 === 1 ? 'ArrowDown' :
+          seen.meter.done < seen.meter.of ? (dial ? 'Period' : 'Enter') : (dial ? 'KeyQ' : 'Enter');
+      await press(key, pause());
       continue;
     }
     // THE DISTRIBUTION OF RESOURCES (pilot 3): a unit onto the focused row (RB where the layout steps by LB/RB, A where A
@@ -840,7 +1163,13 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       // (…and a side screen whose cursor MOVES the bar — the colonies' trade under the draft's plate: «stood» changed at
       // every press, the six never came, and the door answered (the sixth count, eleven of its doors). Four looks in a
       // row in a side screen with the question held by its plate are a player who knows where the question is.)
-      const heldAway = (seen.frames.length > 0 || seen.quick) && / held (aside:|admission:announce-gate)/.test(await ownerNow());
+      // (…or HELD BY THE CLAIM of a workspace the pilot is not in — the box's count on the weather's snapshot, game
+      // 2302: three doors on a Parliament resolution's draw, «external-draw@parliament held claim:parliament», the
+      // pilot in «Действия карт», the colonies, the Hydronetwork, while the home's plate said «A Открыть».)
+      const owner = await ownerNow();
+      const claim = / held claim:([a-z-]+)/.exec(owner)?.[1];
+      const heldAway = (seen.frames.length > 0 || seen.quick) && (/ held (aside:|admission:announce-gate)/.test(owner) ||
+        (claim !== undefined && !seen.frames.some((f) => f.startsWith(`${claim}:`))));
       standing.heldAway = heldAway ? standing.heldAway + 1 : 0;
       if (heldAway && (standing.still >= 6 || standing.heldAway >= 4)) {
         standing.still = 0;
@@ -854,7 +1183,7 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       // the door answered the parked research buy: the draft's frame was dropped with its phase, a line of the log
       // that was the PILOT's (the sixth count, games 1631 and 1673 — both right after a door).
       if (seen.frames.length === 0 && !seen.quick && seen.offered.some((o) => o.key === 'Enter') &&
-          / held (aside:|admission:announce-gate)/.test(await ownerNow())) {
+          / held (aside:|admission:announce-gate|claim:)/.test(await ownerNow())) {
         log.push('[WAY-BACK]');
         await press('Enter', pause());
         continue;
@@ -869,9 +1198,15 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     // — a pick of exactly two cards («Сбросить» for the Reds' party action): the pilot read only the verbs on offer,
     // never took this rule, and toggled one card on and off until the door answered (the night count, games 1802 and
     // 1803). A player reads the grey RT as the commit still to come.
+    // (…and it READS the cards as a player does — the box's count on `b9254000a8`: two doors on «2..2» picks, the Reds'
+    // discard of 13 and a deck's keep of 4, the commit grey: a fixed cycle of A / RT / → whose → did not move at a row's
+    // end, so the next A took the card back. A card under the cursor already taken — or one the pick refuses — is
+    // walked past; an untaken one is taken; the lit commit is pressed.)
     if (PILOT >= 3 && wf.type === 'card' && !standing.menu && standing.presses >= Math.floor(standing.budget / 3) && seen.look === '' && !seen.zoom && !seen.quick &&
         seen.offered.some((o) => o.key === 'Enter') && (seen.offered.some((o) => o.key === 'Period') || seen.greyed.includes('Period'))) {
-      await press((['Enter', 'Period', 'ArrowRight'] as const)[standing.presses % 3], pause());
+      const key = seen.offered.some((o) => o.key === 'Period') ? 'Period' :
+        !seen.focusTaken ? 'Enter' : (['ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowLeft'] as const)[standing.presses % 4];
+      await press(key, pause());
       continue;
     }
     // …AND A SINGLE PICK THAT COMMITS BY A («Выбрать» on the focused card — the table's answer to the Career's step, a
@@ -904,21 +1239,97 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       const seed = `${NAME}:${n}`;
       const table = tableOf(n);
       test.info().annotations.push({type: 'autopilot-table', description: `${seed} — ${table.word}`});
-      const created = await request.post('/api/creategame', {data: table.config});
+      let created = await request.post('/api/creategame', {data: table.config});
+      // (A deal the creator refuses — a card its rules keep off a custom deck — is the harness's, never the game's: the
+      // table is dealt plainly and the refusal named.)
+      if (!created.ok() && table.deal.length > 0) {
+        const why = (await created.text()).slice(0, 200);
+        test.info().annotations.push({type: 'autopilot-deal-refused', description: `${created.status()} ${why} — deal ${table.deal.join(', ')}`});
+        table.deal.splice(0);
+        created = await request.post('/api/creategame', {data: {...table.config, customProjectCards: [], customCorporationsList: [], customPreludes: []}});
+      }
       expect(created.ok(), `create-game refused the table (${table.word}): ${created.status()}`).toBeTruthy();
       const {players} = await created.json() as {players: Array<{id: string, name: string}>};
       const viewer = (players.find((p) => !/marsbot/i.test(p.name)) ?? players[0]).id;
       const rivals = players.filter((p) => p.id !== viewer && !/marsbot/i.test(p.name)).map((p) => p.id);
       // THE OPENING, over the API (see the header): the corporation, the preludes, the first action — to the first turn.
       // (Every human seat at once: the opening is simultaneous, and a seat seeded alone waits for the other one.)
-      await Promise.all([seedGameOverApi(request, viewer, {buy: 4}), ...rivals.map((rival) => seedRivalOpening(request, rival))]);
+      // (THE DEAL — see `DEAL`: what the rotation put on the decks' tops and the first seat was dealt is TAKEN — the
+      // corporation, the preludes, the projects; a card the table's rules kept out of the deal is simply not there.)
+      const offered = await fetchPlayerModel(request, viewer).then((model) => new Set(
+        ((model.waitingFor as {options?: Array<{cards?: Array<{name: string}>}>} | undefined)?.options ?? []).flatMap((o) => (o.cards ?? []).map((c) => c.name))));
+      const dealt = table.deal.filter((name) => offered.has(name));
+      const is = (list: ReadonlyArray<ScopeCard>) => (name: string) => list.some((c) => c.name === name);
+      const uiOpening = OPENING === 'ui' || (OPENING === 'auto' && n % 4 === 3);
+      await Promise.all([
+        ...(uiOpening ? [] : [seedGameOverApi(request, viewer, {
+          buy: 4,
+          cards: dealt.filter(is(SCOPE_CARDS.projects)),
+          corporation: dealt.find(is(SCOPE_CARDS.corporations)),
+          preludes: dealt.filter(is(SCOPE_CARDS.preludes)),
+        })]),
+        ...rivals.map((rival) => seedRivalOpening(request, rival))]);
       const log: Array<string> = [];
+      if (uiOpening) {
+        test.info().annotations.push({type: 'autopilot-opening', description: 'through the screen'});
+        log.push('[OPENING through the screen]');
+      }
+      if (dealt.length > 0) {
+        log.push(`[DEAL ${dealt.join(' · ')}]`);
+      }
       const consoleTail: Array<string> = [];
       const ears: SoakEars = {longFrames: 0, warnings: 0, lastWarnings: []};
       const book: LogBook = new Map();
       const where = {stood: ''};
       const t0 = Date.now();
+      // THE WEATHER of this game (see `WEATHER`): a storm in one game of three by default, seeded by the game's number.
+      const storm = WEATHER === 'storm' || (WEATHER === 'auto' && n % 3 === 0);
+      const weather = {next: 12 + (n % 7), submits: 0, faults: 0, kind: n % WEATHER_KINDS.length, said: 0,
+        explains: [] as Array<{until: number, says: ReadonlyArray<RegExp>}>};
+      const weatherSaid = (text: string): boolean => {
+        const now = Date.now();
+        weather.explains = weather.explains.filter((e) => e.until > now);
+        if (weather.explains.some((e) => e.says.some((re) => re.test(text)))) {
+          weather.said++;
+          return true;
+        }
+        return false;
+      };
+      if (storm) {
+        test.info().annotations.push({type: 'autopilot-weather', description: 'storm'});
+        await page.route(/\/player\/input(-batch)?\?/, async (route) => {
+          if (route.request().method() !== 'POST' || ++weather.submits < weather.next) {
+            await route.continue();
+            return;
+          }
+          const kind = WEATHER_KINDS[weather.kind++ % WEATHER_KINDS.length];
+          weather.next = weather.submits + 14 + ((weather.submits * 7 + n) % 19);
+          weather.faults++;
+          log.push(`[WEATHER ${kind} #${weather.faults}]`);
+          // (…what the page says of it, for the next twelve seconds — a lost answer's next press is refused, too.)
+          weather.explains.push({until: Date.now() + 12_000, says: WEATHER_SAYS[kind]});
+          if (kind === 'lost') {
+            await route.abort('failed');
+          } else if (kind === 'busy') {
+            await route.fulfill({status: 503, contentType: 'text/plain', body: 'Service Unavailable'});
+          } else if (kind === 'lost-answer') {
+            await route.fetch().catch(() => undefined);
+            await route.abort('failed');
+          } else {
+            const body = route.request().postDataJSON() as {promptId?: unknown} | null;
+            if (body !== null && typeof body === 'object' && typeof body.promptId === 'number') {
+              await route.continue({postData: JSON.stringify({...body, promptId: body.promptId - 1})});
+            } else {
+              await route.abort('failed');
+              weather.explains.push({until: Date.now() + 12_000, says: WEATHER_SAYS.lost});
+            }
+          }
+        });
+      }
       const said = (type: string, text: string): void => {
+        if (weatherSaid(text)) {
+          return;
+        }
         const key = logKey(type, text);
         const known = book.get(key);
         if (known !== undefined) {
@@ -955,18 +1366,33 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
           }
         }
       });
+      const slow = slowRateOf(n);
+      if (slow > 1) {
+        test.info().annotations.push({type: 'autopilot-slow', description: `CPU ×${slow}`});
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send('Emulation.setCPUThrottlingRate', {rate: slow});
+        log.push(`[SLOW ×${slow}]`);
+      }
       await openConsole(page, viewer);
       let played: Played | undefined;
       try {
-        played = await playGame(page, request, viewer, seed, log, ears, where, rivals);
+        played = await playGame(page, request, viewer, seed, log, ears, where, rivals,
+          storm ? {reloadAt: 120 + ((n * 97) % 900), reloaded: false} : undefined, dealt);
         // THE LAST WORD: past the arbiter's grace and the loop's twenty looks — the screen the game left is judged whole.
         await cinematicBeat(page, 25_000, 'the last word — a quiet spell past the liveness grace, so the screen the game left is judged');
       } finally {
+        // THE CARDS THE PILOT PLAYED through the console (the viewer's tableau at the game's end — a corporation, a
+        // prelude, every project), and the weather the game met: two axes of the coverage the report sums over games.
+        const tableau = await fetchPlayerModel(request, viewer).then((model) => {
+          const me = (model as unknown as {thisPlayer?: {tableau?: Array<{name: string}>}}).thisPlayer;
+          return (me?.tableau ?? []).map((c) => c.name);
+        }).catch(() => [] as Array<string>);
         causeHarvest.note({
           monkey: {seed, fixture: `game-${n}`, mode: 'autopilot', landing: 'boot', duo: table.duo, reload: false, hidden: false, presses: played?.presses ?? log.filter((l) => !l.startsWith('[')).length,
-            perturb: {netMs: 0, cpu: Number(process.env.TM_E2E_CPU_THROTTLE ?? 0), motion: process.env.TM_E2E_MOTION ?? ''}},
+            perturb: {netMs: 0, cpu: slow > 1 ? slow : Number(process.env.TM_E2E_CPU_THROTTLE ?? 0), motion: process.env.TM_E2E_MOTION ?? ''}},
           autopilot: {
-            ...played, table: table.word, pilot: PILOT,
+            ...played, table: table.word, pilot: PILOT, cards: tableau, slow,
+            weather: storm ? {faults: weather.faults, submits: weather.submits, said: weather.said} : undefined,
             // THE LOG's BOOK: every class of line the page said in the whole game (the count, the first occurrence).
             log: [...book.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 80).map(([key, row]) => ({key, type: row.type, n: row.n, atMs: row.atMs, stood: row.stood.slice(0, 160)})),
           },

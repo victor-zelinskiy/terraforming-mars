@@ -1,0 +1,69 @@
+/*
+ * THE DEAL OF THE AUTOPILOT (FREEZE ZERO, stage 6 — total coverage, the cards axis; the owner, 2026-11-26: «покрывал
+ * АБСОЛЮТНО все игровые ситуации»). A random deal brings a card to the pilot's hand when chance does; here the cards of
+ * the premium scope (`common/cards/premiumScope.ts` — the set the coverage specs enumerate) come to the opening hand IN
+ * TURN: game `n` deals the next five projects of the scope's list whose module its table plays, the next corporation
+ * and the next two preludes — on the top of their decks (`customProjectCards` / `customCorporationsList` /
+ * `customPreludes`: the first seat's deal). Over the games every card of the scope is dealt. One rotation for both
+ * pilots — the browser's (`tests/e2e/console-autopilot.spec.ts`) and the bottle's (`bottleServerHost.bootPilotTable`).
+ */
+import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
+import {CardName} from '../../src/common/cards/CardName';
+
+export type ScopeCard = {name: CardName, module: string};
+export type Deal = {projects: Array<CardName>, corporations: Array<CardName>, preludes: Array<CardName>};
+
+export const SCOPE_CARDS = ((): {projects: Array<ScopeCard>, corporations: Array<ScopeCard>, preludes: Array<ScopeCard>} => {
+  const out = {projects: [] as Array<ScopeCard>, corporations: [] as Array<ScopeCard>, preludes: [] as Array<ScopeCard>};
+  for (const manifest of ALL_MODULE_MANIFESTS) {
+    if (!PREMIUM_SCOPE_MODULES.includes(manifest.module)) {
+      continue;
+    }
+    for (const [into, cards] of [[out.projects, manifest.projectCards], [out.corporations, manifest.corporationCards], [out.preludes, manifest.preludeCards]] as const) {
+      for (const name of Object.keys(cards) as Array<CardName>) {
+        // (Delta Project is the module's global subsystem, never a prelude a seat is dealt — the creator refuses it.)
+        if (inPremiumScope({module: manifest.module, name}) && name !== CardName.DELTA_PROJECT) {
+          into.push({name, module: manifest.module});
+        }
+      }
+    }
+  }
+  return out;
+})();
+
+/** The next `count` cards of `list` from game `n`'s window whose module the table plays. */
+export function dealWindow(list: ReadonlyArray<ScopeCard>, n: number, count: number, on: ReadonlySet<string>): Array<CardName> {
+  const out: Array<CardName> = [];
+  for (let k = 0; k < list.length && out.length < count; k++) {
+    const card = list[(n * count + k) % list.length];
+    if (on.has(card.module)) {
+      out.push(card.name);
+    }
+  }
+  return out;
+}
+
+/**
+ * Game `n`'s deal over the modules its table plays (the scope's keys — `base`, `corpera`, …; classic `turmoil` rides
+ * with `turmoilRedux`). `prelude` — the table deals preludes at all.
+ */
+export function dealFor(n: number, modules: ReadonlySet<string>, prelude: boolean): Deal {
+  const on = new Set([...modules, ...(modules.has('turmoilRedux') ? ['turmoil'] : [])]);
+  return {
+    projects: dealWindow(SCOPE_CARDS.projects, n, 5, on),
+    corporations: dealWindow(SCOPE_CARDS.corporations, n, 1, on),
+    preludes: prelude ? dealWindow(SCOPE_CARDS.preludes, n, 2, on) : [],
+  };
+}
+
+/** The modules a table plays, read off its game options (the engine's `expansions`, or the flags it is derived from). */
+export function modulesOfOptions(options: Record<string, unknown>): Set<string> {
+  const expansions = options.expansions as Record<string, boolean> | undefined;
+  const flags: Record<string, unknown> = expansions ?? {
+    corpera: options.corporateEra, venus: options.venusNextExtension, colonies: options.coloniesExtension, prelude: options.preludeExtension,
+    prelude2: options.prelude2Expansion, promo: options.promoCardsOption, ares: options.aresExtension, deltaProject: options.deltaProjectExpansion,
+    turmoilRedux: options.turmoilReduxExpansion,
+  };
+  return new Set(['base', ...Object.entries(flags).filter(([, on]) => on === true).map(([module]) => module)]);
+}

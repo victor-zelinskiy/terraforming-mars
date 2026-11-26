@@ -39,6 +39,7 @@ import {Server} from '../../../../src/server/models/ServerModel';
 import {TestPlayer} from '../../../TestPlayer';
 import {fuzzConfig} from '../../../fuzz/engineFuzz';
 import {DEFAULT_KNOBS, NoLegalAnswer, randomAnswer} from '../../../fuzz/randomAnswer';
+import {dealFor, modulesOfOptions} from '../../../testing/autopilotDeal';
 
 /** What the client side reads of a booted table — plain data only (nothing of the engine crosses). */
 export type BottleTable = {
@@ -211,6 +212,17 @@ export function onInvalidate(listener: (gameId: string, gameAge: number) => void
 }
 
 /** THE SERVER'S TRUTH about a seat — read straight off the engine (never through the page). */
+/** THE CARDS A SEAT PLAYED (its tableau, by name) — the cards axis of the autopilot's coverage. */
+export function seatTableau(playerId: string): Array<string> {
+  for (const game of loader.games.values()) {
+    const player = game.players.find((candidate) => candidate.id === playerId);
+    if (player !== undefined) {
+      return [...player.tableau].map((card) => card.name);
+    }
+  }
+  return [];
+}
+
 export function seatTruth(playerId: string): {waitingFor: string | undefined, promptId: number | undefined, gameAge: number, phase: string, generation: number} {
   for (const game of loader.games.values()) {
     const player = game.players.find((candidate) => candidate.id === playerId);
@@ -292,7 +304,7 @@ export async function otherSeatMoves(playerId: string): Promise<{did: string, an
  * console has no surface for that question at all («expected draft, on screen nothing» — a stranded prompt the
  * arbiter cured every few seconds), and every class they named was a class of a table no player can sit at.
  */
-export function bootPilotTable(seed: number, idSuffix: string): BottleTable & {config: {humans: number, marsBot: boolean, options: Record<string, unknown>}} {
+export function bootPilotTable(seed: number, idSuffix: string, deal: boolean = false): BottleTable & {config: {humans: number, marsBot: boolean, options: Record<string, unknown>}} {
   const config = fuzzConfig(seed);
   const makers = [TestPlayer.BLUE, TestPlayer.RED, TestPlayer.YELLOW];
   const humans = makers.slice(0, config.humans).map((maker, index) => maker.newPlayer({name: `pilot${index + 1}`, idSuffix}));
@@ -304,6 +316,12 @@ export function bootPilotTable(seed: number, idSuffix: string): BottleTable & {c
     preludeDraftVariant: false,
     solarPhaseOption: config.options.venusNextExtension === true && !marsBot,
   };
+  // THE DEAL (`tests/testing/autopilotDeal.ts` — the cards of the scope to the opening hand in turn, the browser
+  // pilot's rotation): on the decks' tops, the first seat's deal.
+  if (deal) {
+    const dealt = dealFor(seed, modulesOfOptions(options as Record<string, unknown>), options.preludeExtension === true);
+    Object.assign(options, {customProjectCards: dealt.projects, customCorporationsList: dealt.corporations, customPreludes: dealt.preludes});
+  }
   const game = Game.newInstance(`game-id${idSuffix}` as GameId, humans, humans[0], `spectator-id${idSuffix}` as SpectatorId, {...options}, config.gameSeed);
   loader.games.set(game.id, game);
   return {...tableOf(game), config: {humans: config.humans, marsBot, options: {...options}}};

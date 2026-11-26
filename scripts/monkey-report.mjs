@@ -32,7 +32,7 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import {pathToFileURL} from 'url';
+import {fileURLToPath, pathToFileURL} from 'url';
 import {flowUniverse} from './flow-universe.mjs';
 
 /** Every `cause-classes/*.json` under `dir` (the functional pass and `timing/` both). */
@@ -704,7 +704,15 @@ export function aggregateAutopilot(files) {
     return undefined;
   }
   const sum = (row) => Object.values(row ?? {}).reduce((a, n) => a + Number(n ?? 0), 0);
-  const out = {games: 0, finished: 0, capped: [], stuck: [], rebuilds: 0, presses: 0, byUi: 0, byApi: 0, passes: {ui: 0, api: 0}, playMin: 0, doors: [], log: []};
+  const out = {games: 0, finished: 0, capped: [], stuck: [], rebuilds: 0, presses: 0, byUi: 0, byApi: 0, passes: {ui: 0, api: 0}, playMin: 0, doors: [], log: [],
+    cards: [], weather: {games: 0, faults: 0, submits: 0, said: 0}, shapes: [], types: undefined};
+  // THE QUESTIONS' SHAPES the screen answered (a type × the server's markers), summed — and the input TYPES among them
+  // against the ones the server declares (`common/input/PlayerInputType.ts` — read from the source, so a new type
+  // is a new row of the denominator the day it is added).
+  const shapes = new Map();
+  // THE CARDS THE PILOT PLAYED through the console (the viewer's tableau at each game's end), summed — an axis of the
+  // coverage whose denominator is the cards in scope (`--cards <file>` writes the set for the scope's own reader).
+  const cards = new Map();
   // THE LOG OF THE GAMES — every class of line a page said in a whole game (a warning, an error, a page error, an
   // HTTP answer ≥ 400), summed: how often, in how many games, and the first game that said it.
   const book = new Map();
@@ -729,6 +737,18 @@ export function aggregateAutopilot(files) {
       row.games.add(f.title);
       book.set(line.key, row);
     }
+    for (const name of a.cards ?? []) {
+      cards.set(name, (cards.get(name) ?? 0) + 1);
+    }
+    for (const [shape, n] of Object.entries(a.shapes ?? {})) {
+      shapes.set(shape, (shapes.get(shape) ?? 0) + Number(n ?? 0));
+    }
+    if (a.weather !== undefined) {
+      out.weather.games++;
+      out.weather.faults += Number(a.weather.faults ?? 0);
+      out.weather.submits += Number(a.weather.submits ?? 0);
+      out.weather.said += Number(a.weather.said ?? 0);
+    }
     for (const door of a.doors ?? []) {
       const where = String(door).replace(/ · gen \d+/, '');
       const row = doors.get(where) ?? {where, n: 0, games: new Set()};
@@ -745,10 +765,27 @@ export function aggregateAutopilot(files) {
       out.capped.push(where);
     }
   }
+  out.shapes = [...shapes.entries()].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).map(([shape, n]) => ({shape, n}));
+  if (shapes.size > 0) {
+    const declared = declaredInputTypes();
+    const answered = new Set([...shapes.keys()].map((s) => s.replace(/\[.*$/, '').replace(/^or:menu$/, 'or')));
+    out.types = {declared: declared.length, answered: declared.filter((type) => answered.has(type)).length, never: declared.filter((type) => !answered.has(type))};
+  }
+  out.cards = [...cards.entries()].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).map(([name, games]) => ({name, games}));
   out.doors = [...doors.values()].sort((x, y) => y.n - x.n || x.where.localeCompare(y.where)).map((row) => ({where: row.where, n: row.n, games: row.games.size}));
   out.log = [...book.values()].sort((x, y) => y.games.size - x.games.size || y.n - x.n || x.key.localeCompare(y.key))
     .map((row) => ({key: row.key, type: row.type, n: row.n, games: row.games.size, first: row.first}));
   return out;
+}
+
+/** The input types the server declares — the string literals of `PlayerInputType` (empty when the source is absent). */
+function declaredInputTypes() {
+  try {
+    const source = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'common', 'input', 'PlayerInputType.ts'), 'utf8');
+    return [...source.matchAll(/'([a-zA-Z]+)'/g)].map((m) => m[1]);
+  } catch {
+    return [];
+  }
 }
 
 export function renderAutopilot(a) {
@@ -759,6 +796,14 @@ export function renderAutopilot(a) {
   const L = ['', `── THE WHOLE GAMES — ${a.games} game(s): ${a.finished} to the final scoring · ${a.capped.length} capped · ${a.stuck.length} STUCK · rebuilds ${a.rebuilds} ──`];
   L.push(`   ${a.presses} presses, ${a.playMin} min of play · answered on the screen ${a.byUi} · through the door ${a.byApi}` +
     `${answered > 0 ? ` (${pct(a.byApi, answered)} % of the answers)` : ''} · passes ${a.passes.ui} by the wheel / ${a.passes.api} by the door`);
+  if (a.types !== undefined) {
+    L.push(`   question shapes answered on the screen: ${a.shapes.length} distinct · input types ${a.types.answered} of ${a.types.declared}` +
+      `${a.types.never.length > 0 ? ` — never: ${a.types.never.join(', ')}` : ''}`);
+  }
+  if ((a.cards ?? []).length > 0) {
+    L.push(`   cards played through the console: ${a.cards.length} distinct · the weather: ${a.weather.games} storm game(s), ` +
+      `${a.weather.faults} fault(s) over ${a.weather.submits} submit(s), ${a.weather.said} line(s) the page said of them`);
+  }
   for (const game of a.stuck) {
     L.push(`   STUCK   ${game}`);
   }
