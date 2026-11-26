@@ -1351,18 +1351,23 @@ ${ownerEdge.facts}`;
     const release = deferSceneReveal('boot-mount', 8000);
     const scope = consoleSessionScope();
     let mounted = false;
+    // (The bound is taken back the moment the half stands by its frame — a timer left armed for two seconds is a row of
+    // the wait table nobody waits on, and a task that lands on a frame's own instant: the bottle's clock probe read
+    // three frames for two under it.)
+    let cancelBound: () => void = () => {};
     const mount = (): void => {
       if (mounted) {
         return;
       }
       mounted = true;
+      cancelBound();
       boardHalfMounted.value = true;
       void nextTick(() => release());
     };
     const cancelFrame = scope.afterFrame('the boot\'s board half waits for the hull\'s painted frame', () => {
       scope.after(0, 'the boot\'s board half mounts in a task of its own', mount);
     });
-    scope.after(BOARD_HALF_UNPAINTED_MS, 'the boot\'s board half — a page that paints no frame mounts it at its bound', () => {
+    cancelBound = scope.after(BOARD_HALF_UNPAINTED_MS, 'the boot\'s board half — a page that paints no frame mounts it at its bound', () => {
       cancelFrame();
       mount();
     });

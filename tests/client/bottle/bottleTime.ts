@@ -81,11 +81,23 @@ export function takeTime(start: number): BottleClock {
     return id;
   };
   const nextFrameAt = (): number => (Math.floor(now / BOTTLE_FRAME_MS) + 1) * BOTTLE_FRAME_MS;
+  /**
+   * THE INSTANT THE PENDING FRAMES PAINT — fixed when the first of them is requested (the first boundary after that
+   * moment), never recomputed from a clock a timer has since moved: a timer due on the frame's own instant runs FIRST
+   * and the frame paints right after it, at that instant. Recomputed, the frame slipped a whole frame — «two frames»
+   * read 48 ms once the board's timers were armed on a frame boundary (the boot's two halves).
+   */
+  let framesAt: number | undefined;
   const requestFrame = (fn: (t: number) => void): number => {
     const id = nextId++;
+    if (frames.size === 0) {
+      framesAt = nextFrameAt();
+    }
     frames.set(id, fn);
     return id;
   };
+  // (…unless the clock has gone past it without painting — `advanceUnpainted`: a frame is never in the past.)
+  const pendingFrameAt = (): number | undefined => frames.size === 0 ? undefined : framesAt !== undefined && framesAt >= now ? framesAt : nextFrameAt();
   const run = (fn: () => void): void => {
     tasks++;
     try {
@@ -107,7 +119,7 @@ export function takeTime(start: number): BottleClock {
       }
     }
     if (frames.size > 0) {
-      const frameAt = nextFrameAt();
+      const frameAt = pendingFrameAt() as number;
       if (due === undefined || frameAt < due) {
         due = frameAt;
       }
@@ -146,7 +158,7 @@ export function takeTime(start: number): BottleClock {
           }
         }
         // …or the frame, whichever comes first (a frame at the same instant paints after the timers due at it).
-        const frameAt = frames.size > 0 ? nextFrameAt() : undefined;
+        const frameAt = pendingFrameAt();
         if (timer !== undefined && timerId !== undefined && timer.at <= until && (frameAt === undefined || timer.at <= frameAt)) {
           now = Math.max(now, timer.at);
           if (timer.every !== undefined) {
@@ -160,6 +172,7 @@ export function takeTime(start: number): BottleClock {
           now = frameAt;
           const due = frames;
           frames = new Map();
+          framesAt = undefined;
           const stamp = now;
           for (const fn of due.values()) {
             run(() => fn(stamp));
