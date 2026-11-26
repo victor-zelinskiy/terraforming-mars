@@ -1425,6 +1425,27 @@ export function measureTransferCover(): TransferCover {
   return {rects: [{x: opening.left, y: opening.top, w: opening.width, h: opening.height}], everything: false};
 }
 
+/**
+ * THE HULL — the cockpit's permanent chrome, painted over the band's glass and under the lit layer (the paint witness's
+ * own list, `tests/e2e/paintWitness.ts`). Read LIVE while a token under the glass owes its surfacing: touching any of
+ * them, it is lit (`transferTurnDue`).
+ */
+const TRANSFER_HULL_SELECTOR = '.con-res, .con-res-host, .con-res-aux, .con-status, .con-handdock, .con-footer, .con-cmdbar, .con-hand__verdictbar';
+
+export function measureTransferHull(): ReadonlyArray<TransferRect> {
+  if (typeof document === 'undefined') {
+    return [];
+  }
+  const out: Array<TransferRect> = [];
+  for (const el of document.querySelectorAll(TRANSFER_HULL_SELECTOR)) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) {
+      out.push({x: r.left, y: r.top, w: r.width, h: r.height});
+    }
+  }
+  return out;
+}
+
 /** The box of an end's element, or of a token-sized square around a bare point (the home ladder's first visible rung). */
 function endBoxOf(ref: EndRef, birthBox: TransferRect, spec: ResourceTransferSpec): TransferRect | undefined {
   if (ref !== 'home' && isTransferEnd(ref)) {
@@ -1453,7 +1474,7 @@ function paintOf(e: {spec: ResourceTransferSpec, toRef: EndRef}, birthBox: Trans
     destinationBox: destinationOnBoard ? endBoxOf(e.toRef, birthBox, e.spec) : undefined,
     cover,
   });
-  return {plan, cover, through: boardPaintThrough};
+  return {plan, cover, through: boardPaintThrough, hull: measureTransferHull};
 }
 
 /** The dim the band family paints over the board (`.con-backdrop-dim()` — its inner stop, raised on the TV through the var). */

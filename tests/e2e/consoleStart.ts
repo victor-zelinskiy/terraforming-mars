@@ -2353,6 +2353,50 @@ export async function createGameWithCards(
   return '';
 }
 
+/**
+ * A PLAIN PLAY, WHICHEVER THE DEAL OFFERS: a production-only project with no requirement, no target and no tile — any
+ * of them is the same subject for a spec whose scenario is «a card is played» (the beat, the B through it, the hand's
+ * ending). Asking the deal for ONE named card is a probability budget (`createGameWithCards`); asking it for any of
+ * thirteen is not one a spec can lose: CI's burn-in of `console-hand-play-back-in-beat` went red on «80 deals, none
+ * offering Power Plant» (run 45746036892) — a race with the shuffle, never the product.
+ */
+export const PLAIN_PLAY_CARDS: ReadonlyArray<string> = [
+  'Power Plant', 'Mine', 'Geothermal Power', 'Acquired Company', 'Sponsors', 'Micro-Mills', 'Mohole',
+  'Industrial Microbes', 'Asteroid Mining', 'Nuclear Power', 'Peroxide Power', 'Fueled Generators', 'Solar Power',
+];
+
+/** Create games (varying the seed) until the deal offers ONE of `candidates`; the player's id and the card it offered. */
+export async function createGameWithOneOf(
+  request: APIRequestContext,
+  candidates: ReadonlyArray<string>,
+  opts: {config?: Record<string, unknown>, seed?: number, step?: number, attempts?: number} = {},
+): Promise<{playerId: string, card: string}> {
+  const base = opts.config ?? soloGameConfig();
+  const seed = opts.seed ?? Number(base.seed ?? 0.1);
+  const step = opts.step ?? 0.017;
+  const attempts = opts.attempts ?? 80;
+  let dealt: Array<string> = [];
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const created = await request.post('/api/creategame', {data: {...base, seed: seed + attempt * step}});
+    expect(created.ok(), 'the game server accepted the config').toBeTruthy();
+    const {players} = await created.json();
+    const pv = await (await request.get(`/api/player?id=${players[0].id}`)).json();
+    dealt = (pv.waitingFor?.options ?? [])
+      .flatMap((o: {cards?: Array<{name: string}>}) => (o.cards ?? []).map((c) => c.name));
+    const card = candidates.find((name) => dealt.includes(name));
+    if (card !== undefined) {
+      try {
+        test.info().annotations.push({type: 'game', description: `seed=${seed + attempt * step} player=${players[0].id} card=${card}`});
+      } catch {
+        // Outside a running test — nothing to annotate.
+      }
+      return {playerId: players[0].id, card};
+    }
+  }
+  expect(dealt, `${attempts} deals, none offering any of ${candidates.join(', ')}`).toEqual(expect.arrayContaining([candidates[0]]));
+  return {playerId: '', card: ''};
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // THE API PATH — ANSWER the pregame instead of ACTING IT OUT
 //

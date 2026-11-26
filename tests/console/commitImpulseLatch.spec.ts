@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import {
   afterCommitImpulse, armCommitImpulse, commitImpulseLive, landCommitImpulse, resetActionCommit,
 } from '../../src/client/console/consoleActionCommit';
+import {createManualClock, setFlowClock} from '../../src/client/console/kernel/flowClock';
 
 /**
  * THE IMPULSE LATCH (PL-103, the TR35 walk) — a beat that is the ACTION
@@ -61,12 +62,26 @@ describe('the commit impulse latch (PL-103)', () => {
     expect(commitImpulseLive()).is.false;
   });
 
-  it('a stalled timeline is bounded: the latch\'s own net lands it', async () => {
-    let ran = 0;
-    armCommitImpulse();
-    afterCommitImpulse(() => ran++);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    expect(ran).eq(1);
-    expect(commitImpulseLive()).is.false;
-  }).timeout(4000);
+  // A STALLED TIMELINE is one whose motion clock does not move — so its bound is the latch's WALL ceiling, read on the
+  // kernel's own clock and advanced by hand. (This row slept 1.5 s of real time against the motion's 1.4 s timer and
+  // went red one run in three on a loaded laptop: the motion ticker lags a starved page by design — the race was the
+  // spec's, never the latch's.)
+  it('a stalled timeline is bounded: the latch\'s own ceiling lands it, on the wall clock', () => {
+    const clock = createManualClock(Date.now());
+    setFlowClock(clock);
+    try {
+      let ran = 0;
+      armCommitImpulse();
+      afterCommitImpulse(() => ran++);
+      clock.advance(1_000);
+      expect(ran, 'the motion is still owed its landing').eq(0);
+      expect(commitImpulseLive()).is.true;
+      clock.advance(10_000);
+      expect(ran, 'the ceiling landed it').eq(1);
+      expect(commitImpulseLive()).is.false;
+    } finally {
+      resetActionCommit();
+      setFlowClock(undefined);
+    }
+  });
 });

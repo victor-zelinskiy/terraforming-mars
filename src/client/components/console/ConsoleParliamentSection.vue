@@ -297,7 +297,7 @@ import {payoutDetailsAvailable, sittingPayoutDetailsOf} from '@/client/console/p
 import {resetSittingPayoutDetails, sittingPayoutDetails} from '@/client/console/parliament/sittingPayoutDetailsState';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
-import {backLabelForVerb, backVerbFor, WorkspacePhase} from '@/client/console/consoleWorkspaceFlow';
+import {acceptsInput, backLabelForVerb, backVerbFor, WorkspacePhase} from '@/client/console/consoleWorkspaceFlow';
 import {
   agendaViewOf, AgendaVm, buildParliamentView, emptyParliamentView, grantSupportOf, ParliamentPartyVm, ParliamentPromptBridge, ParliamentSlotVm, ParliamentTileVm,
   ParliamentViewVm, parliamentPromptBridge, PARTY_EFFECT_PLACES, partyActionStateOf, PartyActionStateVm, partyStateOf, PartyStateVm, resolutionActionStateOf, seatResponse,
@@ -388,7 +388,7 @@ import {
   workspaceSceneHidden,
 } from '@/client/console/consoleWorkspaceStack';
 import {AGENDA_WALK_STEP_STAGE, DELEGATE_GRANT_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE, taskFor} from '@/client/console/consoleTaskRouter';
-import {frameServing} from '@/client/console/consoleWorkspaceStack';
+import {frameServing, workspaceFramePhase} from '@/client/console/consoleWorkspaceStack';
 import {grantSeriesCountText, grantSeriesShown} from '@/client/console/parliament/grantSeries';
 import {$t, translateText} from '@/client/directives/i18n';
 import {promptIdentityKey} from '@/client/console/turnIntents';
@@ -1952,6 +1952,14 @@ function handleIntent(intent: GamepadIntent): void {
     return;
   }
   if (f.stage === 'browse') {
+    // THE BROWSE GRID ANSWERS ONLY WHERE ITS FRAME TAKES INPUT — the verb is the FRAME's (`backVerbFor`, as every other
+    // workspace reads it), never the grid's own guess. The grid's B is «close»: a step's frame standing past browse
+    // under it (a hosted walk whose stage has not opened, or was folded — the seed 1656's level door, below in
+    // `handleStageIntent`) would be popped out of its host. The press is the beat's, as the bar says («Выполняется…»,
+    // no B) — and the beat has its own bound (`beatExpired`).
+    if (!acceptsInput(workspaceFramePhase('parliament') ?? 'browse')) {
+      return;
+    }
     handleBrowseIntent(intent);
     return;
   }
@@ -2094,6 +2102,16 @@ function handleStageIntent(intent: GamepadIntent): void {
         return;
       }
       voteModeNow()?.closeVote();
+      return;
+    }
+    // A BEAT IN FLIGHT — the Career's walk, the rally — has nothing to go back to: the flow leaves by its own hand
+    // (`flow-complete`), and B says nothing (`backVerbFor('executing')` — the bar offers none). This fallthrough folded
+    // the stage instead: the walk was torn mid-flight (its run no longer alive, its ending never reported), a walk
+    // hosted in the hand left the hand committed with nobody to end its play, and the next B — now on the browse grid —
+    // popped the step; the guarded conclusion's level door took the hand (the autopilot's seed 1656, «Юристы
+    // Красных», four replays in six; the night count's game 1806 — named by the door's own trail: `phase:parliament
+    // executing→browse` from here, then `leaveWorkspace`). Whatever the stage, a frame that takes no input folds nothing.
+    if (f.stage === 'walk' || f.stage === 'rally' || !acceptsInput(workspaceFramePhase('parliament') ?? 'browse')) {
       return;
     }
     closeStage();
@@ -4051,6 +4069,18 @@ onMounted(() => {
   // initial render, so the walk starts here, on the mounted DOM.
   if (parliamentFlow.stage === 'sitting' && !stageEntering.value) {
     queueWalk();
+  }
+  // …AND THE STAGE's PANE IS IN, for the same reason: the section's own answer stage (the quest's step, a card's walk)
+  // or its draw, standing at the first render, played no entrance — and its entrance is the signal that publishes the
+  // zone the question / the reveal is teleported into. Unsaid, the zone never stood and the screen was deaf (the
+  // sitting's twin of this — the answer LAYER taken back from «Свернуть» — the sixth count's game 1676).
+  if (!stageEntering.value) {
+    if (answerStageUp.value) {
+      noteTableAnswerPaneIn();
+    }
+    if (drawStageUp.value) {
+      noteParliamentDrawPaneIn();
+    }
   }
 });
 onBeforeUnmount(() => {

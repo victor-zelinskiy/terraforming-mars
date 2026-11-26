@@ -146,6 +146,7 @@ function tableOf(n: number): {config: Record<string, unknown>, word: string, duo
 
 type Wire = {
   game: {phase: string, generation: number, gameAge: number},
+  thisPlayer?: {tableau?: Array<{name: string}>},
   waitingFor?: {
     type: string, promptId?: number, bonusActionPrompt?: unknown, title?: unknown, min?: number, max?: number, cards?: Array<unknown>,
     options?: Array<{type: string, warnings?: Array<string>, cards?: Array<{name: string, isDisabled?: boolean, calculatedCost?: number}>}>,
@@ -175,6 +176,11 @@ type Screen = {
   look: '' | 'info' | 'journal' | 'played',
   /** The layout of a production loss stands. */
   prodLoss: boolean,
+  /**
+   * The keys of the bar's commands that stand DISABLED — not offered, yet the screen's own word for the next press once
+   * the layout is complete (a pick of exactly two cards: «RT Сбросить» stays grey until the second card).
+   */
+  greyed: Array<string>,
 };
 
 /**
@@ -197,8 +203,15 @@ const INTENTS: ReadonlyArray<{name: string, keys: ReadonlyArray<string>}> = [
 async function look(page: Page): Promise<Screen> {
   return page.evaluate((glyphs) => {
     const offered: Array<{key: string, hot: boolean}> = [];
+    const greyed: Array<string> = [];
     for (const cmd of document.querySelectorAll('.con-cmdbar__cmd')) {
       if (cmd.classList.contains('con-cmdbar__cmd--disabled')) {
+        for (const glyph of cmd.querySelectorAll('.gp-glyph')) {
+          const key = glyphs[(glyph.textContent ?? '').trim()];
+          if (key !== undefined) {
+            greyed.push(key);
+          }
+        }
         continue;
       }
       for (const glyph of cmd.querySelectorAll('.gp-glyph')) {
@@ -211,6 +224,7 @@ async function look(page: Page): Promise<Screen> {
     const ready = (window as unknown as {__conReady?: () => {wsFrames?: Array<string>}}).__conReady?.();
     return {
       offered,
+      greyed,
       frames: ready?.wsFrames ?? [],
       bar: (document.querySelector('.con-cmdbar')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 160),
       zoom: document.querySelector('dialog.con-zoom[open]') !== null,
@@ -464,10 +478,19 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     heldAway: number} | undefined;
   /** The menus of the game so far — the intents' rotation (seeded by the game's own number, so two games start apart). */
   let menus = Math.floor(g() * INTENTS.length);
+  /** The tableau's length at the last look (-1 before the first: the opening's cards are no play of the walk). */
+  let seenTableau = -1;
   let moved = {age: -1, at: Date.now()};
   let sampledGeneration = 0;
   while (played.presses < PRESSES && !page.isClosed()) {
     const model = await truth();
+    // WHAT THE SEAT PLAYED, in the walk (`[PLAYED <card>]`): a line of the log is read against the card that made it —
+    // the box's game 1656, whose level door stood after a card nobody could name from the walk.
+    const tableau = model.thisPlayer?.tableau ?? [];
+    if (seenTableau >= 0 && tableau.length > seenTableau) {
+      log.push(`[PLAYED ${tableau.slice(seenTableau).map((card) => card.name).join(' + ')}]`);
+    }
+    seenTableau = tableau.length;
     played.generation = model.game.generation;
     played.phase = model.game.phase;
     if (model.game.phase === 'end') {
@@ -744,9 +767,12 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       continue;
     }
     // A PICK OF CARDS THAT COMMITS BY RT (pilot 3): once the question has stood a third of its budget — a card, the
-    // commit, the next card (never the same card on and off).
+    // commit, the next card (never the same card on and off). The commit may stand GREY until the layout is complete
+    // — a pick of exactly two cards («Сбросить» for the Reds' party action): the pilot read only the verbs on offer,
+    // never took this rule, and toggled one card on and off until the door answered (the night count, games 1802 and
+    // 1803). A player reads the grey RT as the commit still to come.
     if (PILOT >= 3 && wf.type === 'card' && !standing.menu && standing.presses >= Math.floor(standing.budget / 3) && seen.look === '' && !seen.zoom && !seen.quick &&
-        seen.offered.some((o) => o.key === 'Enter') && seen.offered.some((o) => o.key === 'Period')) {
+        seen.offered.some((o) => o.key === 'Enter') && (seen.offered.some((o) => o.key === 'Period') || seen.greyed.includes('Period'))) {
       await press((['Enter', 'Period', 'ArrowRight'] as const)[standing.presses % 3], pause());
       continue;
     }

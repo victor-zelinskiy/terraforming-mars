@@ -72,4 +72,28 @@ test.describe('a payout pick inside the sitting, set aside and taken back', () =
     expect(await pressUntil(page, 'Enter', async () => (await wire()).waitingFor?.agendaWalkPrompt === undefined, {tries: 4, settleMs: 2000}),
       'the pick answers').toBe(true);
   });
+
+  /*
+   * …AND THE CHAIRMAN QUEST's STEP (the same question, `reason: 'quest'`). The quest's flow ends with its section by
+   * design (its beats have nowhere to play — `killChairmanQuestBeats`), so a Parliament taken back has no quest to stand
+   * the question in: it is served where any live pick is — the card target's own surface. Never deaf: it stands, and
+   * it answers.
+   */
+  test('the chairman quest\'s answer: B folds the Parliament, A brings it back — the pick is served and answers', async ({page, request}) => {
+    test.setTimeout(300_000);
+    const {playerId} = await bootFixtureSeats(page, request, 'arwind-chairman-quest', {landing: 'prompt'});
+    type Wire = {waitingFor?: {type: string, agendaWalkPrompt?: {reason?: string}}};
+    const wire = async (): Promise<Wire> => await fetchPlayerModel(request, playerId) as unknown as Wire;
+    const pick = page.locator('.con-parl [data-embed-slot="parliament-answer"] .con-cards__slot');
+    await expect(page.locator('.con-mandatory'), 'the quest\'s plate').toHaveCount(1, {timeout: 25_000});
+    expect(await openMandatoryAnnounce(page), 'A on the plate opens the Parliament').toBe(true);
+    await expect(pick, 'the pick stands in the answer stage\'s zone').toHaveCount(2, {timeout: 60_000});
+    await settle(page, {timeoutMs: 20_000});
+    expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-mandatory').count() > 0, {tries: 3, settleMs: 1500}),
+      'B folds the Parliament — its plate offers the way back').toBe(true);
+    expect(await openMandatoryAnnounce(page), 'A on the plate brings it back').toBe(true);
+    await expect(page.locator('.con-cmdbar'), 'the pick is served — its verb on the bar').toContainText(/Выбрать|Select/, {timeout: 30_000});
+    expect(await pressUntil(page, 'Enter', async () => (await wire()).waitingFor?.agendaWalkPrompt === undefined, {tries: 4, settleMs: 2000}),
+      'the pick answers').toBe(true);
+  });
 });

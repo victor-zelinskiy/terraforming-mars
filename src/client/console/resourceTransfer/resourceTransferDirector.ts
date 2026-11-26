@@ -47,7 +47,11 @@ export type TransferStagePiece = {
  * and — asked at the handover — how much of the token's paint the dim over the board lets through RIGHT NOW (1 — nothing
  * dims the board: the surfacing needs no ramp; the shade on — about .3).
  */
-export type TransferFlightPaint = {plan: TransferPaintPlan, cover: TransferCover, through?: () => number};
+export type TransferFlightPaint = {
+  plan: TransferPaintPlan, cover: TransferCover, through?: () => number,
+  /** The hull's members as they stand NOW (viewport px) — read live while an `up` turn is owed (`transferTurnDue`). */
+  hull?: () => ReadonlyArray<TransferRect>,
+};
 
 /** Below this the surfacing ramps from the dim's paint; at or above it the token simply changes layer (no visible step). */
 const SURFACING_RAMP_BELOW = 0.95;
@@ -618,7 +622,7 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
           rotation: startTilt * (1 - prog.q), // fully square at the landing
         });
         // THE HANDOVER (T12 / CA): at the edge of the covered area — never one z for both ends of the flight.
-        if (!turned && paint !== undefined && paint.plan.turn !== 'none' && transferTurnDue(paint.plan.turn, boxAt(at, prog.q), paint.cover, prog.q)) {
+        if (!turned && paint !== undefined && paint.plan.turn !== 'none' && transferTurnDue(paint.plan.turn, boxAt(at, prog.q), paint.cover, prog.q, paint.plan.turn === 'up' ? paint.hull?.() : undefined)) {
           handOver(prog.q);
         }
         if (!approachAsked && prog.q >= TRANSFER_RETARGET_AT) {

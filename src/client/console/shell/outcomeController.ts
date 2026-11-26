@@ -18,7 +18,7 @@ import {intakeBatchSources} from '@/common/models/CardDrawRevealModel';
 import {ConsoleHandEntry} from '@/client/components/console/consoleHandSectionTypes';
 import {ConsoleColonyPick} from '@/client/components/console/consoleColoniesSectionTypes';
 import {hostedStepLiveIn, hostedStepOwedTo} from '@/client/console/parliament/hostedParliamentStep';
-import {closeWorkspaceRoot, workspaceFrameMounted, stackYieldedToBoard, workspaceStackCollapsed, handFrameToQuestion, frameServing, goBoardHome, popWorkspaceFrame, pushWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameDescended, workspaceFrameHasNested, workspaceFrameIndex, workspaceFramePhase, workspaceStackTop, workspaceFrameStage, workspaceFrameAnchor, workspaceFrameHost, workspaceFrameKnown, workspaceFrameParked, workspaceHostForStep, workspaceFrameOffStage, workspaceSceneHidden, workspaceSceneOnStage, FrameAnchor, WorkspaceFrameKind, workspaceStackState, workspaceFrameSelector} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, workspaceFrameMounted, stackYieldedToBoard, workspaceStackCollapsed, handFrameToQuestion, frameServing, goBoardHome, popWorkspaceFrame, pushWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameDescended, workspaceFrameHasNested, workspaceFrameIndex, workspaceFramePhase, workspaceStackTop, workspaceFrameStage, workspaceFrameAnchor, workspaceFrameHost, workspaceFrameKnown, workspaceFrameParked, workspaceHostForStep, workspaceFrameOffStage, workspaceSceneHidden, workspaceSceneOnStage, FrameAnchor, WorkspaceFrameKind, workspaceStackState, workspaceFrameSelector, workspaceVerbTrail} from '@/client/console/consoleWorkspaceStack';
 import {workspaceConclusionFor} from '@/client/console/consoleWorkspaceFlow';
 import {openFrameQuestionDoor} from '@/client/console/frameQuestionDoor';
 import {colonyTradeEntryLocked} from '@/client/console/colonyTrade/colonyTradeEntry';
@@ -704,9 +704,15 @@ export function createOutcomeController(shell: OutcomePort) {
       return;
     }
     const frames = workspaceStackState.frames.map((f) => `${f.kind}:${f.phase}`).join(';') || 'none';
+    // THE TRAIL (diagnostics): what last moved the stack, and what the frame's own ending last said — a door is a
+    // flow that left its ending to the level, and the next line of the field log must name WHICH road skipped it.
+    const owed = owedConclusions().find((debt) => debt.kind === seen.kind);
+    const refused = conclusionRefusal.byKind.get(seen.kind);
+    const trail = ` · verbs: ${workspaceVerbTrail(now) || 'none'} · owed: ${owed === undefined ? 'no' : `${now - owed.since} ms`} · ` +
+      `refused: ${refused === undefined ? 'never' : `${refused.reason} ${now - refused.at} ms ago`}`;
     const left = concludeWorkspaceFlow(seen.kind);
     console.warn(`[workspace-conclusion] «${seen.kind}» left by the level door — finished over the free turn and quiet for ` +
-      `${door.state.frames} frames / ${now - door.state.since} ms (frames: ${frames})${left ? '' : ' — the conclusion held'}`);
+      `${door.state.frames} frames / ${now - door.state.since} ms (frames: ${frames})${left ? '' : ' — the conclusion held'}${trail}`);
     noteConcludeSpan('', left ? 'door' : 'door-held', now);
   }
 
@@ -1396,7 +1402,7 @@ export function createOutcomeController(shell: OutcomePort) {
     const top = workspaceStackTop();
     // (…or a COLONY step — a card played through a law, RX36, whose door was its colony.)
     if (top !== undefined && (top.kind === 'parliament' || top.kind === 'colonies') && workspaceFrameHost(top.kind) === 'card-actions') {
-      popWorkspaceFrame();
+      popWorkspaceFrame('endCardActionsWithHostedStep');
     }
     // A law's play (RX36) keeps nothing past its end — the landing, the composed play. Idempotent for an action's.
     endLawPlayLanding();
@@ -1434,7 +1440,7 @@ export function createOutcomeController(shell: OutcomePort) {
       shell.colonyPickLatch = colonyPick ?? shell.colonyPick;
     }
     if (hosted !== undefined) {
-      popWorkspaceFrame();
+      popWorkspaceFrame('endHandWithHostedStep');
     }
     shell.endPlayCardFlow();
     shell.handDissolveArmed = !workspaceFrameKnown('hand');

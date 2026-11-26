@@ -91,7 +91,11 @@ function writeFrameAt(frames: ReadonlyArray<CastFrame>, wall: number, preset: st
   console.log(`[sponsored ${preset}] ${name}: frame Δ${Math.round(best.wall - wall)} ms`);
 }
 
-type Sample = {t: number, receipt: boolean, phase: string, take: boolean, counts: Record<string, string>, chips: number, beat: string};
+type Sample = {
+  t: number, receipt: boolean, phase: string, take: boolean, counts: Record<string, string>, chips: number, beat: string,
+  /** The receipt's faces in their order, and the resource each reads (`data-receipt-kind`) — recorded, never re-read. */
+  cards: Array<string>, kinds: Record<string, string>,
+};
 type Probe = {samples: Array<Sample>};
 
 /**
@@ -121,14 +125,20 @@ async function armProbe(page: Page): Promise<void> {
     };
     const receipt = document.querySelector('[data-sit-receipt]');
     const counts: Record<string, string> = {};
+    const cards: Array<string> = [];
+    const kinds: Record<string, string> = {};
     for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-sit-receipt] [data-receipt-card]'))) {
       counts[card.dataset.receiptCard ?? '?'] = card.dataset.receiptCount ?? '';
+      cards.push(card.dataset.receiptCard ?? '?');
+      kinds[card.dataset.receiptCard ?? '?'] = card.dataset.receiptKind ?? '';
     }
     return {
       receipt: visible(receipt),
       phase: document.querySelector('[data-table-receipt]')?.getAttribute('data-receipt-phase') ?? '',
       take: visible(document.querySelector('.con-extdraw')),
       counts,
+      cards,
+      kinds,
       chips: Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => visible(el)).length,
       // The director's own state on the section root — what the sitting is doing between the take and the receipt.
       beat: (() => {
@@ -218,15 +228,19 @@ for (const preset of PRESETS) {
       // ② THE RECEIPT stands in the same zone once the take has left — four faces, Birds (at 0) is not one.
       const receipt = page.locator('[data-sit-receipt]');
       await expect(receipt, 'the receipt of the table stands').toHaveCount(1, {timeout: 30_000});
-      await expect(receipt.locator('[data-receipt-card]')).toHaveCount(4);
-      expect(await receipt.locator('[data-receipt-card]').evaluateAll((els) => els.map((e) => e.getAttribute('data-receipt-card'))), 'the counted cards, in play order').toEqual(RECEIVERS);
-      await expect.poll(() => receipt.locator('[data-receipt-card="Fish"]').getAttribute('data-receipt-kind')).toBe('animal');
-      await expect.poll(() => receipt.locator('[data-receipt-card="Dirigibles"]').getAttribute('data-receipt-kind')).toBe('floater');
-      await expect.poll(() => receipt.locator('[data-receipt-card="Supercomputer"]').getAttribute('data-receipt-kind')).toBe('data');
       // The receipt leaves by itself once every token has landed.
       await expect(receipt, 'the receipt leaves when the wave has landed').toHaveCount(0, {timeout: 30_000});
 
       const probe = await readProbe(page);
+      // ITS FACES, READ OFF THE RECORDING — the receipt is a transient (≈ 2 s from «enter» to «return»): three live reads
+      // one after another raced its leave on a loaded box (the night of 2026-11-26: Fish read, the receipt gone before
+      // Dirigibles was asked). The first painted state holds the faces and their kinds; every later one the same.
+      const faced = probe.samples.find((s) => s.receipt && s.cards.length > 0);
+      expect(faced?.cards, 'the counted cards, in play order — four faces').toEqual(RECEIVERS);
+      expect(faced?.kinds.Fish, 'Fish reads animals').toBe('animal');
+      expect(faced?.kinds.Dirigibles, 'Dirigibles reads floaters').toBe('floater');
+      expect(faced?.kinds.Supercomputer, 'Supercomputer reads data').toBe('data');
+      expect(probe.samples.filter((s) => s.receipt && s.cards.length > 0 && s.cards.join(',') !== RECEIVERS.join(',')).map((s) => s.cards.join(',')), 'the faces never change while it stands').toEqual([]);
       // Every recorded state (a state is kept when it CHANGES — never a count of frames).
       const ticks = probe.samples;
       const tOrigin = ticks[0]?.t ?? 0;

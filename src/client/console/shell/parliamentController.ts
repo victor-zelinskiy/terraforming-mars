@@ -787,7 +787,7 @@ export function createParliamentController(shell: ParliamentPort) {
       // «КАРЬЕРА» inside the START (TRP1 — a Prelude's walk): the step LEAVES, one level, and the opening goes on
       // with its queue (the next Prelude's prompt arrived with the walk's own answer; the start serves it).
       if (workspaceFrameHost('parliament') === 'start') {
-        popWorkspaceFrame();
+        popWorkspaceFrame(`parliament:${kind}-complete`);
         return;
       }
       shell.concludeWorkspaceFlowOrOwe('parliament');
@@ -820,7 +820,7 @@ export function createParliamentController(shell: ParliamentPort) {
         shell.endCardActionsWithHostedStep();
         return;
       }
-      popWorkspaceFrame();
+      popWorkspaceFrame(`parliament:${kind}-complete`);
       return;
     }
     shell.concludeWorkspaceFlowOrOwe('parliament');

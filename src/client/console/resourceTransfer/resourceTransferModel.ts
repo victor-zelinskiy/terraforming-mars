@@ -203,16 +203,29 @@ export function transferPaintPlan(input: TransferPaintInput): TransferPaintPlan 
   return {birth, end, turn: birth === end ? 'none' : birth === 'under' ? 'up' : 'down'};
 }
 
+/** Does the box touch any of the rects (an edge shared is no touch)? */
+export function boxTouchesAny(box: TransferRect, rects: ReadonlyArray<TransferRect>): boolean {
+  return rects.some((r) => box.x < r.x + r.w && box.x + box.w > r.x && box.y < r.y + r.h && box.y + box.h > r.y);
+}
+
 /**
  * IS THE TURN DUE NOW? `up` — the moment the token's box is no longer wholly under the cover (it surfaces at the edge
  * of the glass, before any part of it could slide under the lit rail), and at the final approach at the latest (a lit
  * destination standing INSIDE the covered area — the satellite under the rail's edge — is still landed on, not under);
  * `down` — once the box is wholly under the cover (the token dives under the glass whole, never half over the rail),
  * and at the touchdown at the latest.
+ *
+ * …and `up` THE MOMENT THE BOX TOUCHES THE HULL AS IT STANDS NOW (`hull` — the rail, the strip, the bars, read live): the
+ * cover is the shade's box measured ONCE, at the birth, and the hull it is bounded by may stand wider by the time the
+ * token passes it (a start scene's rows settling, the rail's own intake) — a token still «inside» that stale cover slid
+ * UNDER the rail for a sample (CI's chromium-timing, runs 45162252640 and 45746036892: `lit→under→lit`, «2018 ms
+ * aside.con-res»). The hull paints over the glass and under the lit layer: touching it, a token is lit — by
+ * construction, whatever the cover said at the birth.
  */
-export function transferTurnDue(turn: TransferPaintPlan['turn'], box: TransferRect, cover: TransferCover, q: number): boolean {
+export function transferTurnDue(turn: TransferPaintPlan['turn'], box: TransferRect, cover: TransferCover, q: number,
+  hull: ReadonlyArray<TransferRect> = []): boolean {
   if (turn === 'up') {
-    return q >= TRANSFER_RETARGET_AT || !boxInsideCover(box, cover);
+    return q >= TRANSFER_RETARGET_AT || !boxInsideCover(box, cover) || boxTouchesAny(box, hull);
   }
   if (turn === 'down') {
     return q >= 1 || boxInsideCover(box, cover);

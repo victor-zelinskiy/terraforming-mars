@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
   NO_TRANSFER_COVER, TRANSFER_HANDOVER_FROM, TRANSFER_HANDOVER_MS, TRANSFER_RETARGET_AT, TransferCover, TransferRect,
-  boxInsideCover, transferPaintPlan, transferTurnDue,
+  boxInsideCover, boxTouchesAny, transferPaintPlan, transferTurnDue,
 } from '../../src/client/console/resourceTransfer/resourceTransferModel';
 
 /*
@@ -72,6 +72,19 @@ describe('the paint of a flight — the pure half (T12 / CA)', () => {
       expect(transferTurnDue('up', {x: 221, y: 400, w: 54, h: 54}, COVER, 0.4)).eq(false);
       // Rising into the strip's band (y 80) is leaving the cover too.
       expect(transferTurnDue('up', {x: 600, y: 70, w: 54, h: 54}, COVER, 0.4)).eq(true);
+    });
+
+    it('UP the moment the box touches the hull AS IT STANDS — a rail wider than the cover measured at the birth (CI\'s chromium-timing: «lit→under→lit», 2018 ms under aside.con-res)', () => {
+      // The cover says the box is under the glass…
+      const box = {x: 240, y: 400, w: 54, h: 54};
+      expect(transferTurnDue('up', box, COVER, 0.4), 'the stale cover alone keeps it under').eq(false);
+      // …the rail now stands to x 260: the token touches it — it surfaces, whatever the cover said.
+      expect(transferTurnDue('up', box, COVER, 0.4, [{x: 0, y: 0, w: 260, h: 1080}]), 'touching the hull, it is lit').eq(true);
+      // A hull it does not touch changes nothing; an edge shared is no touch.
+      expect(transferTurnDue('up', box, COVER, 0.4, [{x: 0, y: 0, w: 240, h: 1080}])).eq(false);
+      // The hull never turns a token DOWN (a dive is the cover's word alone).
+      expect(transferTurnDue('down', {x: 200, y: 400, w: 54, h: 54}, COVER, 0.5, [{x: 0, y: 0, w: 260, h: 1080}])).eq(false);
+      expect(boxTouchesAny(box, [])).eq(false);
     });
 
     it('UP at the final approach at the latest — a lit destination standing INSIDE the opening (the satellite) is landed ON', () => {

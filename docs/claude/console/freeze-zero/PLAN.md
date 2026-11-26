@@ -2510,6 +2510,49 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
     the dropped parked drafts of the count were all the door answering the parked research buy right after it.
   - The box: eight browsers at once (8 tokens) bring the boot's long frame back on the box (load 10 – 17 on 12
     threads); CI's runner (one browser) says nothing at boot since the two halves. Night counts run four at a time.
+  - **A SIGNAL CARRIED BY AN ENTRANCE IS SAID ON MOUNT TOO — a law, read off every console component.** The same deaf
+    class twice: after the sitting's layers, the section's own answer stage (the chairman quest's step, `reason:
+    'quest'`) published its zone only from its `@enter`, and a section mounted with the stage already up said nothing.
+    The section now says `noteTableAnswerPaneIn` / `noteParliamentDrawPaneIn` on mount for a stage present at its first
+    render; the guard `tests/console/paneInEntranceGuard.spec.ts` reads every `<transition>` whose enter hook publishes a
+    pane (`note*PaneIn(`, `x.paneIn = true`) and refuses one that is neither `appear` nor said by its component's mount
+    (red on the section before the fix). The quest's own flow ends with its section by design (its beats have nowhere
+    to play), so a quest taken back is served where any live pick is — the card target's surface: the spec asserts it
+    stands AND answers.
+  - **THE PILOT READS A GREY COMMIT** (the night count's games 1802 and 1803 — two doors on the Reds' party action,
+    «discard exactly two»): the pick's RT («Сбросить») stays disabled until the second card, the pilot read only the
+    verbs on offer, never took its RT rule and toggled one card on and off until the door answered. A pilot's hands,
+    never a place of the product: the screen keeps its disabled commit (with its reason); the pilot reads the greyed
+    verbs too (`Screen.greyed`).
+  - **B IN A BEAT IS THE BEAT's — the level door's root** (`workspace-conclusion/level-door/hand`: seed 1656 one replay
+    in four, «Юристы Красных»; the night count's game 1806, «Nationalist Movement» — the Career's walk hosted in the
+    hand, B through it, the hand left `committed` ALONE and nobody asked its ending). The door now says its TRAIL
+    (`workspaceVerbTrail`: the stack's last verbs and every fold of a frame back to browse, when, at what depth, a pop's
+    and a fold's CALLERS as release-build positions — read back by the build's own frame symbols /
+    `chunks/*.js.map`), and two readings named the road: `phase:parliament executing→browse` ←
+    `ConsoleParliamentSection.handleStageIntent`, then `leaveWorkspace` ← `onParliamentClose` ← the section's browse B.
+    The section's B branch ended in a FALLTHROUGH `closeStage()` — for the walk and the rally too, the beats whose own
+    comment below said «B says nothing»: the walk was torn mid-flight (its run no longer alive, its ending never
+    reported), the next B on the browse grid popped the step. B in a beat now says nothing (`walk` / `rally`, and any
+    stage whose frame takes no input), and the browse grid answers only where its frame takes input (`acceptsInput`) —
+    the bar's own contract. Seed 1656 on the box: four doors in six replays before, none in six after (Red Lawyers
+    played in all six, the logs empty). The fixtures never reproduced it (green before the fix too — on them no B
+    reached the walk's stage); the field seed is the proof.
+  - **A TOKEN TOUCHING THE HULL IS LIT** (CI's chromium-timing flake, runs 45162252640 and 45746036892:
+    `console-flight-paint` A — `lit→under→lit`, «2018 ms under aside.con-res»): a board-born token's cover is the
+    shade's box measured ONCE at its birth, and the hull may stand wider by the time the token passes it — a token still
+    «inside» that stale cover slid under the rail for a sample. `transferTurnDue` now turns a token UP the moment its box
+    touches the hull as it stands (`measureTransferHull`, read live while the turn is owed — the paint witness's own
+    list); unit row in `transferPaintPlan.spec`.
+  - **THREE RACES OF THE CHECKS, never of the product:** `console-parliament-sponsored` read the table's receipt (a
+    transient — ≈ 2 s from «enter» to «return») with three live polls one after another, and on a loaded box the receipt
+    left between Fish and Dirigibles: its faces and their kinds are now read off the spec's own recording (the probe,
+    armed before the press). CI's burn-in went red on «80 deals, none offering Power Plant»
+    (`console-hand-play-back-in-beat` asked the shuffle for one card) — the spec now asks for ANY plain play
+    (`createGameWithOneOf` + `PLAIN_PLAY_CARDS`: thirteen production-only cards, no target, no tile); and
+    `commitImpulseLatch.spec` slept 1.5 s of real time against the motion's 1.4 s timer (red one run in three on a
+    loaded laptop — the motion ticker lags a starved page by design): its stalled timeline is bounded by the latch's
+    WALL ceiling, advanced on the kernel's manual clock (red without the ceiling, green with it).
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read

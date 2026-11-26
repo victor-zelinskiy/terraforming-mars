@@ -1458,8 +1458,45 @@ export function workspaceLastVerb(): string {
   return lastStackVerb;
 }
 
+/**
+ * …AND THE LAST FEW, WITH WHEN AND AT WHAT DEPTH (FREEZE ZERO — the level door's trail): «who took the hosted step off
+ * the hand» is a fact the door can SAY, never a replay one game in four. Diagnostics only — plain module state, never
+ * reactive, never read by a decision.
+ */
+const VERB_TRAIL_LENGTH = 8;
+const verbTrail: Array<{verb: string, at: number, depth: number, callers: string}> = [];
+/**
+ * The trail as one line: `−1.20s leaveWorkspace@2 › …` (the oldest first; `''` — no verb yet). A POP carries its callers'
+ * frames (`[main.js:1:2208616<…]` — a release build's positions, read back by the build's own frame symbols,
+ * `src/client/diagnostics/frameSymbols.ts`): «which road popped the step» is a fact of the line, never a second replay.
+ */
+export function workspaceVerbTrail(now = Date.now()): string {
+  return verbTrail.map((row) => `−${((now - row.at) / 1000).toFixed(2)}s ${row.verb}@${row.depth}${row.callers === '' ? '' : `[${row.callers}]`}`).join(' › ');
+}
+
+/** The frames that called the verb, as `file:line:column` — at most eight (a release bundle is one file: the first few are this module's own). */
+function verbCallers(): string {
+  const out: Array<string> = [];
+  for (const line of (new Error().stack ?? '').split('\n').slice(1)) {
+    const at = /([\w.@-]+\.(?:js|ts|vue)):(\d+):(\d+)\)?\s*$/.exec(line.trim());
+    if (at === null || /consoleWorkspaceStack/.test(line)) {
+      continue;
+    }
+    out.push(`${at[1]}:${at[2]}:${at[3]}`);
+    if (out.length >= 8) {
+      break;
+    }
+  }
+  return out.join('<');
+}
+
 function traceVerb(verb: string): void {
   lastStackVerb = verb;
+  // (The callers of a POP only — the one verb that takes a single level off the top, whoever's frame it was.)
+  verbTrail.push({verb, at: Date.now(), depth: workspaceStackState.frames.length, callers: verb.endsWith('popWorkspaceFrame') ? verbCallers() : ''});
+  if (verbTrail.length > VERB_TRAIL_LENGTH) {
+    verbTrail.shift();
+  }
   if (typeof window !== 'undefined' && (window as unknown as {__wsTrace?: boolean}).__wsTrace === true) {
     console.warn('[ws-stack] ' + verb + ' depth=' + workspaceStackState.frames.length, new Error().stack);
   }
@@ -1573,9 +1610,9 @@ export function closeWorkspaceSheet(): void {
   truncateWorkspaceStack(keep, 'closeWorkspaceSheet');
 }
 
-/** Leave the top frame — one logical level. */
-export function popWorkspaceFrame(): void {
-  traceVerb('popWorkspaceFrame');
+/** Leave the top frame — one logical level (`by` — the ending that asked, for the trail). */
+export function popWorkspaceFrame(by = ''): void {
+  traceVerb(by === '' ? 'popWorkspaceFrame' : `${by} › popWorkspaceFrame`);
   workspaceStackState.frames.pop();
   syncFrameLifetimes();
 }
@@ -2150,6 +2187,7 @@ export function resetWorkspaceStack(): void {
   staleRefusalsInARow = 0;
   syncFrameLifetimes();
   lastStackVerb = '';
+  verbTrail.splice(0);
 }
 
 // ── invariant 3: a frame is a scope, its phase a machine ─────────────────────
@@ -2253,6 +2291,14 @@ function syncFrameLifetimes(): void {
 
 /** THE ONE WRITER of a frame's phase: through its machine when it has one (every frame in a home does). */
 function writeFramePhase(frame: WorkspaceFrame, phase: WorkspacePhase): void {
+  // …AND A FRAME FOLDED BACK TO ITS BROWSE PHASE (the trail, with its callers): the browse layer's B is «close», so «who
+  // folded the frame» is the other half of «who popped it».
+  if (phase === 'browse' && frame.phase !== 'browse') {
+    verbTrail.push({verb: `phase:${frame.kind} ${frame.phase}→browse`, at: Date.now(), depth: workspaceStackState.frames.length, callers: verbCallers()});
+    if (verbTrail.length > VERB_TRAIL_LENGTH) {
+      verbTrail.shift();
+    }
+  }
   const runtime = frameRuntimes.get(toRaw(frame));
   if (runtime === undefined || runtime.scope.ended !== undefined) {
     frame.phase = phase;
