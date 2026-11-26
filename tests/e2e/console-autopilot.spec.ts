@@ -1,6 +1,6 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
-import {answerPrompt, cinematicBeat, fetchPlayerModel, NO_PAYMENT, openConsole, seedGameOverApi, sendPlayerInput, soloGameConfig} from './consoleStart';
+import {answerPrompt, cinematicBeat, fetchPlayerModel, NO_PAYMENT, openConsole, seedGameOverApi, sendPlayerInput, soloGameConfig, syncClient} from './consoleStart';
 
 /**
  * THE AUTOPILOT — A WHOLE GAME THROUGH THE REAL CONSOLE, IN A REAL BROWSER (FREEZE ZERO, stage 6 — «whole games and
@@ -176,6 +176,8 @@ type Screen = {
   look: '' | 'info' | 'journal' | 'played',
   /** The layout of a production loss stands. */
   prodLoss: boolean,
+  /** The heat-spending composite stands on screen (`.con-heat`). */
+  heat: boolean,
   /**
    * The keys of the bar's commands that stand DISABLED — not offered, yet the screen's own word for the next press once
    * the layout is complete (a pick of exactly two cards: «RT Сбросить» stays grey until the second card).
@@ -231,6 +233,7 @@ async function look(page: Page): Promise<Screen> {
       look: document.querySelector('.con-info') !== null ? 'info' as const : document.querySelector('.con-journal') !== null ? 'journal' as const :
         document.querySelector('.con-played:not(.con-played--hero):not(.con-played--embedded)') !== null ? 'played' as const : '' as const,
       prodLoss: document.querySelector('.con-prodloss') !== null,
+      heat: document.querySelector('.con-heat') !== null,
       quick: document.querySelector('.con-quick') !== null,
       pass: document.querySelector('.con-quick [data-quick-id="pass"]') !== null,
       confirm: document.querySelector('.con-confirm') !== null,
@@ -360,6 +363,9 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
    * asks the same seat again). Its moves reach this console as another player's: the foreign classes of the console.
    */
   const rivalStuck = new Set<number>();
+  /** The rival's project tries (the response object → the project's name), and the projects whose refusal was named. */
+  const spTries = new Map<unknown, string>();
+  const spRefusedNamed = new Set<string>();
   const rivalsMove = async (): Promise<number> => {
     let moves = 0;
     for (const rival of rivals) {
@@ -374,10 +380,22 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         // option of it (an «end», a «skip», a «do nothing»): a seat must never stand on a question it cannot answer.
         const tries: Array<unknown> = [];
         // (A seat that can terraform mostly does — the table goes on to its end.)
+        // (…EVERY terraforming project it can afford, in the server's order — a refused one is followed by the next, never
+        // by a pass: the night count's duo tables stood on the cap with the oceans at 1 – 4 for forty generations, the
+        // seat's one project try refused and its pass taken instead. The price is paid from its own stock, M€ first, and
+        // a refusal is named once per project — `[RIVAL-SP-REFUSED …]`.)
         const projects = options.findIndex((o) => o.type === 'projectCard' && (o.cards ?? []).some((c) => TERRAFORMING_SP.includes(c.name) && c.isDisabled !== true));
-        const project = projects >= 0 ? options[projects].cards?.find((c) => TERRAFORMING_SP.includes(c.name) && c.isDisabled !== true) : undefined;
-        if (project !== undefined && rivalRng() < 0.8) {
-          tries.push({type: 'or', index: projects, response: {type: 'projectCard', card: project.name, payment: {...NO_PAYMENT, megacredits: project.calculatedCost ?? 0}}});
+        if (projects >= 0 && rivalRng() < 0.8) {
+          const me = (await fetchPlayerModel(request, rival) as unknown as {thisPlayer: {megacredits: number, heat: number}}).thisPlayer;
+          const can = (options[projects] as {paymentOptions?: Record<string, boolean | undefined>}).paymentOptions ?? {};
+          for (const project of (options[projects].cards ?? []).filter((c) => TERRAFORMING_SP.includes(c.name) && c.isDisabled !== true)) {
+            const cost = project.calculatedCost ?? 0;
+            const megacredits = Math.min(me.megacredits, cost);
+            const heat = can.heat === true ? Math.min(me.heat, cost - megacredits) : 0;
+            const response = {type: 'or', index: projects, response: {type: 'projectCard', card: project.name, payment: {...NO_PAYMENT, megacredits, heat}}};
+            spTries.set(response, project.name);
+            tries.push(response);
+          }
         }
         if (pass >= 0 && rivalRng() < 0.3) {
           tries.push({type: 'or', index: pass, response: {type: 'option'}});
@@ -439,6 +457,11 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
           } catch (e) {
             // the server refused this one — the next (its word kept: a stuck seat names why)
             refused = String((e as Error).message ?? e).split('\n').find((line) => /rejected/.test(line))?.slice(0, 220) ?? '';
+            const sp = spTries.get(response);
+            if (sp !== undefined && !spRefusedNamed.has(sp)) {
+              spRefusedNamed.add(sp);
+              log.push(`[RIVAL-SP-REFUSED ${sp}: ${refused.replace(/^.*?: (\d{3})/, '$1').slice(0, 160)}]`);
+            }
           }
         }
         if (!answered) {
@@ -450,6 +473,16 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         }
         moves++;
       }
+    }
+    // THE PAGE SEES THE OTHER SEAT's MOVES BEFORE THE PILOT PRESSES (the night count's game 2009: three API moves of
+    // the second seat, the pilot's A on «Закрыть заседание» a tenth of a second later — answered against the prompt
+    // the page still held, refused `STALE_PROMPT` (400), as the server's gate is built to). Two people at a table do
+    // not press inside the other's network round trip on every move; the harness made that the rule. Bounded: a page
+    // still behind after it is named (`[PAGE-BEHIND]`) — a view held behind a story is the product's question.
+    if (moves > 0) {
+      await syncClient(page, request, viewer, {timeoutMs: 5_000}).catch(() => {
+        log.push('[PAGE-BEHIND]');
+      });
     }
     return moves;
   };
@@ -536,7 +569,16 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     // (the night count's 1823) read nothing of who was terraforming — the next one says it.
     if (model.game.generation !== played.generation && played.generation > 0) {
       const g = model.game;
-      log.push(`[GEN ${g.generation} · T${g.temperature ?? '?'} · O${g.oxygenLevel ?? '?'} · W${g.oceans ?? '?'}${g.venusScaleLevel === undefined ? '' : ` · V${g.venusScaleLevel}`}]`);
+      // (…and the second seat's purse and rating: a seat that cannot afford a project is not one that refuses it.)
+      const seats = await Promise.all(rivals.map(async (rival) => {
+        const wire = await fetchPlayerModel(request, rival) as unknown as {thisPlayer: {megacredits: number, terraformRating: number, heat: number}, waitingFor?: Wire['waitingFor']};
+        const them = wire.thisPlayer;
+        // (…and what its menu offers of the terraforming projects, `✓` / `✗` — a seat with the M€ that never tries one.)
+        const sp = (wire.waitingFor?.options ?? []).flatMap((o) => (o.cards ?? []).filter((c) => TERRAFORMING_SP.includes(c.name))
+          .map((c) => `${c.name}${c.isDisabled === true ? '✗' : '✓'}${o.type === 'projectCard' ? '' : `(${o.type})`}`));
+        return ` · R ${them.megacredits}M€ ${them.heat}h TR${them.terraformRating}${wire.waitingFor === undefined ? '' : ` asked ${wire.waitingFor.type}`}${sp.length > 0 ? ` sp[${sp.join(' ')}]` : ''}`;
+      }));
+      log.push(`[GEN ${g.generation} · T${g.temperature ?? '?'} · O${g.oxygenLevel ?? '?'} · W${g.oceans ?? '?'}${g.venusScaleLevel === undefined ? '' : ` · V${g.venusScaleLevel}`}${seats.join('')}]`);
     }
     played.generation = model.game.generation;
     played.phase = model.game.phase;
@@ -764,9 +806,13 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     // question the screen does not answer and only nudges the stick (the night count's game 1826: «Распределение
     // ресурсов · LB/RB −1 / +1 · X Забрать», the pilot nudged the stick until the door answered).
     // THE HEAT SPENT AS M€ (pilot 3 — the fifth hundred's first doors, thirteen of them on one question): the composite
-    // asks «how much heat»: RT takes the most it may, X pays — a player reads both off the bar.
-    if (PILOT >= 3 && (wf as {spendHeatPrompt?: unknown}).spendHeatPrompt !== undefined && seen.look === '' && !seen.zoom && seen.frames.length === 0) {
-      await press((['Period', 'KeyX'] as const)[standing.presses % 2], pause());
+    // asks «how much heat»: RT takes the most a lane may, X pays once the bill is covered, the next lane when one lane
+    // does not cover it (A on the one-step layout) — a player reads all of it off the bar. ONLY ON ITS OWN SCREEN: read
+    // at home with the question set aside, its X was «Разыграно» — the pilot opened its own table over the way back
+    // (the new count's seven doors, a regression of the reorder above).
+    if (PILOT >= 3 && (wf as {spendHeatPrompt?: unknown}).spendHeatPrompt !== undefined && seen.heat && seen.look === '' && !seen.zoom) {
+      const take = seen.offered.some((o) => o.key === 'Period') || seen.greyed.includes('Period') ? 'Period' : 'Enter';
+      await press(([take, 'KeyX', 'ArrowDown'] as const)[standing.presses % 3], pause());
       continue;
     }
     // THE DISTRIBUTION OF RESOURCES (pilot 3): a unit onto the focused row (RB where the layout steps by LB/RB, A where A

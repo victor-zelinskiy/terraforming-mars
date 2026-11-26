@@ -271,7 +271,12 @@ export function servingOwnerOf(f: QuestionFacts): Ownership {
   if (f.boardBranch) {
     return {asked: true, owner: 'board', basis: 'branch', admission: 'placement', ...holdOf('placement', f)};
   }
-  if (f.scene !== '') {
+  // (…THE ENERGY's TURN INTO HEAT is a RAIL story that holds the NEXT view's commit — and with it every surface of the
+  // next phase still to ENTER (`energyConversionTransition`): a workspace already standing on the stack keeps its screen
+  // through it, as through a block of its own (the door, not the presence — below). The sitting's results stood while
+  // the view that closes the Parliament waited for the conversion: «EXTRA: says parliament held by
+  // scene:energy-conversion, painted parliament» — CI's bottle, game 281, #138.)
+  if (f.scene !== '' && !(f.scene === 'energy-conversion' && f.frames.includes(owner.owner as WorkspaceFrameKind))) {
     return {asked: true, ...owner, hold: {kind: 'scene', by: f.scene}};
   }
   if (f.startYielded && owner.owner === 'start') {

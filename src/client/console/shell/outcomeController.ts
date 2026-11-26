@@ -667,7 +667,13 @@ export function createOutcomeController(shell: OutcomePort) {
     // (UNDER the beat: the frame's own node — «this beat waits for its motion» — is the question, never its answer.)
     const flight = flightsInTheAir(Date.now(), `surface:${top.kind}`);
     const reveal = document.querySelector('.con-reveal') !== null ? ' · reveal' : '';
-    noteBeatSpan(`${top.kind}:${beat}${reveal} · ${flight === '' ? `QUIET{${flowTreeDigest(6).replace(/[0-9]+/g, 'N').slice(0, 200)}}` : `busy[${flight}]`}`, 'moved', Date.now());
+    // (…and a QUIET beat says what the workspace's own ending stands on — the claim, the commit's fold, the composer: a
+    // surface beat with nothing in flight is a pause nobody declared, and its row must name the owner's state, not only
+    // the tree — #166, CI's game 257: «card-actions:executing» quiet 652 ms, the tree naming nobody.)
+    const own = flight !== '' ? '' : ` · claim:${workspaceOutcomeClaimed() && workspaceOutcomeState.host === top.kind ? workspaceOutcomeState.stage : '-'}` +
+      `${commitFoldOwed.value ? ' fold' : ''}${pendingCommitDismiss.value !== undefined ? ' dismiss' : ''}` +
+      `${document.querySelector('[data-motion-surface="action-composer"]') !== null ? ' composer' : ''}`;
+    noteBeatSpan(`${top.kind}:${beat}${reveal} · ${flight === '' ? `QUIET{${flowTreeDigest(6).replace(/[0-9]+/g, 'N').slice(0, 200)}}${own}` : `busy[${flight}]`}`, 'moved', Date.now());
   }
 
   const conclusionDoor = {state: conclusionDoorInit()};

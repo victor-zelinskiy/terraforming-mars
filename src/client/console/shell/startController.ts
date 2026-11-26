@@ -19,7 +19,7 @@ import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
 import {Phase} from '@/common/Phase';
 import {CardType} from '@/common/cards/CardType';
-import {consoleStartState, foldStartActStages, startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startHeroPlaying, startSceneHeld} from '@/client/console/consoleStartState';
+import {consoleStartState, foldStartActStages, releaseStartScene, startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startHeroPlaying, startSceneHeld} from '@/client/console/consoleStartState';
 import {boardExcursionActive, boardExcursionQuiet, engageBoardExcursion, releaseBoardExcursion} from '@/client/console/boardExcursion';
 import {bonusActionInStartFlow, bonusActionOnBoard, bonusActionOwed} from '@/client/console/bonusAction';
 import {firstActionOwed} from '@/client/console/startFirstAction';
@@ -775,6 +775,26 @@ export function createStartController(shell: StartPort) {
    */
   const startAnchorDead = computed((): boolean => {
     return !startFrameLive.value && openingOverByServer.value;
+  });
+
+  /**
+   * THE LIFETIME HOLD OF A SCENE THAT IS NOT THERE TO LET IT GO (#128 — CI's bottle game 285, read by the stack's trail:
+   * the opening minimized, finished while parked, A «Вернуться» — `restoreWorkspaceStack start` — and a start serving
+   * nothing stood until the start director's level door released it). The scene's hold is let go by its OWN release
+   * beat, which a parked scene — unmounted — never plays; the hold then kept `startSceneServes` and with it
+   * `startFrameLive`, so the anchor of an opening the server had ended never died and the park brought the start back.
+   * A held scene whose frame is parked, the opening over by the server's word and nothing of it owed, lets its hold go:
+   * the anchor dies, the park's dead-frame rule drops the frame, and the way back has nothing to bring back.
+   */
+  const startHoldOrphaned = computed((): boolean => {
+    return startSceneHeld() && workspaceFrameParked('start') && openingOverByServer.value && startTask.value === undefined &&
+      !startHeroPlaying() && !hostedStepOwedTo('start') && !hostedStepLiveIn('start') && !workspaceFrameHasNested('start') &&
+      !(workspaceOutcomeState.host === 'start' && workspaceOutcomeState.sourceCard !== '');
+  });
+  watch(startHoldOrphaned, (orphaned) => {
+    if (orphaned) {
+      releaseStartScene();
+    }
   });
 
   const startStagesOrphaned = computed((): boolean => {

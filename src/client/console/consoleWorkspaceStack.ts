@@ -2145,6 +2145,8 @@ export function restoreWorkspaceStack(): void {
   }
   // Whatever the player was browsing gives way — coming back to a set-aside
   // decision means leaving the screen they went to look at.
+  // (The trail names the return too — a frame that came back is half of «who left it standing».)
+  traceVerb('restoreWorkspaceStack ' + workspaceStackState.parked.map((f) => f.kind).join(','));
   const frames = workspaceStackState.parked.splice(0);
   for (const frame of frames) {
     // The hosts are about to re-mount and must re-publish; a stale selector
@@ -2174,7 +2176,11 @@ export function restoreWorkspaceStack(): void {
  */
 export function discardWorkspacePark(): void {
   const root = workspaceStackState.parked[0];
-  workspaceStackState.parked.splice(root !== undefined && root.anchor.type === 'phase' ? 1 : 0);
+  const keep = root !== undefined && root.anchor.type === 'phase' ? 1 : 0;
+  if (workspaceStackState.parked.length > keep) {
+    traceVerb('discardWorkspacePark ' + workspaceStackState.parked.slice(keep).map((f) => f.kind).join(','));
+  }
+  workspaceStackState.parked.splice(keep);
   syncFrameLifetimes();
 }
 

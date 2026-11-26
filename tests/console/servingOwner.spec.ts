@@ -251,6 +251,13 @@ describe('servingOwner — who serves the question: one total function', functio
     const blocked = {blocks: {section: 'presentation'}};
     expect(servingOwnerOf({...QUIET, task: {kind: 'parliamentPhase', stage: 'close'}, ...blocked, frames: ['parliament']})).to.not.have.property('hold');
     expect(servingOwnerOf({...QUIET, task: {kind: 'parliamentPhase', stage: 'close'}, ...blocked})).to.deep.include({hold: {kind: 'admission', by: 'presentation'}});
+    // THE ENERGY's TURN INTO HEAT holds what is still to enter, never a workspace standing (CI's bottle game 281, #138).
+    expect(servingOwnerOf({...QUIET, task: {kind: 'parliamentPhase', stage: 'close'}, scene: 'energy-conversion', frames: ['parliament']}),
+      'the sitting standing keeps its screen through the conversion').to.not.have.property('hold');
+    expect(servingOwnerOf({...QUIET, task: {kind: 'parliamentPhase', stage: 'close'}, scene: 'energy-conversion'}),
+      'a sitting still to enter waits for it').to.deep.include({hold: {kind: 'scene', by: 'energy-conversion'}});
+    expect(servingOwnerOf({...QUIET, task: {kind: 'parliamentPhase', stage: 'close'}, scene: 'final-greenery', frames: ['parliament']}),
+      'a scene that takes the screen whole holds the standing one too').to.deep.include({hold: {kind: 'scene', by: 'final-greenery'}});
     // THE SCREEN BEING HANDED OVER to the owner is a hold of the owner — the leaving surface is what stands.
     expect(servingOwnerOf({...QUIET, task: {kind: 'cardSelect', mode: 'buy'}, draftClaims: true, host: 'parliament', handoff: ['draft']}))
       .to.deep.include({owner: 'draft', hold: {kind: 'scene', by: 'handoff'}});

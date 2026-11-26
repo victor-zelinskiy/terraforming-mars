@@ -107,6 +107,9 @@ export const LAYOUT_BLIND: ReadonlyArray<{cls: RegExp, why: string}> = [
   // (2026-11-26 — CI's autopilot run 45746039803 played the SAME seeds in a real browser beside the bottle: games 226 and
   // 244 there said nothing of either — the whole browser report of 48 games held one info line.)
   {cls: /^wait-graph\/ceiling\/start-bonus:visible-source$/, why: '«the visible ends (source card · rail rows) of the bonus gain» — ends whose rects are VISIBLE (`transferEndVerdict`); a 0×0 rect is no end'},
+  // (2026-11-26 — CI's autopilot run 45761070587, games 249 – 296: the bottle named it five times, the real browser on the
+  // same seeds never.)
+  {cls: /^invariant\/broken\/console-start:summary-tiles-unmeasured$/, why: '«the start\'s summary tiles are measured» — a 0×0 rect is no measure'},
   {cls: /^wait-graph\/ceiling\/board-card-bonus:hover$/, why: '«the end of the lift rise» of the board card bonus — a GSAP rise the wait counts in painted frames (61, `ConsoleBoardCardBonusLayer.waitForHover`); the bottle\'s frames and the motion\'s clock part (one game in 48)'},
 ];
 

@@ -44,7 +44,7 @@ import {buildStallEvidence, stallHolder, StallHolderFacts} from '@/client/consol
 import {inputEchoSnapshot} from '@/client/console/inputEcho';
 import {ANIMATION_STALL_GRACE_MS} from '@/client/console/consoleForegroundWatchdog';
 import {ConsoleRevealMode} from '@/client/components/console/consoleRevealOverlayTypes';
-import {closePhaseRoot, closeWorkspaceRoot, deadLiveFrames, pruneOffStageDeadFrames, collapseWorkspaceStack, stackYieldedToBoard, frameServing, goBoardHome, popWorkspaceFrame, workspaceFrameHasNested, workspaceStackTop, workspaceFrameAnchor, workspaceFrameKnown, workspaceFrameAnywhere, workspaceFrameParked, workspaceStackCollapsed, workspaceStackState, workspaceFrameOffStage, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {closePhaseRoot, closeWorkspaceRoot, deadLiveFrames, pruneOffStageDeadFrames, collapseWorkspaceStack, stackYieldedToBoard, frameServing, goBoardHome, popWorkspaceFrame, workspaceFrameHasNested, workspaceStackTop, workspaceFrameAnchor, workspaceFrameKnown, workspaceFrameAnywhere, workspaceFrameParked, workspaceStackCollapsed, workspaceStackState, workspaceFrameOffStage, WorkspaceFrameKind, workspaceVerbTrail} from '@/client/console/consoleWorkspaceStack';
 import {openFrameQuestionDoor} from '@/client/console/frameQuestionDoor';
 import {Phase} from '@/common/Phase';
 import {isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
@@ -841,7 +841,11 @@ export function createSupervisorController(shell: SupervisorPort) {
     if (did === '') {
       return '';
     }
-    console.warn(`[start-shadow] cure «${cure}» by ${by} — expected «${finding.expected}», on screen «${finding.actual}»: ${did}`);
+    // (…AND ITS TRAIL — the stack's last verbs and what stands parked: «why does the start stand serving nothing» is the
+    // road that left it there, the level door's own reading (`workspaceVerbTrail`).)
+    const parked = workspaceStackState.parked.map((f) => `${f.kind}:${f.phase}`).join('>') || 'none';
+    console.warn(`[start-shadow] cure «${cure}» by ${by} — expected «${finding.expected}», on screen «${finding.actual}»: ${did} · ` +
+      `verbs: ${workspaceVerbTrail() || 'none'} · parked: ${parked}`);
     return `${cure}: ${did}`;
   }
 

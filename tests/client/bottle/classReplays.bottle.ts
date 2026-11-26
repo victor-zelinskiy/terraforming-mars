@@ -429,7 +429,7 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     await live.advance(450);
     // Half a second in: the director's cure, by level — the heal found no door of the scene's to open, and yielded.
     expect(said('[start-shadow] cure').length, 'ONE cure').to.equal(1);
-    expect(said('[start-shadow] cure')[0]).to.match(/\[start-shadow\] cure «heal» by level — expected «firstAction», on screen «none»: nothing-to-heal → yielded$/);
+    expect(said('[start-shadow] cure')[0]).to.match(/\[start-shadow\] cure «heal» by level — expected «firstAction», on screen «none»: nothing-to-heal → yielded · verbs: .* · parked: .*$/);
     // Past the bar twice over — and past where the watchdog's timers used to come (2.5 s + 2.5 s): the strand's door
     // never stood for the director's state, and the director does not cure twice.
     // (What the plant leaves behind — a scene whose mirror lies about a stage that really stands — is the arbiter's

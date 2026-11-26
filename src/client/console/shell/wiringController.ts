@@ -44,7 +44,7 @@ import {colonyTradeState, isColonyTradeInputLocked, colonyTradeDiagnostics} from
 import {conWsPresence, installConWsPresenceBridge} from '@/client/console/conWsPresenceBridge';
 import {installRowLeaveRects} from '@/client/console/surfaceMotion/rowLeaveRect';
 import {colonyFocusState} from '@/client/console/consoleColoniesModel';
-import {consoleStartState, startSceneHeld} from '@/client/console/consoleStartState';
+import {consoleStartState, releaseStartScene, startSceneHeld} from '@/client/console/consoleStartState';
 import {boardExcursionActive, releaseBoardExcursion} from '@/client/console/boardExcursion';
 import {firstActionOwed} from '@/client/console/startFirstAction';
 import {frameLeftDetail, isResourceTransferActive, noteTransferTrail, resourceTransferDiagnostics} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -771,6 +771,14 @@ export function createWiringController(shell: WiringPort) {
       // game 50, 2026-11-24 — the opening parked, finished elsewhere, its frame dropped by this very rule).
       if (home === 'parked' && !workspaceStackCollapsed() && setAsideRecord()?.what === 'chain') {
         takeUpQuestion('chain-gone');
+      }
+      // …AND THE OPENING's SCENE ENDS WITH ITS FRAME (#128 — CI's bottle game 285, the trail read: the opening minimized
+      // twice, finished while parked, its frame dropped here — and the scene's LIFETIME hold, let go only by the scene's
+      // own release beat, still stood: the scene was not mounted to play it. The shell stood the scene up again, a
+      // start serving nothing, until the start director's level door released it). An off-stage start frame that does
+      // not come back takes its scene's hold with it.
+      if (kinds.includes('start') && startSceneHeld()) {
+        releaseStartScene();
       }
     });
     // THE CURE STAND'S SEAM (`?screenControl=1` only): a latch bug put in on purpose — the stack dropped, or a foreign

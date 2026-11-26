@@ -52,7 +52,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {OwedStoryHandle, owePresentation} from '@/client/console/presentationLedger';
 import {captureGlobalParams, HeldGlobalParams} from '@/client/console/planetFocus';
 import {
-  boardBeatBoardWatchable, boardCoverReasonsNow, boardBeatHoldsParam, boardBeatParkState, setBoardSwingDisplay,
+  boardBeatBoardWatchable, boardCoverReasonsNow, boardBeatHoldsParam, boardBeatParkState, boardStoryHeldByPlayer, setBoardSwingDisplay,
 } from '@/client/console/boardBeatPark';
 import {registerBoardSceneMember} from '@/client/console/boardSceneMembers';
 import {boardSceneSettling} from '@/client/console/rewardPayoutQuiet';
@@ -185,8 +185,13 @@ registerAnimationHoldSupplier(SCALE_SWING_KEY, scaleSwingPlaying, {
 });
 // Waiting for the board is NOTIFICATION-ONLY: a workspace whose conclusion waits on blocking holds must never wait
 // for a scene that waits for the workspace to leave.
-registerAnimationHoldSupplier(`${SCALE_SWING_KEY}-owed`, () => scaleSwingState.phase === 'waiting', {
+// …AND ONLY WHILE THE STORY WILL PLAY (the scale step's rating's law — #150): a swing owed behind the player's OWN
+// screen waits for a stage only they can uncover, and the feed does not wait with it; its ceiling, if one is ever
+// reached, says it waited for the player (#164 — CI's bottle, game 270: the oxygen's swing «held for over 35000 ms —
+// leaked hold?» over a board the player kept covered by their section and a workspace).
+registerAnimationHoldSupplier(`${SCALE_SWING_KEY}-owed`, () => scaleSwingState.phase === 'waiting' && boardStoryHeldByPlayer() === undefined, {
   scope: 'notification-only',
+  heldForPlayer: boardStoryHeldByPlayer,
   diagnose: () => ({seq: scaleSwingState.seq, watchable: boardBeatBoardWatchable(), coveredBy: boardCoverReasonsNow(), settling: boardSceneSettling()}),
   expire: () => {
     if (scaleSwingState.phase !== 'waiting') {
@@ -350,12 +355,17 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
       `${boardSceneSettling() ? ' · a board scene settling' : ''}${held.length > 0 ? ` · parked ${held.join(', ')}` : ''}`;
   };
   const wait = beginCeilingWait({id: 'scale-swing:stage', owner: 'scaleSwingDirector', what: 'the stage of the scale swing', maxMs: SWING_STAGE_DUE_MS, detail: standing()});
+  // THE PLAYER's TIME IS NOT THE WAIT's (the landing law — #165, CI's bottle game 270: «overdue ceiling:scale-swing:stage
+  // … board covered · parked oxygenLevel — past its 40 s bound — standing 42 s»): the story's own due stops while the
+  // player keeps the board covered by a screen of theirs, and the node's bound stops with it.
+  const offPlayer: WatchStopHandle = watch(() => boardStoryHeldByPlayer(), (why) => wait.heldByPlayer(why), {immediate: true});
   return new Promise<boolean>((resolve) => {
     const stop: WatchStopHandle = watch(
       () => (epoch !== myEpoch ? 'abort' : scaleSwingState.due ? 'due' : stageReady(e) ? 'ready' : 'wait'),
       (verdict) => {
         if (verdict !== 'wait') {
           stop();
+          offPlayer();
           debt?.settle();
           debt = undefined;
           if (verdict === 'ready') {

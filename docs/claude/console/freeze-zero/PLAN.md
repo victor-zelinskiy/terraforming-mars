@@ -2590,6 +2590,34 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
     little: the harness, open), the level door once (fixed above), three Reds doors (the pilot's grey RT, fixed), one
     distribution door with the «LB/RB −1/+1 · X Забрать» layout (the pilot's hands, open), `[long-frame]` ×10 in 3
     games while the box ran 7 – 8 browsers.
+- **CI's autopilot on `c2a2e39418` (games 249 – 296) and the box's count on `1d5ff3cd53` — read and fixed (the owner,
+  2026-11-26: «закончи … потом фиксы на оставшиеся открытые issues»):**
+  - **AN OPENING THAT ENDED WHILE PARKED DOES NOT COME BACK** (#128 — the bottle's game 285, read by the stack's trail
+    with two new verbs, `restoreWorkspaceStack` / `discardWorkspacePark`): minimized during the deployment, finished
+    while parked — the scene's LIFETIME hold, let go only by the scene's own release beat that an unmounted scene
+    never plays, kept `startSceneServes`, so the start's anchor never died and A «Вернуться» restored a start serving
+    nothing until the start director's level door released it. A held scene whose frame is parked, the opening over by
+    the server's word and nothing of it owed, lets its hold go (`startHoldOrphaned`); the anchor dies and the park's
+    rule drops the frame (`[workspace-anchor] dropped start (parked)` — planned, the rule working; an off-stage start
+    frame that does not come back takes the hold with it too). The start director's cure line now says the trail.
+  - **THE ENERGY's TURN INTO HEAT HOLDS WHAT IS STILL TO ENTER** (#138 — the bottle's game 281, `EXTRA: says
+    parliament held by scene:energy-conversion, painted parliament`): the conversion holds the next view's commit —
+    every surface of the next phase still to enter — while the sitting already standing keeps its screen (the rail
+    plays the conversion). The one function now reads it so (the door, not the presence); spec rows.
+  - **THE SCALES' SWING WAITS ON THE PLAYER's CLOCK** (#164 / #165 — the bottle's game 270: the oxygen's swing owed
+    behind the player's own section and workspace, «leaked hold?» at 35 s, «overdue» at 40 s): the owed hold no longer
+    holds the feed while the story waits for a board only the player can uncover (`heldForPlayer`), and the stage's
+    wait node carries no bound for that time (`heldByPlayer`) — the scale step's rating's law.
+  - #166 (`card-actions:executing` quiet 652 ms, game 257): not reproduced on a replay with a diagnostic build; a quiet
+    beat's row now names the owner's state (`claim:<stage>`, `fold`, `dismiss`, `composer`) so the next one says it.
+  - #150 closed (not seen since its fix in three runs); the bottle's border: `console-start:summary-tiles-unmeasured`
+    (five games in the bottle, none in the browser on the same seeds).
+  - The harness: the `400 STALE_PROMPT` of the box's game 2009 was the pilot pressing a tenth of a second after the
+    second seat's API moves — the page now applies them first (bounded; `[PAGE-BEHIND]` names a page still behind);
+    the heat composite's rule (moved above the home's wait) pressed X «Разыграно» at home — it reads `.con-heat` now and
+    walks the lanes; the second seat tries every terraforming project it can afford and names a refusal; the table's
+    clock carries the second seat's purse and its menu's projects (`sp[…✓/✗]`) — the duo tables still stand on the
+    cap with the seat's TR frozen after the temperature's max (open: its menu offers what?).
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read
