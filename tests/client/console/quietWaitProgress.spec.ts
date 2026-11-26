@@ -42,6 +42,25 @@ describe('waitConsoleQuiet — the cap counts from the story\'s last progress', 
     expect(quiet).to.eq(true);
   });
 
+  /*
+   * THE PLAYER's TIME STOPS THE CLOCK (the landing law; the sixth count's game 1644 — the city's payout waited fifteen
+   * seconds under a board the player kept covered, and its ceiling was filed). Behind the player's screen the wait
+   * stands however long; back on its clock it has its whole cap again from where it stopped.
+   */
+  it('while the PLAYER holds it the clock stands still — no ceiling; back on its clock the cap goes on from where it stopped', async () => {
+    let quiet = false;
+    let covered = true;
+    void waitConsoleQuiet(() => true, {maxMs: 6_000, heldByPlayer: () => covered ? 'the player keeps the board covered' : undefined, who: 'spec'})
+      .then(() => quiet = true);
+    await step(60_000);
+    expect(quiet, 'a minute behind the player\'s screen: still waiting, nothing said').to.eq(false);
+    covered = false;
+    await step(5_900);
+    expect(quiet, 'its own six seconds start from the uncover').to.eq(false);
+    await step(200);
+    expect(quiet, 'a story that never came on a board the player could see ends on the cap').to.eq(true);
+  });
+
   it('a story that stands still ends on the cap, as before', async () => {
     let quiet = false;
     void waitConsoleQuiet(() => true, {maxMs: 6_000, ceilingMs: 15_000, progress: () => 'stuck', who: 'spec'}).then(() => quiet = true);

@@ -140,8 +140,10 @@ registerAnimationHoldSupplier('city-data-payout', () => cityPayoutActive() && !c
   expire: () => abortCityPayoutBeat(),
 });
 // While it WAITS for the scales it holds the feed only: a blocking hold here would hold the very board-beat drain
-// (and the planet focus's exit) the scales' story needs — the scene waits for them, never they for it.
-registerAnimationHoldSupplier('city-data-payout-pending', cityPayoutWaiting, {
+// (and the planet focus's exit) the scales' story needs — the scene waits for them, never they for it. …And not even
+// the feed while the player keeps the board covered: nothing of the field plays behind their own screen, and the toasts
+// do not wait for a stage the player has not gone back to (the story waits for it — `boardStoryHeldByPlayer`).
+registerAnimationHoldSupplier('city-data-payout-pending', () => cityPayoutWaiting() && boardStoryHeldByPlayer() === undefined, {
   scope: 'notification-only',
   expire: () => abortCityPayoutBeat(),
 });

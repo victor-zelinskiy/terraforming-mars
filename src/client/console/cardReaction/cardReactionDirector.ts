@@ -80,6 +80,7 @@ import {flowClock} from '@/client/console/kernel/flowClock';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {motionGuarantee} from '@/client/console/session/sessionWaits';
 import {boardSceneMemberBusy, boardSceneOwedBusy} from '@/client/console/boardSceneMembers';
+import {boardStoryHeldByPlayer} from '@/client/console/boardBeatPark';
 import {scaleStepRatingBusy, scaleStepRatingStageCovered} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {SCALE_STEP_STAGE_DUE_MS} from '@/client/console/scaleStepReward/scaleStepRewardModel';
 import {hydroCeremonyOwed, hydroFlowState} from '@/client/console/hydroFlow/consoleHydroFlow';
@@ -1327,15 +1328,26 @@ function closeReactionWait(wait: CeilingWait | undefined, myEpoch: number): void
  * the board's own story, then the table's answer. Bounded like the blocking wait.
  */
 async function waitBoardScenesOwedQuiet(myEpoch: number): Promise<void> {
-  const started = typeof performance === 'undefined' ? 0 : performance.now();
+  // (Its clock runs only while the board's owed story is NOT the player's to uncover — the landing law, as the scene it
+  // waits for keeps it: a story behind the player's own screen waits for its stage, and so does what plays after it.)
+  const now = (): number => typeof performance === 'undefined' ? 0 : performance.now();
+  let last = now();
+  let ownMs = 0;
   let wait: CeilingWait | undefined;
   while (epoch === myEpoch && (boardSceneOwedBusy() || boardSceneMemberBusy())) {
-    if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
+    const players = boardSceneMemberBusy() ? undefined : boardStoryHeldByPlayer();
+    const at = now();
+    if (players === undefined) {
+      ownMs += at - last;
+    }
+    last = at;
+    if (typeof performance !== 'undefined' && ownMs > BLOCKING_QUIET_MAX_MS) {
       wait?.ceiling();
       return;
     }
     cardReactionState.waitingOnOther = true;
     wait ??= beginCeilingWait({id: 'card-reaction:board-scenes-quiet', owner: 'cardReactionDirector', what: 'the board scenes quiet, owed ones included', maxMs: BLOCKING_QUIET_MAX_MS});
+    wait.heldByPlayer(players);
     await nextPaintedFrame();
   }
   closeReactionWait(wait, myEpoch);

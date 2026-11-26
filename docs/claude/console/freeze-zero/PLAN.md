@@ -2471,6 +2471,17 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   names as held ONLY by a player's prompt stays held at its ninety-second ceiling as before — and the ceiling is
   re-armed in silence (`notifications/correlation-player` is gone from the shapes). The line stays for a chain held by
   anything else: the leak it exists for (`correlation-ceiling`, defect).
+- **THE SIXTH COUNT ON `f58e7e4263` (`fzm-count`, 55 whole games on the box):** 0 defects, and NO boot long frame (eight
+  games in 48 had one before the two halves). What stood between it and zero was the pilot (a rival seat that could not
+  pay Stormcraft's heat split; the press budget of a long duo table with Venus; eleven doors with the pilot in the
+  colonies' trade under the draft's plate — `8550a12f20`), and one product line:
+  - **THE LANDING LAW, EVERY WAIT FOR THE BOARD's STORY** (game 1644 — `wait-graph/ceiling/quiet:city-payout:scales`,
+    filed planned: the city's payout waited fifteen seconds for the scales' story under a section and a workspace). A
+    quiet-wait's clock runs only while what keeps it is NOT the player (`rewardPayoutQuiet.waitQuiet` — `heldByPlayer`
+    stops the clock, the node waits on the player, back on its clock the cap goes on from where it stopped); the card
+    reaction's wait for the board's owed scenes keeps the same clock (otherwise IT would reach its defect ceiling
+    behind the same cover); and the payout waiting under the player's cover holds no feed. A ceiling is now only a
+    story that never came on a board the player could see.
 - **Open after the first slice of the sixth count (`fzl-count`, two games on `2bddfb55c7`):** `workspace-conclusion/
   level-door/hand` (info — game 1504: three B presses through a played card's committed beat, then the hand did not
   conclude by its own edge and the level door closed it 250 ms later) — to read to its root.

@@ -171,9 +171,13 @@ export function boardStorySettling(): boolean {
 export type QuietWaitOpts = {
   maxMs?: number, alive?: () => boolean, who?: string, progress?: () => string, ceilingMs?: number,
   /**
-   * WHO KEEPS THE CONSOLE FROM BEING QUIET, asked at the ceiling: a phrase when it is the PLAYER (a reveal they have
-   * not taken, a card they are reading over it) — the ceiling is then this wait's honest end, said as planned; and
-   * `undefined` when it is a story that never ended (the defect the ceiling exists to name).
+   * WHO KEEPS THE CONSOLE FROM BEING QUIET: a phrase while it is the PLAYER (a reveal they have not taken, a board they
+   * keep covered by a screen of their own), `undefined` while it is the console's own story. THE WAIT's CLOCK RUNS ONLY
+   * WHILE IT IS NOT THE PLAYER's (the landing law — `boardCoverWitness.boardWaitClock`): behind the player's own screen
+   * the story waits for its stage however long, the node waits on the player, and no ceiling is said over a player
+   * reading their hand (the sixth count's game 1644: the city's payout waited fifteen seconds for the scales' story
+   * under a section and a workspace, and its ceiling was filed «planned»). Back on its clock, a ceiling is a story that
+   * never came on a board the player could see — the defect it exists to name.
    */
   heldByPlayer?: () => string | undefined,
   /**
@@ -204,10 +208,12 @@ function waitQuiet(settling: () => boolean, what: string, opts?: QuietWaitOpts):
   const cap = opts?.maxMs ?? REWARD_QUIET_MAX_WAIT_MS;
   const alive = opts?.alive ?? (() => true);
   const started = flowClock().now();
-  const hard = started + Math.max(cap, opts?.progress !== undefined ? opts.ceilingMs ?? cap : cap);
+  let hard = started + Math.max(cap, opts?.progress !== undefined ? opts.ceilingMs ?? cap : cap);
   let deadline = started + cap;
   let seen = opts?.progress?.();
   let node: CeilingWait | undefined;
+  /** Since when the wait is the PLAYER's (`heldByPlayer`) — its clock stands still from then. */
+  let playersSince: number | undefined;
   return new Promise((done) => {
     const poll = () => {
       if (!alive()) {
@@ -221,13 +227,28 @@ function waitQuiet(settling: () => boolean, what: string, opts?: QuietWaitOpts):
         return;
       }
       const now = flowClock().now();
+      // THE PLAYER's TIME stops the clock (see `heldByPlayer`): the deadline and the ceiling move on by it.
+      const players = opts?.heldByPlayer?.();
+      if (players !== undefined) {
+        playersSince ??= now;
+        node ??= beginCeilingWait({id: `quiet:${opts?.who ?? 'unnamed'}`, owner: opts?.who ?? 'rewardPayoutQuiet', what, maxMs: hard - started});
+        node.heldByPlayer(players, now);
+        probeTick(poll);
+        return;
+      }
+      if (playersSince !== undefined) {
+        deadline += now - playersSince;
+        hard += now - playersSince;
+        playersSince = undefined;
+        node?.heldByPlayer(undefined, now);
+      }
       const look = opts?.progress?.();
       if (look !== seen) {
         seen = look;
         deadline = Math.min(hard, Math.max(deadline, now + cap));
       }
       if (now >= deadline) {
-        node?.ceiling(opts?.heldByPlayer?.());
+        node?.ceiling();
         done();
         return;
       }
