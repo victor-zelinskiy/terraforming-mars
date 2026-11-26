@@ -818,6 +818,9 @@ export function createSupervisorController(shell: SupervisorPort) {
       return 'yielded';
     };
     let did = '';
+    // (…what held the deployment from settling, read BEFORE the cure — the release clears it: the box's game 2503 said
+    // «expected game, on screen none: released» and nothing of the term that never settled.)
+    const unsettled = shell.surfaces.at<{deploymentSettleBlockers?: () => Array<string>}>('startScene')?.deploymentSettleBlockers?.() ?? [];
     if (cure === 'release') {
       const scene = shell.surfaces.at<{releaseByDirector?: () => string}>('startScene');
       did = scene?.releaseByDirector?.() ?? '';
@@ -845,7 +848,7 @@ export function createSupervisorController(shell: SupervisorPort) {
     // road that left it there, the level door's own reading (`workspaceVerbTrail`).)
     const parked = workspaceStackState.parked.map((f) => `${f.kind}:${f.phase}`).join('>') || 'none';
     console.warn(`[start-shadow] cure «${cure}» by ${by} — expected «${finding.expected}», on screen «${finding.actual}»: ${did} · ` +
-      `verbs: ${workspaceVerbTrail() || 'none'} · parked: ${parked}`);
+      `verbs: ${workspaceVerbTrail() || 'none'} · parked: ${parked}${unsettled.length > 0 ? ` · unsettled: ${unsettled.join(', ')}` : ''}`);
     return `${cure}: ${did}`;
   }
 

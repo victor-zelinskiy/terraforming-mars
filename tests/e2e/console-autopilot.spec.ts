@@ -2,6 +2,8 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import {answerPrompt, cinematicBeat, fetchPlayerModel, NO_PAYMENT, openConsole, reloadConsole, seedGameOverApi, sendPlayerInput, soloGameConfig, syncClient} from './consoleStart';
 import {dealFor, ScopeCard, SCOPE_CARDS} from '../testing/autopilotDeal';
+import {campaignConfig, campaignModelAs, devCommit, launchMission} from './campaignFixtures';
+import {TENDER_IDS} from '../../src/common/campaign/tenders';
 
 /**
  * THE AUTOPILOT — A WHOLE GAME THROUGH THE REAL CONSOLE, IN A REAL BROWSER (FREEZE ZERO, stage 6 — «whole games and
@@ -110,6 +112,41 @@ const SLOW = process.env.TM_E2E_AUTOPILOT_SLOW ?? 'auto';
  * scene and the pilot walks it as a player does; `api` / `ui` force one way.
  */
 const OPENING = process.env.TM_E2E_AUTOPILOT_OPENING ?? 'auto';
+/**
+ * THE CAMPAIGN (stage 6, total coverage — no game of the autopilot had sat at a campaign's mission: the «Тендеры»
+ * mode's lots, played at the start and in the game, were screens no whole game walked). In `auto` one game in eight
+ * is the SECOND mission of a «Тендеры» campaign of two humans (the first one committed over the dev door, the viewer's
+ * seat granted three tenders in the catalog's rotation), its opening through the screen. `off` · `always`.
+ */
+const CAMPAIGN = process.env.TM_E2E_AUTOPILOT_CAMPAIGN ?? 'auto';
+/** Game `n` sits at a campaign's mission. */
+function campaignGame(n: number): boolean {
+  return CAMPAIGN === 'always' || (CAMPAIGN === 'auto' && n % 8 === 5);
+}
+
+/**
+ * A CAMPAIGN's SECOND MISSION for game `n` — the table's expansions and board, two humans (the viewer «Alice», the
+ * second seat «Bruno» answered over the API), «Тендеры»; mission 1 committed by the dev door with the viewer's three
+ * tenders. Returns the mission's seats.
+ */
+async function campaignMission(request: APIRequestContext, n: number, table: {config: Record<string, unknown>}): Promise<{viewer: string, rivals: Array<string>, word: string}> {
+  const config = campaignConfig({
+    expansions: table.config.expansions, board: table.config.board, draftVariant: table.config.draftVariant, testMode: false,
+    seed: table.config.seed, randomMA: table.config.randomMA, shuffleMapOption: table.config.shuffleMapOption,
+  });
+  // (A key of its own every run — the creator is idempotent by key, and a worker's server may outlive a run.)
+  const key = `autopilot-${NAME}-${n}-${Math.floor(Math.random() * 1e9)}`;
+  const created = await request.post('/api/campaign/create', {data: {key, name: 'Alice', config, options: {rewardMode: 'tenders', missionCount: 3}}});
+  expect(created.ok(), `the campaign was not created: ${await created.text()}`).toBeTruthy();
+  const id = String((await created.json() as {id: string}).id);
+  await launchMission(request, id);
+  const granted = [0, 1, 2].map((k) => TENDER_IDS[(n * 3 + k) % TENDER_IDS.length]);
+  await devCommit(request, id, [0, 1], {lineages: {0: ['Ecoline'], 1: ['Helion']}, tenders: {0: granted}});
+  const {yourPlayerId} = await launchMission(request, id);
+  expect(yourPlayerId, 'the second mission seats the viewer').toBeTruthy();
+  const bruno = (await campaignModelAs(request, id, 'Bruno')).missions[1]?.yourPlayerId;
+  return {viewer: String(yourPlayerId), rivals: bruno === undefined ? [] : [bruno], word: `campaign mission 2 · tenders ${granted.join(', ')}`};
+}
 function slowRateOf(n: number): number {
   if (Number(process.env.TM_E2E_CPU_THROTTLE ?? 0) > 1 || SLOW === 'off') {
     return 1;
@@ -1275,19 +1312,33 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       const seed = `${NAME}:${n}`;
       const table = tableOf(n);
       test.info().annotations.push({type: 'autopilot-table', description: `${seed} — ${table.word}`});
-      let created = await request.post('/api/creategame', {data: table.config});
+      // (A CAMPAIGN's mission instead of a plain table — see `CAMPAIGN`.)
+      const mission = campaignGame(n) ? await campaignMission(request, n, table) : undefined;
+      if (mission !== undefined) {
+        test.info().annotations.push({type: 'autopilot-campaign', description: mission.word});
+        table.word = `${mission.word} · ${table.word}`;
+        table.deal.splice(0);
+      }
+      let created = mission !== undefined ? undefined : await request.post('/api/creategame', {data: table.config});
       // (A deal the creator refuses — a card its rules keep off a custom deck — is the harness's, never the game's: the
       // table is dealt plainly and the refusal named.)
-      if (!created.ok() && table.deal.length > 0) {
+      if (created !== undefined && !created.ok() && table.deal.length > 0) {
         const why = (await created.text()).slice(0, 200);
         test.info().annotations.push({type: 'autopilot-deal-refused', description: `${created.status()} ${why} — deal ${table.deal.join(', ')}`});
         table.deal.splice(0);
         created = await request.post('/api/creategame', {data: {...table.config, customProjectCards: [], customCorporationsList: [], customPreludes: []}});
       }
-      expect(created.ok(), `create-game refused the table (${table.word}): ${created.status()}`).toBeTruthy();
-      const {players} = await created.json() as {players: Array<{id: string, name: string}>};
-      const viewer = (players.find((p) => !/marsbot/i.test(p.name)) ?? players[0]).id;
-      const rivals = players.filter((p) => p.id !== viewer && !/marsbot/i.test(p.name)).map((p) => p.id);
+      let viewer: string;
+      let rivals: Array<string>;
+      if (created === undefined) {
+        viewer = (mission as {viewer: string}).viewer;
+        rivals = (mission as {rivals: Array<string>}).rivals;
+      } else {
+        expect(created.ok(), `create-game refused the table (${table.word}): ${created.status()}`).toBeTruthy();
+        const {players} = await created.json() as {players: Array<{id: string, name: string}>};
+        viewer = (players.find((p) => !/marsbot/i.test(p.name)) ?? players[0]).id;
+        rivals = players.filter((p) => p.id !== viewer && !/marsbot/i.test(p.name)).map((p) => p.id);
+      }
       // THE OPENING, over the API (see the header): the corporation, the preludes, the first action — to the first turn.
       // (Every human seat at once: the opening is simultaneous, and a seat seeded alone waits for the other one.)
       // (THE DEAL — see `DEAL`: what the rotation put on the decks' tops and the first seat was dealt is TAKEN — the
@@ -1296,7 +1347,8 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
         ((model.waitingFor as {options?: Array<{cards?: Array<{name: string}>}>} | undefined)?.options ?? []).flatMap((o) => (o.cards ?? []).map((c) => c.name))));
       const dealt = table.deal.filter((name) => offered.has(name));
       const is = (list: ReadonlyArray<ScopeCard>) => (name: string) => list.some((c) => c.name === name);
-      const uiOpening = OPENING === 'ui' || (OPENING === 'auto' && n % 4 === 3);
+      // (…a campaign's mission opens through the screen always: its tenders stand in the start scene.)
+      const uiOpening = OPENING === 'ui' || (OPENING === 'auto' && n % 4 === 3) || mission !== undefined;
       await Promise.all([
         ...(uiOpening ? [] : [seedGameOverApi(request, viewer, {
           buy: 4,

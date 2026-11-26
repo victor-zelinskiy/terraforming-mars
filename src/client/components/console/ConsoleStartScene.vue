@@ -2885,6 +2885,70 @@ const ceremonyStatusText = computed((): string => {
  * calm dissolve → the board), never a prompt gap. The corporation's
  * mandatory first action is deliberately OUTSIDE this scene's scope.
  */
+/**
+ * WHAT HOLDS THE DEPLOYMENT FROM SETTLING — every term of the settle by NAME (one source: the settle is «none of them
+ * holds»). The start director's level door says the names when it has to release the scene itself (the box's game
+ * 2503: `cure «release» by level — expected «game», on screen «none»`, and no word of what never settled).
+ */
+const DEPLOYMENT_SETTLE_TERMS: ReadonlyArray<[string, () => boolean]> = [
+  ['sponsorPending', () => !sponsorPending.value],
+  // …and neither is a prelude whose effect has resolved but whose CARD is
+  // still on its way home. The claim releases the moment the server stops
+  // asking, which is a beat BEFORE the source card leaves its seat for
+  // «РАЗЫГРАНО» and the two halves of the deployment breathe back. Letting
+  // the scene go there produced two reported bugs at once, and they were
+  // the same bug: on the LAST prelude the card's play animation never ran
+  // (the board simply appeared), and on every prelude the shelf kept a
+  // blanked top slot — `awayCard` still naming a card whose settle never
+  // reached the line that clears it, so only the peek strip painted.
+  ['effectReturnPending', () => !effectReturnPending.value],
+  // …and neither is a play the TABLE is still answering (TR82 Proteus — the last Prelude's matching tag): the
+  // reactor rises out of its slot on «РАЗЫГРАНО» and lays its token in its own capsule there, so the shelf must
+  // stand until the chain has receded — released first, the corporation's data fell into the bare satellite.
+  ['reactionStage.phase === \'idle\'', () => reactionStage.phase === 'idle'],
+  // THE FIRST-ACTION STAGE is the deployment's own conditional last
+  // stage now: the workspace may not settle while the corporation still
+  // OWES its mandatory first action (domain ledger / live prompt), and
+  // not before the stage's own return beat has physically completed
+  // (the corp card settled home, the room breathed back).
+  ['firstActionOwedNow', () => !firstActionOwedNow.value],
+  // …and NEVER while a card-granted bonus action is still owed. The
+  // workspace does not end the preparation in the middle of the two
+  // actions it just handed the player: it collapses to the board (the
+  // excursion latch) and comes back to finish, which is the whole
+  // point of announcing the trip in the first place.
+  ['bonusActionsOwedNow', () => !bonusActionsOwedNow.value],
+  ['state.bonusAct.stage === \'idle\'', () => state.bonusAct.stage === 'idle'],
+  ['state.firstAct.stage === \'idle\'', () => state.firstAct.stage === 'idle'],
+  ['corpPlayPrompt === undefined', () => corpPlayPrompt.value === undefined],
+  ['corpPayCost === undefined', () => corpPayCost.value === undefined],
+  // …and never while the CAMPAIGN'S «НАСЛЕДИЕ» is still owed — the server standing on the carried cards'
+  // press, or their cascade still on its way into the dock (PL-1110). The flow stage knew this beat
+  // (`deploymentFlowStage` → 'legacy'); the settle did not, so the moment the bought cards had landed the scene
+  // released itself over a live prompt — the board, a stale bar, the row's press orphaned until a reload. Only
+  // a press made within the cascade's own window used to hide it.
+  ['legacyPrompt === undefined', () => legacyPrompt.value === undefined],
+  ['legacyArrivalLive', () => !legacyArrivalLive.value],
+  ['candidatePrompt === undefined', () => candidatePrompt.value === undefined],
+  ['startFlowPreludePrompt === undefined', () => startFlowPreludePrompt(props.playerView) === undefined],
+  ['wizardInput === undefined', () => wizardInput.value === undefined],
+  ['heroState.active', () => !heroState.active],
+  ['embedActive', () => !embedActive.value],
+  ['currentRevealEvent() === undefined', () => currentRevealEvent() === undefined],
+  // …and never in the gap where a draw's cards are already coming off
+  // the deck but its reveal has not been staged yet (see
+  // `firstActionChainQuiet`): the workspace may not dissolve INTO a
+  // cinematic it started.
+  ['deckDrawHolds()', () => !deckDrawHolds()],
+  ['isHandDeliveryActive()', () => !isHandDeliveryActive()],
+  ['handDeliveryState.held.length === 0', () => handDeliveryState.held.length === 0],
+  ['queueCards.length === 0', () => queueCards.value.length === 0],
+  ['payProjects.length === 0', () => payProjects.value.length === 0],
+  ['queueArriving.size === 0', () => queueArriving.value.size === 0],
+];
+function deploymentSettleBlockers(): Array<string> {
+  return DEPLOYMENT_SETTLE_TERMS.filter(([, settled]) => !settled()).map(([name]) => name);
+}
 const deploymentSettled = computed((): boolean => {
   if (mode.value !== 'ceremony' || !state.hold || state.flow === 'materializing') {
     return false;
@@ -2905,60 +2969,7 @@ const deploymentSettled = computed((): boolean => {
   // to be chosen, played, landed and resolved. Releasing here is what used
   // to throw the player onto a bare board (or, worse, close the last
   // prelude's workspace before its own effect had run).
-  return !sponsorPending.value &&
-    // …and neither is a prelude whose effect has resolved but whose CARD is
-    // still on its way home. The claim releases the moment the server stops
-    // asking, which is a beat BEFORE the source card leaves its seat for
-    // «РАЗЫГРАНО» and the two halves of the deployment breathe back. Letting
-    // the scene go there produced two reported bugs at once, and they were
-    // the same bug: on the LAST prelude the card's play animation never ran
-    // (the board simply appeared), and on every prelude the shelf kept a
-    // blanked top slot — `awayCard` still naming a card whose settle never
-    // reached the line that clears it, so only the peek strip painted.
-    !effectReturnPending.value &&
-    // …and neither is a play the TABLE is still answering (TR82 Proteus — the last Prelude's matching tag): the
-    // reactor rises out of its slot on «РАЗЫГРАНО» and lays its token in its own capsule there, so the shelf must
-    // stand until the chain has receded — released first, the corporation's data fell into the bare satellite.
-    reactionStage.phase === 'idle' &&
-    // THE FIRST-ACTION STAGE is the deployment's own conditional last
-    // stage now: the workspace may not settle while the corporation still
-    // OWES its mandatory first action (domain ledger / live prompt), and
-    // not before the stage's own return beat has physically completed
-    // (the corp card settled home, the room breathed back).
-    !firstActionOwedNow.value &&
-    // …and NEVER while a card-granted bonus action is still owed. The
-    // workspace does not end the preparation in the middle of the two
-    // actions it just handed the player: it collapses to the board (the
-    // excursion latch) and comes back to finish, which is the whole
-    // point of announcing the trip in the first place.
-    !bonusActionsOwedNow.value &&
-    state.bonusAct.stage === 'idle' &&
-    state.firstAct.stage === 'idle' &&
-    corpPlayPrompt.value === undefined &&
-    corpPayCost.value === undefined &&
-    // …and never while the CAMPAIGN'S «НАСЛЕДИЕ» is still owed — the server standing on the carried cards'
-    // press, or their cascade still on its way into the dock (PL-1110). The flow stage knew this beat
-    // (`deploymentFlowStage` → 'legacy'); the settle did not, so the moment the bought cards had landed the scene
-    // released itself over a live prompt — the board, a stale bar, the row's press orphaned until a reload. Only
-    // a press made within the cascade's own window used to hide it.
-    legacyPrompt.value === undefined &&
-    !legacyArrivalLive.value &&
-    candidatePrompt.value === undefined &&
-    startFlowPreludePrompt(props.playerView) === undefined &&
-    wizardInput.value === undefined &&
-    !heroState.active &&
-    !embedActive.value &&
-    currentRevealEvent() === undefined &&
-    // …and never in the gap where a draw's cards are already coming off
-    // the deck but its reveal has not been staged yet (see
-    // `firstActionChainQuiet`): the workspace may not dissolve INTO a
-    // cinematic it started.
-    !deckDrawHolds() &&
-    !isHandDeliveryActive() &&
-    handDeliveryState.held.length === 0 &&
-    queueCards.value.length === 0 &&
-    payProjects.value.length === 0 &&
-    queueArriving.value.size === 0;
+  return deploymentSettleBlockers().length === 0;
 });
 // ── THE BONUS-ACTION STAGE (a prelude granted actions «immediately») ──
 /**
@@ -11338,6 +11349,8 @@ onMounted(() => {
   // by product code.
   (window as unknown as Record<string, unknown>).__conStartDiag = () => ({
     mode: mode.value,
+    // (What holds the deployment from settling, by name — the director's cure line says it.)
+    settleBlockers: mode.value === 'ceremony' && state.hold && state.flow !== 'materializing' ? deploymentSettleBlockers() : [],
     // (What the strand's heal would do now — the opening's measure names a strand with it.)
     strandPlan: strandPlan(),
     flow: state.flow,
@@ -11575,5 +11588,5 @@ onBeforeUnmount(() => {
   deal.value.dispose();
   resetConsoleStartUi();
 });
-defineExpose({handleIntent, healStrand, releaseByDirector});
+defineExpose({handleIntent, healStrand, releaseByDirector, deploymentSettleBlockers});
 </script>

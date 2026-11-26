@@ -122,7 +122,7 @@ function mountScene(playerView: PlayerViewModel) {
   return wrapper;
 }
 
-type Scene = {handleIntent(intent: GamepadIntent): void, healStrand(): string, releaseByDirector(): string};
+type Scene = {handleIntent(intent: GamepadIntent): void, healStrand(): string, releaseByDirector(): string, deploymentSettleBlockers(): Array<string>};
 const sceneOf = (wrapper: {vm: unknown}) => wrapper.vm as Scene;
 const press = (button: 'confirm' | 'back' | 'triggerR'): GamepadIntent => ({kind: 'press', button});
 const nav = (dir: 'left' | 'right'): GamepadIntent => ({kind: 'nav', dir, repeat: false});
@@ -238,7 +238,7 @@ describe('ConsoleStartScene — the game start workspace', () => {
       .to.include({control: 'triggerR', enabled: false});
   });
 
-  it('a parent\'s ref reaches exactly `handleIntent` · `healStrand` · `releaseByDirector` — and each answers', async () => {
+  it('a parent\'s ref reaches exactly `handleIntent` · `healStrand` · `releaseByDirector` · `deploymentSettleBlockers` — and each answers', async () => {
     const view = wizardView('p-start-spec-ref');
     const Host = defineComponent({
       render: () => h('div', [h(ConsoleStartScene, {ref: 'scene', playerView: view, waitingOnPlayers: ['red']})]),
@@ -247,7 +247,10 @@ describe('ConsoleStartScene — the game start workspace', () => {
     standing.push(host);
     const scene = host.vm.$refs.scene as Scene;
     expect(Object.keys(scene).sort(), 'the pad router, the start watchdog and the start director are its readers')
-      .to.deep.eq(['handleIntent', 'healStrand', 'releaseByDirector']);
+      .to.deep.eq(['deploymentSettleBlockers', 'handleIntent', 'healStrand', 'releaseByDirector']);
+
+    // The director's cure line reads what holds the deployment, by name.
+    expect(scene.deploymentSettleBlockers()).to.be.an('array');
 
     // The watchdog's heal re-runs the scene's own phrases — a wizard page strands nothing.
     expect(scene.healStrand()).to.eq('nothing-to-heal');

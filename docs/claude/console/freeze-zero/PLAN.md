@@ -2707,6 +2707,22 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
     three opening states APART for 3 – 41 ms (`card:preludeSelection · queue>none · heal → agree`, `or:actionMenu ·
     bonusAction>none · heal → agree`): the start director expected the queue / the bonus action a frame or two before
     its surface mounted. Open: a reactive order a slow page shows and a fast one hides — read on the next slow games.
+  - **THE CAMPAIGN** (`TM_E2E_AUTOPILOT_CAMPAIGN` — `auto`: one game in eight): no game of the autopilot had sat at a
+    campaign's mission. The second mission of a «Тендеры» campaign of two humans (mission 1 committed over the dev
+    door, the viewer's seat granted three tenders in the catalog's rotation), the table's expansions and board, its
+    opening through the screen — the tenders stand in the start scene.
+  - `fzx` (on `8f0c410589`), the first slow storm (game 2502 — CPU ×3, Hollandia, Redux, fast mode, the shuffled map):
+    one line — `[parliament] renewal: support cube of Reds onto <card> — settled without a flight`: a renewal's cube
+    whose source or seat could not be measured when its flight launched (the parliament's own confession, never
+    silent). The degrade now names the side it could not measure. And the slow game's 54 long frames are the press
+    itself: `onkeydown` scripts of 0.5 – 1.2 s, 70 – 85 % of it FORCED LAYOUT — about 0.2 – 0.4 s a press at the box's
+    speed. Open: a handheld's press — a CPU profile of the press's reaction.
+  - The opening through the screen found the START's own class at once (game 2503, `start-shadow/cure/release/game/
+    none` — #128's class, by another road): Beginner Corporation's ten free cards taken by B («Взять всё»), the start
+    folded by the next B's and brought back by its plate, the preludes played — and the deployment never settled: the
+    start stood over the game's menu with an empty bar until the director's level door released it. Which term held it
+    was nobody's word: the settle is now a list of NAMED terms (`DEPLOYMENT_SETTLE_TERMS`, one source), the scene
+    exposes them, and the director's cure line says them (`unsettled: …`) — read on the next one.
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read

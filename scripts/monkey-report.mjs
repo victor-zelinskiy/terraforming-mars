@@ -705,7 +705,7 @@ export function aggregateAutopilot(files) {
   }
   const sum = (row) => Object.values(row ?? {}).reduce((a, n) => a + Number(n ?? 0), 0);
   const out = {games: 0, finished: 0, capped: [], stuck: [], rebuilds: 0, presses: 0, byUi: 0, byApi: 0, passes: {ui: 0, api: 0}, playMin: 0, doors: [], log: [],
-    cards: [], weather: {games: 0, faults: 0, submits: 0, said: 0}, shapes: [], types: undefined};
+    cards: [], weather: {games: 0, faults: 0, submits: 0, said: 0}, slow: {games: 0, frames: 0}, shapes: [], types: undefined};
   // THE QUESTIONS' SHAPES the screen answered (a type × the server's markers), summed — and the input TYPES among them
   // against the ones the server declares (`common/input/PlayerInputType.ts` — read from the source, so a new type
   // is a new row of the denominator the day it is added).
@@ -748,6 +748,10 @@ export function aggregateAutopilot(files) {
     for (const [type, n] of Object.entries(a.sent ?? {})) {
       sent.set(type, (sent.get(type) ?? 0) + Number(n ?? 0));
     }
+    if (Number(a.slow ?? 1) > 1) {
+      out.slow.games++;
+      out.slow.frames += Number(a.slowFrames ?? 0);
+    }
     if (a.weather !== undefined) {
       out.weather.games++;
       out.weather.faults += Number(a.weather.faults ?? 0);
@@ -787,11 +791,15 @@ export function aggregateAutopilot(files) {
   return out;
 }
 
+/** Input types only a module OUTSIDE the premium scope asks (`common/cards/premiumScope.ts`). */
+const OUT_OF_SCOPE_INPUT_TYPES = ['claimedUndergroundToken'];
+
 /** The input types the server declares — the string literals of `PlayerInputType` (empty when the source is absent). */
 function declaredInputTypes() {
   try {
     const source = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'common', 'input', 'PlayerInputType.ts'), 'utf8');
-    return [...source.matchAll(/'([a-zA-Z]+)'/g)].map((m) => m[1]);
+    // (…the ones a module of the premium scope can ask: the claimed underground token is Underworld's alone.)
+    return [...source.matchAll(/'([a-zA-Z]+)'/g)].map((m) => m[1]).filter((type) => !OUT_OF_SCOPE_INPUT_TYPES.includes(type));
   } catch {
     return [];
   }
@@ -811,7 +819,8 @@ export function renderAutopilot(a) {
   }
   if ((a.cards ?? []).length > 0) {
     L.push(`   cards played through the console: ${a.cards.length} distinct · the weather: ${a.weather.games} storm game(s), ` +
-      `${a.weather.faults} fault(s) over ${a.weather.submits} submit(s), ${a.weather.said} line(s) the page said of them`);
+      `${a.weather.faults} fault(s) over ${a.weather.submits} submit(s), ${a.weather.said} line(s) the page said of them · ` +
+      `the slow machine: ${a.slow?.games ?? 0} game(s), ${a.slow?.frames ?? 0} long frame(s) — the machine's, booked apart`);
   }
   for (const game of a.stuck) {
     L.push(`   STUCK   ${game}`);

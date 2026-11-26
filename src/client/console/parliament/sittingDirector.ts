@@ -1934,7 +1934,10 @@ function launchSupportSeat(runState: StageRun, ctx: SittingDirectorContext, even
       }
     }});
     if (id === undefined) {
-      noteDegraded(`support cube of ${event.party} onto ${event.instance}`);
+      // (…naming the side that could not be measured — the box's slow game 2502 confessed one with no word of which:
+      // the plaque's socket, or the card's seat for this vote.)
+      const missing = [from === undefined ? 'no source' : '', to === undefined ? `no seat #${seq} on the card` : ''].filter((s) => s !== '').join(', ');
+      noteDegraded(`support cube of ${event.party} onto ${event.instance}${missing !== '' ? ` (${missing})` : ''}`);
     } else {
       runState.flights.add(id);
     }
