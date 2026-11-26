@@ -1864,6 +1864,11 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
       // as «cannot contact the server» and filed under the network's noise (`requestFailure.ts` reads which it is).
       if (requestFailed('the submit', e) === 'network') {
         r.showAlert('Error sending input,', CANNOT_CONTACT_SERVER);
+        // …AND THE TRUTH IS FETCHED AGAIN: the network may have lost the ANSWER of a move the server MADE (a Deck on a
+        // couch's Wi-Fi — the autopilot's weather, `lost-answer`). Without it the page kept the question the server had
+        // moved on from, and the player's next press was refused STALE_PROMPT — a second error over one lost packet,
+        // and a stale screen between the two. A request that never arrived re-fetches the same question: nothing lost.
+        r.updatePlayer();
       } else {
         r.showAlert('Error processing response', 'Unexpected response from server. Please try again.');
         // (What the answer did before it threw may stand half-applied: the truth is fetched again.)

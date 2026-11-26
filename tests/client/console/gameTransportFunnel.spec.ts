@@ -186,13 +186,17 @@ describe('the submit funnel', () => {
     expect(root.messages[1]).to.eq('You cannot overspend heat');
   });
 
-  it('a network failure: said, settled `failed`, the funnel reopens', async () => {
+  it('a network failure: said, settled `failed`, the funnel reopens — and the truth is fetched again (a lost answer is a move the server made)', async () => {
+    const before = root.updates;
     const ticket = submitInput({type: 'option'});
     // (What a browser's fetch rejects with when the request never got an answer.)
     fetches[0].reject(new TypeError('Failed to fetch'));
     expect((await ticket.settled).status).to.eq('failed');
     expect(root.alerts).to.deep.eq(['Error sending input,']);
     expect(transportRequestInProgress()).to.eq(false);
+    // (The autopilot's weather, `lost-answer`: without the re-fetch the page kept the question the server had moved on
+    // from, and the next press was refused STALE_PROMPT — a second error over one lost packet.)
+    expect(root.updates, 'the view is re-fetched').to.be.greaterThan(before);
   });
 
   /*

@@ -2682,6 +2682,24 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   - **THE SLOW MACHINE** (`TM_E2E_AUTOPILOT_SLOW` — `auto`: one game in five at a third of the speed, CDP's CPU
     throttling): the announce machine had never walked an announce that came late; a handheld's CPU is not the box's,
     and the product's motions and nets are right on a slow frame by construction — a slow game's bar is the same zero.
+  - The first games on the axes (`fzv3` / `fzv4`, eight games, three storms): GATE pass on every storm (the faults
+    walked `sending → failed` and `→ refused`; every line the page said of them was the weather's), the deal taken,
+    the projects and the hand's cards targeted — and two places of the PILOT: a Parliament resolution's draw held by
+    the Parliament's claim while the pilot stood in another workspace (now: a question held by the claim of a frame
+    it is not in is walked to by the home's plate), and a heat bill a pour alone cannot cover (a floater pays 2 heat,
+    the rest was 1 — the cover is a unit taken off a lane first; the pilot now tries the lanes as a player does, and
+    the walk carries the plate's meter, `|m<done>/<of>`).
+  - **THE WEATHER's FIRST PRODUCT FINDING — A LOST ANSWER WAS TWO ERRORS**: a submit the network lost said «cannot
+    contact the server» and left the page on the question; when the network had lost the ANSWER (the server made the
+    move), the player's next press was refused `STALE_PROMPT` — a second error over one lost packet, a stale screen
+    between the two. A network failure of a submit now fetches the truth again (`gameTransport`, as the server's
+    silence and a throw of our own already did); a request that never arrived re-fetches the same question.
+  - More of the space: the weather's BLIP (the whole network gone for six seconds, once a storm game — the poll, the
+    socket, a press); WHAT THE SCREEN SENT (every response type of a submit, a composer's batch included — its
+    sub-answers never stand as a question of their own — summed into the input-type axis); THE RULES THE CREATOR SETS
+    on their own stream (random milestones and awards, fast mode, the others' points, the shuffled map, a starting-TR
+    bonus); and ONE MORE HUMAN at one table in five of those that already seat another or MarsBot (the creator seats
+    one to four humans against the bot).
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read

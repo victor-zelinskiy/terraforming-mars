@@ -90,7 +90,8 @@ const IDLE_MIN = Number(process.env.TM_E2E_AUTOPILOT_IDLE_MIN ?? 0);
  *   · `busy` — the server answers 503 (a restart, a proxy);
  *   · `stale` — the press answers a prompt the server has moved on from (the promptId of the one before);
  *   · and ONCE a storm game, a RELOAD between two presses (the app restarted, the Deck woke from its sleep) — the
- *     page boots on whatever stood: a flow mid-way, a question parked, a story owed.
+ *     page boots on whatever stood: a flow mid-way, a question parked, a story owed;
+ *   · and ONCE, a BLIP: the whole network gone for six seconds (the Wi-Fi dropped) — the poll, the socket, a press.
  * `TM_E2E_AUTOPILOT_WEATHER`: `clear` · `storm` · `auto` (the default — one game in three is a storm).
  */
 const WEATHER = process.env.TM_E2E_AUTOPILOT_WEATHER ?? 'auto';
@@ -219,15 +220,22 @@ function tableOf(n: number): {config: Record<string, unknown>, word: string, duo
   };
   const boost = rules() < 0.2 ? 1 + Math.floor(rules() * 5) : 0;
   Object.assign(config, ruled);
+  // (…and ONE MORE HUMAN at one table in five of those that already seat another — or none, beside MarsBot: the creator
+  // seats one to four humans against the bot and up to five without it. A third seat is a foreign turn between two of
+  // the viewer's, a second human beside the bot is the bot's attacks shared.)
+  const seated = config.players as Array<Record<string, unknown>>;
+  if ((duo || bot) && rules() < 0.2) {
+    seated.push({name: duo ? 'Rival2' : 'Rival', color: duo ? 'green' : 'blue', beginner: false, handicap: 0, first: false});
+  }
   if (boost > 0) {
     (config.players as Array<Record<string, unknown>>)[0].handicap = boost;
   }
   const said = [ruled.randomMA !== 'No randomization' ? 'random M&A' : '', ruled.fastModeOption ? 'fast' : '', ruled.showOtherPlayersVP ? 'VP shown' : '',
-    ruled.shuffleMapOption ? 'shuffled map' : '', boost > 0 ? `TR +${boost}` : ''].filter((s) => s !== '');
+    ruled.shuffleMapOption ? 'shuffled map' : '', boost > 0 ? `TR +${boost}` : '', seated.length > (duo ? 2 : 1) ? `${seated.length} humans` : ''].filter((s) => s !== '');
   if (DEAL === 'rotate') {
     Object.assign(config, {customProjectCards: deal.projects, customCorporationsList: deal.corporations, customPreludes: deal.preludes});
   }
-  return {config, duo, deal: [...deal.corporations, ...deal.preludes, ...deal.projects],
+  return {config, duo: seated.length > 1, deal: [...deal.corporations, ...deal.preludes, ...deal.projects],
     word: `${bot ? 'vs MarsBot' : duo ? 'duo' : 'solo'} · ${board} · ${on.join('+') || 'base'}${draft ? ' · draft' : ''}${said.length > 0 ? ` · ${said.join(' · ')}` : ''}`};
 }
 
@@ -365,7 +373,8 @@ async function look(page: Page): Promise<Screen> {
       focusTaken: document.querySelector('.con-hand__slot--selected.con-hand__slot--select-picked, .con-hand__slot--selected.con-hand__slot--select-disabled, ' +
         '.con-cards__slot--focused.con-cards__slot--picked') !== null,
       meter: (() => {
-        const el = document.querySelector('[data-prompt-meter]');
+        // (The meter of the plate that STANDS — a lanes plate first: a hidden composite elsewhere keeps its own.)
+        const el = document.querySelector('.con-lanes [data-prompt-meter]') ?? document.querySelector('[data-prompt-meter]');
         const done = Number(el?.querySelector('b')?.textContent ?? 'NaN');
         const of = Number(/(\d+)/.exec(el?.querySelector('.con-prompt-outcome__meter-of')?.textContent ?? '')?.[1] ?? 'NaN');
         return el === null || Number.isNaN(done) || Number.isNaN(of) ? undefined : {done, of};
@@ -506,7 +515,8 @@ async function seedRivalOpening(request: APIRequestContext, rival: string): Prom
 }
 
 async function playGame(page: Page, request: APIRequestContext, viewer: string, seed: string, log: Array<string>, ears?: SoakEars, where?: {stood: string},
-  rivals: ReadonlyArray<string> = [], storm?: {reloadAt: number, reloaded: boolean}, dealt: ReadonlyArray<string> = []): Promise<Played> {
+  rivals: ReadonlyArray<string> = [], storm?: {reloadAt: number, reloaded: boolean, blipAt: number, blipped: boolean, blip: () => Promise<void>},
+  dealt: ReadonlyArray<string> = []): Promise<Played> {
   const g = rng(`${seed}:pilot`);
   const rivalRng = rng(`${seed}:rival`);
   /**
@@ -791,6 +801,12 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       await reloadConsole(page);
       continue;
     }
+    if (storm !== undefined && !storm.blipped && played.presses >= storm.blipAt) {
+      storm.blipped = true;
+      log.push(`[WEATHER blip at ${played.presses}]`);
+      await storm.blip();
+      continue;
+    }
     const model = await truth();
     // WHAT THE SEAT PLAYED, in the walk (`[PLAYED <card>]`): a line of the log is read against the card that made it —
     // the box's game 1656, whose level door stood after a card nobody could name from the walk.
@@ -1034,7 +1050,8 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       await press('Enter', 600 + Math.round(g() * 900));
       continue;
     }
-    stood = `${seen.frames.join('>') || '-'}${seen.zoom ? '+ZOOM' : ''}${seen.quick ? '+WHEEL' : ''}|${wf.type}#${wf.promptId ?? ''}|${seen.bar.slice(0, 80)}`;
+    stood = `${seen.frames.join('>') || '-'}${seen.zoom ? '+ZOOM' : ''}${seen.quick ? '+WHEEL' : ''}|${wf.type}#${wf.promptId ?? ''}|${seen.bar.slice(0, 80)}` +
+      `${seen.meter === undefined ? '' : `|m${seen.meter.done}/${seen.meter.of}`}`;
     // THE TURN's INTENT (pilot 2): from the board home, the wheel that leads to the section and the press that enters
     // it — one after the other, nothing between.
     if (standing.intent.length > 0) {
@@ -1132,9 +1149,15 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     if (PILOT >= 3 && seen.meter !== undefined && seen.look === '' && !seen.zoom &&
         (seen.offered.some((o) => o.key === 'KeyX') || seen.greyed.includes('KeyX'))) {
       const dial = seen.offered.some((o) => o.key === 'Period') || seen.greyed.includes('Period');
+      // (…and a bill the lanes cannot cover by pouring alone — the box's game 2313 on the new harness: a floater pays
+      // 2 heat, the rest was 1, RT poured nothing and the pilot walked RT / ↓ until the door answered; the cover is
+      // heat 2 + a floater, a unit taken OFF one lane first. Short of it, the pilot pours (RT), adds (RB), takes back
+      // (LB) or moves on (↓) — a player trying the lanes; over it, takes back.)
+      const roll = g();
       const key = seen.offered.some((o) => o.key === 'KeyX') ? 'KeyX' :
-        standing.presses % 2 === 1 ? 'ArrowDown' :
-          seen.meter.done < seen.meter.of ? (dial ? 'Period' : 'Enter') : (dial ? 'KeyQ' : 'Enter');
+        !dial ? (roll < 0.5 ? 'Enter' : 'ArrowDown') :
+          seen.meter.done > seen.meter.of ? (roll < 0.7 ? 'KeyQ' : 'ArrowDown') :
+            roll < 0.4 ? 'Period' : roll < 0.6 ? 'KeyE' : roll < 0.85 ? 'ArrowDown' : 'KeyQ';
       await press(key, pause());
       continue;
     }
@@ -1340,6 +1363,31 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
         log.push(`[!${key.slice(0, 70)}]`);
       };
       page.on('pageerror', (error) => said('pageerror', String(error?.message ?? error)));
+      // WHAT THE SCREEN SENT (the coverage's input-type axis, whole): every response a submit of the page carries — a
+      // composer's batch included, whose sub-answers never stand as a question of their own — summed by its type.
+      const sent: Record<string, number> = {};
+      const sentTypes = (response: unknown): void => {
+        if (response === null || typeof response !== 'object') {
+          return;
+        }
+        const r = response as {type?: unknown, response?: unknown, responses?: unknown};
+        if (typeof r.type === 'string') {
+          sent[r.type] = (sent[r.type] ?? 0) + 1;
+        }
+        sentTypes(r.response);
+        if (Array.isArray(r.responses)) {
+          r.responses.forEach(sentTypes);
+        }
+      };
+      page.on('request', (req) => {
+        if (req.method() === 'POST' && /\/player\/input(-batch)?\?/.test(req.url())) {
+          try {
+            sentTypes(req.postDataJSON());
+          } catch {
+            // (A body that is not JSON is no answer of the screen's.)
+          }
+        }
+      });
       page.on('response', (response) => {
         if (response.status() >= 400) {
           said('http', `${response.status()} ${response.request().method()} ${response.url().replace(/^https?:\/\/[^/]+/, '').replace(/\?.*$/, '')}`);
@@ -1377,7 +1425,16 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       let played: Played | undefined;
       try {
         played = await playGame(page, request, viewer, seed, log, ears, where, rivals,
-          storm ? {reloadAt: 120 + ((n * 97) % 900), reloaded: false} : undefined, dealt);
+          storm ? {reloadAt: 120 + ((n * 97) % 900), reloaded: false, blipAt: 60 + ((n * 61) % 700), blipped: false, blip: async () => {
+            // (The network gone — every request of the page, the socket's too — for six seconds, then back. What the
+            // page says of it in that time and the twelve seconds after is the weather's.)
+            weather.explains.push({until: Date.now() + 20_000, says: [/^\[net\] /, /^\[transport\] the poll/]});
+            const cdp = await page.context().newCDPSession(page);
+            await cdp.send('Network.emulateNetworkConditions', {offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1});
+            await cinematicBeat(page, 6_000, 'the weather\'s blip — the network is gone for six seconds, by design');
+            await cdp.send('Network.emulateNetworkConditions', {offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1});
+            await cdp.detach().catch(() => undefined);
+          }} : undefined, dealt);
         // THE LAST WORD: past the arbiter's grace and the loop's twenty looks — the screen the game left is judged whole.
         await cinematicBeat(page, 25_000, 'the last word — a quiet spell past the liveness grace, so the screen the game left is judged');
       } finally {
@@ -1391,7 +1448,7 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
           monkey: {seed, fixture: `game-${n}`, mode: 'autopilot', landing: 'boot', duo: table.duo, reload: false, hidden: false, presses: played?.presses ?? log.filter((l) => !l.startsWith('[')).length,
             perturb: {netMs: 0, cpu: slow > 1 ? slow : Number(process.env.TM_E2E_CPU_THROTTLE ?? 0), motion: process.env.TM_E2E_MOTION ?? ''}},
           autopilot: {
-            ...played, table: table.word, pilot: PILOT, cards: tableau, slow,
+            ...played, table: table.word, pilot: PILOT, cards: tableau, slow, sent,
             weather: storm ? {faults: weather.faults, submits: weather.submits, said: weather.said} : undefined,
             // THE LOG's BOOK: every class of line the page said in the whole game (the count, the first occurrence).
             log: [...book.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 80).map(([key, row]) => ({key, type: row.type, n: row.n, atMs: row.atMs, stood: row.stood.slice(0, 160)})),

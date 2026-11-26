@@ -710,6 +710,8 @@ export function aggregateAutopilot(files) {
   // against the ones the server declares (`common/input/PlayerInputType.ts` — read from the source, so a new type
   // is a new row of the denominator the day it is added).
   const shapes = new Map();
+  // …and the response TYPES the screen sent (a composer's batch included — its sub-answers never stand alone).
+  const sent = new Map();
   // THE CARDS THE PILOT PLAYED through the console (the viewer's tableau at each game's end), summed — an axis of the
   // coverage whose denominator is the cards in scope (`--cards <file>` writes the set for the scope's own reader).
   const cards = new Map();
@@ -743,6 +745,9 @@ export function aggregateAutopilot(files) {
     for (const [shape, n] of Object.entries(a.shapes ?? {})) {
       shapes.set(shape, (shapes.get(shape) ?? 0) + Number(n ?? 0));
     }
+    for (const [type, n] of Object.entries(a.sent ?? {})) {
+      sent.set(type, (sent.get(type) ?? 0) + Number(n ?? 0));
+    }
     if (a.weather !== undefined) {
       out.weather.games++;
       out.weather.faults += Number(a.weather.faults ?? 0);
@@ -769,6 +774,10 @@ export function aggregateAutopilot(files) {
   if (shapes.size > 0) {
     const declared = declaredInputTypes();
     const answered = new Set([...shapes.keys()].map((s) => s.replace(/\[.*$/, '').replace(/^or:menu$/, 'or')));
+    // (A type the screen SENT inside a batch is answered on the screen too.)
+    for (const type of sent.keys()) {
+      answered.add(type);
+    }
     out.types = {declared: declared.length, answered: declared.filter((type) => answered.has(type)).length, never: declared.filter((type) => !answered.has(type))};
   }
   out.cards = [...cards.entries()].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).map(([name, games]) => ({name, games}));
