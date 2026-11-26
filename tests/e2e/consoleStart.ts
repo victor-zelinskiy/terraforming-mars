@@ -2634,8 +2634,22 @@ export function answerPrompt(prompt: WirePrompt, plan: SeedPlan): WireResponse {
     expect(branch, `an «or» with no options: ${describePrompt(prompt)}`).toBeDefined();
     return {type: 'or', index: 0, response: answerPrompt(branch, plan)};
   }
-  case 'and':
+  case 'and': {
+    // A HEAT PAYMENT SPLIT WITH FLOATERS (Stormcraft — `spendHeatPrompt`: heat 0…max, floaters at 2 heat each 0…max,
+    // exactly the amount, no overspend of either): the first split that pays it. Each dial answered on its own (its
+    // minimum) paid nothing, and the autopilot's rival seat stood on it for ten minutes (the box's game 1637).
+    const spend = (prompt as {spendHeatPrompt?: {amount?: number}}).spendHeatPrompt?.amount;
+    const [heat, floaters] = prompt.options ?? [];
+    if (spend !== undefined && heat !== undefined && floaters !== undefined) {
+      for (let f = 0; f <= (floaters.max ?? 0); f++) {
+        const h = Math.max(0, spend - 2 * f);
+        if (h <= (heat.max ?? 0) && (2 * f <= spend || f === Math.ceil(spend / 2))) {
+          return {type: 'and', responses: [{type: 'amount', amount: h}, {type: 'amount', amount: f}]};
+        }
+      }
+    }
     return {type: 'and', responses: (prompt.options ?? []).map((o) => answerPrompt(o, plan))};
+  }
   case 'space': {
     const spaces = prompt.spaces ?? [];
     expect(spaces.length, `a placement with no legal space: ${describePrompt(prompt)}`).toBeGreaterThan(0);

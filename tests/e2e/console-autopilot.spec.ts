@@ -67,7 +67,13 @@ if (ENABLED) {
   process.env.TM_E2E_COVERAGE ??= '1';
 }
 const NAME = process.env.TM_E2E_AUTOPILOT_NAME ?? 'ap0';
-const PRESSES = Number(process.env.TM_E2E_AUTOPILOT_PRESSES ?? 2000);
+/**
+ * THE PRESS BUDGET of one game — a TIME bound, never the loop catcher (a table nobody moves for ten minutes is `stuck`).
+ * A «capped» game must mean a pilot that walked in circles, not a long table: duo tables with Venus reach 1 700 – 1 900
+ * presses to their final scoring, and one stood capped at 2 000 in generation 21 (the box's sixth count, game 1645 —
+ * 23 minutes). 3 200 is ≈ 37 minutes at that pace, under the test's own 75.
+ */
+const PRESSES = Number(process.env.TM_E2E_AUTOPILOT_PRESSES ?? 3200);
 /** WHICH PILOT walks (`3` — with hands for every layout met so far; `2` — the one that goes somewhere; `1` — the first, a thumb on the bar). */
 const PILOT = Number(process.env.TM_E2E_AUTOPILOT_PILOT ?? 3);
 /** THE SOAK: minutes the page is left alone at each generation's sample point (0 — a plain game). */
@@ -453,7 +459,9 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     page.evaluate(() => (window as unknown as {__conOwnerNow?: () => string}).__conOwnerNow?.() ?? '').catch(() => '');
   let standing: {promptId: number | undefined, type: string, menu: boolean, bonus: boolean, presses: number, budget: number, byApi: boolean, intent: Array<string>, intentful: boolean,
     /** Presses in a row that changed nothing of what stands (pilot 3 — a player who gets no answer goes home). */
-    still: number, lastStood: string} | undefined;
+    still: number, lastStood: string,
+    /** Looks in a row in a side screen while the one function names the question held by its plate or set aside. */
+    heldAway: number} | undefined;
   /** The menus of the game so far — the intents' rotation (seeded by the game's own number, so two games start apart). */
   let menus = Math.floor(g() * INTENTS.length);
   let moved = {age: -1, at: Date.now()};
@@ -506,7 +514,7 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       const intentful = PILOT >= 2 && (bonus || (menu && g() < 0.75));
       const intent = intentful ? [...INTENTS[menus++ % INTENTS.length].keys] : [];
       const budget = bonus ? 60 : menu ? (g() < (intentful ? 0.05 : 0.18) ? 0 : (intentful ? 9 : 4) + Math.floor(g() * 23)) : 45;
-      standing = {promptId: wf.promptId, type: wf.type, menu, bonus, presses: 0, budget, byApi: false, intent: budget > 0 ? intent : [], intentful: intentful && budget > 0, still: 0, lastStood: ''};
+      standing = {promptId: wf.promptId, type: wf.type, menu, bonus, presses: 0, budget, byApi: false, intent: budget > 0 ? intent : [], intentful: intentful && budget > 0, still: 0, lastStood: '', heldAway: 0};
       if (standing.intent.length > 0) {
         log.push(`[INTENT ${INTENTS[(menus - 1) % INTENTS.length].name}]`);
       }
@@ -697,8 +705,14 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       // before it pressed the plate — `admission:announce-gate` is held until the plate's own press, and the plate is
       // on the board (the fifth hundred's doors, all of them: the pilot waited in «Действия карт» for a hold whose only
       // door was home).)
-      if (standing.still >= 6 && (seen.frames.length > 0 || seen.quick) && / held (aside:|admission:announce-gate)/.test(await ownerNow())) {
+      // (…and a side screen whose cursor MOVES the bar — the colonies' trade under the draft's plate: «stood» changed at
+      // every press, the six never came, and the door answered (the sixth count, eleven of its doors). Four looks in a
+      // row in a side screen with the question held by its plate are a player who knows where the question is.)
+      const heldAway = (seen.frames.length > 0 || seen.quick) && / held (aside:|admission:announce-gate)/.test(await ownerNow());
+      standing.heldAway = heldAway ? standing.heldAway + 1 : 0;
+      if (heldAway && (standing.still >= 6 || standing.heldAway >= 4)) {
         standing.still = 0;
+        standing.heldAway = 0;
         log.push('[HOME]');
         await walkHome(false);
         continue;
