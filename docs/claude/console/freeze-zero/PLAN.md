@@ -2553,6 +2553,29 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
     `commitImpulseLatch.spec` slept 1.5 s of real time against the motion's 1.4 s timer (red one run in three on a
     loaded laptop — the motion ticker lags a starved page by design): its stalled timeline is bounded by the latch's
     WALL ceiling, advanced on the kernel's manual clock (red without the ceiling, green with it).
+- **CI's autopilot on `a3c1a4cd33` (games 201 – 248, browser: 45 to the final scoring, 1 capped, 2 STUCK) — read:**
+  - **EVERY PANEL OWNER KEEPS ITS OWN CONTRACT** (game 248 — a product defect): the command bar's mirror
+    (`consolePanelUi`) was ONE slot, on the belief that panels never coexist; the Info mode (Y) opens OVER a standing
+    panel — the external draw's take in the Parliament's stage. Its publication overwrote the take's, its close cleared
+    the slot, and the take (publishing only when its own commands change) never came back: the bar read «Парламент» and
+    nothing else until the door took the card. A publication is now kept per owner until that owner clears it; the
+    bar's branch asks the owner it shows. Unit `consolePanelUi.spec` (red on the one slot); e2e
+    `console-parliament-sponsored` «the take under the Info» — red on the old build with the field's own picture
+    («Парламент»), green on the fix.
+  - **STUCK 209 and 246 — the harness's second seat**: the duo's API seat stood ten minutes on Delta Project's advance —
+    its one answer paid every step in energy, and the step's budget counts Delta Works's steel and the steel on
+    Modular Floodgates: refused, and no other answer. The seat now tries every legal step count and every steel
+    share; a seat that still cannot answer names the server's last refusal (`RIVAL-STUCK … last refusal`).
+  - The pilot's door place now names the bar's GREY verbs (game 220: a land claim whose «A Выбрать клетку» the pilot
+    never took — on every cell it walked, the verb stood disabled).
+  - The bottle's two new classes (#160 `start-shadow/cure/yield/step/none` — the start's award-funding step reopened by
+    the shadow's cure; #161 `wait-graph/ceiling/start-bonus:visible-source`) are bottle-only so far (no browser game
+    said them) — open.
+  - The box's night count (`fzo-count`, 1801 – 1830 on `a3c1a4cd33`, stopped at 30 games to give the box to the fixes'
+    proofs): 28 to the final scoring, 2 duo tables on the cap (generations 92 and 43 — the second seat terraforms too
+    little: the harness, open), the level door once (fixed above), three Reds doors (the pilot's grey RT, fixed), one
+    distribution door with the «LB/RB −1/+1 · X Забрать» layout (the pilot's hands, open), `[long-frame]` ×10 in 3
+    games while the box ran 7 – 8 browsers.
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read

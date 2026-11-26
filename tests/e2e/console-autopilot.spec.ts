@@ -382,6 +382,20 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         if (pass >= 0 && rivalRng() < 0.3) {
           tries.push({type: 'or', index: pass, response: {type: 'option'}});
         }
+        // DELTA PROJECT's ADVANCE (CI's autopilot on `a3c1a4cd33`, games 209 and 246 — STUCK, the seat ten minutes on
+        // it): the step's budget is energy PLUS a 1:1 steel substitute (Delta Works, and the steel on Modular Floodgates), and the harness's one answer paid it all in
+        // energy — refused once the energy was short, and the seat had no other. Every legal step count, the steel
+        // share from none up: one of them is the payment the server takes.
+        if (asked.type === 'deltaProject') {
+          for (const amount of (asked as {validSteps?: Array<number>}).validSteps ?? []) {
+            for (let steel = 0; steel <= amount; steel++) {
+              // (…and the steel on Modular Floodgates — the budget counts it too.)
+              for (let cardSteel = 0; steel + cardSteel <= amount; cardSteel++) {
+                tries.push({type: 'deltaProject', amount, steel, cardSteel, waiveReward: true});
+              }
+            }
+          }
+        }
         try {
           tries.push(answerPrompt(asked as never, {}));
         } catch {
@@ -393,19 +407,21 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
           }
         });
         let answered = false;
+        let refused = '';
         for (const response of tries) {
           try {
             await sendPlayerInput(request, rival, {...(response as object), promptId: asked.promptId} as never);
             answered = true;
             break;
-          } catch {
-            // the server refused this one — the next
+          } catch (e) {
+            // the server refused this one — the next (its word kept: a stuck seat names why)
+            refused = String((e as Error).message ?? e).split('\n').find((line) => /rejected/.test(line))?.slice(0, 220) ?? '';
           }
         }
         if (!answered) {
           if (asked.promptId !== undefined && !rivalStuck.has(asked.promptId)) {
             rivalStuck.add(asked.promptId);
-            log.push(`[RIVAL-STUCK ${asked.type} «${typeof asked.title === 'string' ? asked.title : (asked.title as {message?: string} | undefined)?.message ?? ''}» options ${options.map((o) => o.type).join(',')}]`);
+            log.push(`[RIVAL-STUCK ${asked.type} «${typeof asked.title === 'string' ? asked.title : (asked.title as {message?: string} | undefined)?.message ?? ''}» options ${options.map((o) => o.type).join(',')} · ${tries.length} tried · last refusal: ${refused}]`);
           }
           break;
         }
@@ -440,7 +456,9 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     return Math.round(roll < 0.75 ? 150 + g() * 350 : roll < 0.97 ? 600 + g() * 1200 : 2500 + g() * 3000);
   };
   const truth = async (): Promise<Wire> => await fetchPlayerModel(request, viewer) as unknown as Wire;
-  const stands = (s: Screen): string => `frames ${s.frames.join('>') || 'none'} · bar «${s.bar}»`;
+  // (…and the bar's GREY verbs — a door over a commit the screen held disabled reads why the pilot never pressed it: the CI
+  // autopilot's game 220, a land claim whose «A Выбрать клетку» the pilot never took.)
+  const stands = (s: Screen): string => `frames ${s.frames.join('>') || 'none'} · bar «${s.bar}»${s.greyed.length > 0 ? ` · grey ${[...new Set(s.greyed)].join(',')}` : ''}`;
   /**
    * THE BOARD HOME — every level between it and the pilot is left the way a player leaves it: B where the bar offers B
    * (a workspace, a look, a wheel), Y where the bar closes only by Y (the information screen's top). The home is the

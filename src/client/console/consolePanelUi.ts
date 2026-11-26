@@ -8,9 +8,15 @@
  * Support / Production Loss / Info Mode) are deleted; each panel now syncs
  * its contextual hints here (watch → setPanelCommands on mount/update,
  * clearPanelCommands on unmount), and ConsoleShell.commands() renders them
- * through the ONE ConsoleCommandBar. Panels never coexist (they share the
- * task slot / cover each other), so a single owner slot suffices; the
- * owner key guards against an unmount racing the next panel's mount.
+ * through the ONE ConsoleCommandBar.
+ *
+ * EVERY OWNER KEEPS ITS OWN CONTRACT (FREEZE ZERO — CI's autopilot on `a3c1a4cd33`, game 248). This was ONE slot, on
+ * the belief that panels never coexist — but they do: the Info mode (Y) opens OVER a standing panel (the external draw's
+ * take in the Parliament's stage). Its publication overwrote the take's, its close cleared the slot, and the take — whose
+ * watcher publishes only when its own commands CHANGE — never published again: a bar reading «Парламент» and nothing
+ * else over a take the player could no longer read a verb for, until the door answered it. Now a publication is kept
+ * per owner until that owner clears it; the bar's branch asks the owner it shows (`panelCommands(owner)`), and the
+ * mirror's `owner` / `commands` read the latest publication still standing.
  */
 import {reactive} from 'vue';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
@@ -30,20 +36,36 @@ type PanelOwner = 'taskHost' | 'govSupport' | 'productionLoss' | 'infoMode' | 'c
   'endgame';
 
 export const consolePanelUi = reactive({
+  /** The latest publication still standing (its owner and its commands) — the mirror's top. */
   owner: undefined as PanelOwner | undefined,
   commands: [] as Array<ConsoleCommand>,
+  /** Every standing publication, by owner. */
+  byOwner: {} as Partial<Record<PanelOwner, Array<ConsoleCommand>>>,
+  /** The owners in the order they first published (an update keeps its place — a panel under a cover never climbs over it). */
+  order: [] as Array<PanelOwner>,
 });
 
+function syncTop(): void {
+  const top = consolePanelUi.order[consolePanelUi.order.length - 1];
+  consolePanelUi.owner = top;
+  consolePanelUi.commands = top === undefined ? [] : [...(consolePanelUi.byOwner[top] ?? [])];
+}
+
 export function setPanelCommands(owner: PanelOwner, commands: ReadonlyArray<ConsoleCommand>): void {
-  consolePanelUi.owner = owner;
-  consolePanelUi.commands = [...commands];
+  consolePanelUi.byOwner[owner] = [...commands];
+  if (!consolePanelUi.order.includes(owner)) {
+    consolePanelUi.order.push(owner);
+  }
+  syncTop();
 }
 
 export function clearPanelCommands(owner: PanelOwner): void {
-  if (consolePanelUi.owner === owner) {
-    consolePanelUi.owner = undefined;
-    consolePanelUi.commands = [];
+  delete consolePanelUi.byOwner[owner];
+  const at = consolePanelUi.order.indexOf(owner);
+  if (at !== -1) {
+    consolePanelUi.order.splice(at, 1);
   }
+  syncTop();
 }
 
 /** The shell-side read: the panel's live contract, or undefined when the
@@ -55,11 +77,12 @@ export function clearPanelCommands(owner: PanelOwner): void {
  *  them lit would promise a press that does nothing. One place for every
  *  prompt panel — no surface grows its own «not yet» state. */
 export function panelCommands(owner: PanelOwner): ReadonlyArray<ConsoleCommand> | undefined {
-  if (consolePanelUi.owner !== owner || consolePanelUi.commands.length === 0) {
+  const commands = consolePanelUi.byOwner[owner];
+  if (commands === undefined || commands.length === 0) {
     return undefined;
   }
   if (!promptSequenceState.settling || promptSequenceState.current === undefined) {
-    return consolePanelUi.commands;
+    return commands;
   }
-  return consolePanelUi.commands.map((cmd) => settleGreysControl(cmd.control) ? {...cmd, enabled: false} : cmd);
+  return commands.map((cmd) => settleGreysControl(cmd.control) ? {...cmd, enabled: false} : cmd);
 }

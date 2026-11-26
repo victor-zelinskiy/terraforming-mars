@@ -345,6 +345,25 @@ for (const preset of PRESETS) {
       await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
     });
 
+    // THE TAKE UNDER A LOOK OF THE PLAYER's (CI's autopilot on `a3c1a4cd33`, game 248): Y opens the Info over the take
+    // in the stage, Y closes it — the take's verbs stand on the bar again and A takes. The bar's mirror was ONE slot: the
+    // Info's publication overwrote the take's, its close cleared it, and the bar read «Парламент» and nothing else.
+    test(`the take under the Info: Y opens it over the take, Y closes it — the take's verbs stand again and A takes (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(300_000);
+      const {playerId} = await toTheTake(page, request, 'parliament-sponsored-assembly', preset.query);
+      const hand = (await wireOf(request, playerId)).thisPlayer.cardsInHandNbr;
+      await enterSittingByPass(page, request, playerId);
+      const take = page.locator('.con-extdraw');
+      await expect(take, 'the take surface is on screen').toHaveCount(1, {timeout: 90_000});
+      const bar = page.locator('.con-cmdbar');
+      await expect(bar, 'the take\'s verb on the bar').toContainText('Забрать карту', {timeout: 20_000});
+      expect(await pressUntil(page, 'KeyY', async () => await page.locator('.con-info').count() > 0, {tries: 3, settleMs: 1500}), 'Y opens the Info').toBe(true);
+      expect(await pressUntil(page, 'KeyY', async () => await page.locator('.con-info').count() === 0, {tries: 3, settleMs: 1500}), 'Y closes it').toBe(true);
+      await expect(bar, 'the take\'s verb stands again').toContainText('Забрать карту', {timeout: 10_000});
+      expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, playerId)).thisPlayer.cardsInHandNbr > hand, {tries: 4, settleMs: 2000}),
+        'A takes').toBe(true);
+    });
+
     test(`eight receiving faces read in ONE row inside the pane — nothing cut, nothing scrolled (${preset.id})`, async ({page, request}) => {
       test.setTimeout(480_000);
       const {playerId} = await toTheTake(page, request, 'parliament-sponsored-eight', preset.query);
