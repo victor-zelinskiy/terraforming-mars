@@ -14210,6 +14210,29 @@ boardOfDirectorsFixture('board-of-directors-variant', {top: CardName.ATMOSPHERIC
 // #169 (CI's autopilot, game 260 — `console-leak-detector/batch-overlap`): a prelude whose own effect DRAWS (Soil
 // Bacteria: two microbe cards) played off the verdict — the reveal of what it drew must not stand beside the verdict.
 boardOfDirectorsFixture('board-of-directors-draw', {top: CardName.SOIL_BACTERIA, megacredits: 40, max: 1});
+// …and the same road AT A MARSBOT TABLE, the verdict the seat's SECOND action — CI's game 260 was vs MarsBot: the bot's
+// turn follows the play, its staged turn holding the view while the prelude's drawn cards are shown.
+{
+  const name = 'board-of-directors-draw-bot';
+  const [game, human] = testAutomaGame({keepInitialCardSelection: true, venusNextExtension: true, prelude2Expansion: true});
+  answerStartFlow(game, [human]);
+  game.projectDeck.discardPile.push(...human.cardsInHand.splice(0));
+  const board = newPrelude(CardName.BOARD_OF_DIRECTORS)!;
+  board.resourceCount = 4;
+  human.playedCards.push(board);
+  game.preludeDeck.drawPile.length = 0;
+  game.preludeDeck.discardPile.length = 0;
+  stackPreludeDeckTop(game, [CardName.SOIL_BACTERIA, CardName.BIOFUELS, CardName.SOCIETY_SUPPORT, CardName.DONATION]);
+  game.preludeDeck.discardPile.push(newPrelude(CardName.SUPPLIER)!);
+  human.megaCredits = 40;
+  runAllActions(game);
+  if (game.activePlayer.id !== human.id || !(board as unknown as IActionCard).canAct(human)) {
+    throw new Error(`the ${name} fixture expected the human on the move with P45 able to act — got active=${game.activePlayer.id === human.id}`);
+  }
+  // (The verdict is the seat's SECOND action: the bot's turn comes right after it.)
+  human.actionsTakenThisRound = 1;
+  write(name, game);
+}
 boardOfDirectorsFixture('board-of-directors-tile', {top: CardName.EARLY_SETTLEMENT, megacredits: 40, max: 1});
 boardOfDirectorsFixture('board-of-directors-helion', {megacredits: 5, helion: true, max: 1});
 boardOfDirectorsFixture('board-of-directors-last', {megacredits: 40, directors: 1, max: 1});

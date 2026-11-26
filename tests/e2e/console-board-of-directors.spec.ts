@@ -497,4 +497,31 @@ test.describe(`P45 Board of Directors · what a played prelude draws · deck`, (
     await settle(page, {timeoutMs: 40_000});
     expect((await witnessOf<boolean>(page, 'p45-one-batch-deck').values()).some((both) => both), 'never the verdict AND the reveal at once').toBe(false);
   });
+
+  test('K3: at a MarsBot table, the verdict the seat\'s second action — the bot\'s turn follows; the drawn cards after the verdict, never beside it', async ({page, request}) => {
+    test.setTimeout(300_000);
+    const id = await bootFixture(page, request, 'board-of-directors-draw-bot', {query: '&consoleProfile=handheld'});
+    await settle(page);
+    const posts = watchPosts(page);
+    await openSetup(page);
+    await drawToVerdict(page, posts);
+    await focusRow(page, 'play');
+    await armWitness<boolean>(page, 'p45-one-batch-bot', () => {
+      const shown = (el: Element | null): boolean => el !== null && (el as HTMLElement).offsetParent !== null;
+      return shown(document.querySelector('.con-deckpick [data-deckpick-slot]')) && shown(document.querySelector('.con-reveal [data-zoom-slot]'));
+    });
+    await commitOnce(page, posts, posts.length, 'the play');
+    for (let i = 0; i < 4; i++) {
+      await press(page, 'Escape', 500);
+    }
+    await expect.poll(async () => onTable(await wireOf(request, id), 'Soil Bacteria'), {timeout: 30_000, message: 'Soil Bacteria played'}).toBe(true);
+    for (let i = 0; i < 12 && await page.locator('.con-reveal [data-zoom-slot]').count() === 0; i++) {
+      await press(page, 'ArrowDown', 700);
+    }
+    for (let i = 0; i < 8 && await page.locator('.con-reveal [data-zoom-slot]').count() > 0; i++) {
+      await press(page, 'Enter', 700);
+    }
+    await settle(page, {timeoutMs: 60_000});
+    expect((await witnessOf<boolean>(page, 'p45-one-batch-bot').values()).some((both) => both), 'never the verdict AND the reveal at once').toBe(false);
+  });
 });

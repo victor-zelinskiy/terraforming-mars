@@ -320,6 +320,8 @@ type Screen = {
   focusTaken: boolean,
   /** The system alert stands (`.con-alert` — a refused / failed press, the server out of reach): its title. */
   alert: string | undefined,
+  /** …and its message (what the alert says of the refusal). */
+  alertBody: string,
   /** The hand's album in plain browse (a card to play): every slot — its card, playable or not, where it stands. */
   hand: {focused: number, cards: Array<{name: string, playable: boolean, page: number, row: number, col: number}>} | undefined,
   /** The standard projects' grid, when it stands in browse: the focused row and every row (its project, lit or not). */
@@ -408,6 +410,7 @@ async function look(page: Page): Promise<Screen> {
             futile: c.hasAttribute('data-stdp-futile')})),
         };
       })(),
+      alertBody: (document.querySelector('.con-alert__body')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 140),
       alert: document.querySelector('.con-alert') === null ? undefined :
         (document.querySelector('.con-alert__title')?.textContent ?? '').trim().slice(0, 60),
       focusTaken: document.querySelector('.con-hand__slot--selected.con-hand__slot--select-picked, .con-hand__slot--selected.con-hand__slot--select-disabled, ' +
@@ -1086,7 +1089,7 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     // THE SYSTEM ALERT (a press the network or the server let down — the weather's, or a defect's in clear weather):
     // a player reads it and presses A. Named in the walk, so a clear game's alert is a line to read.
     if (seen.alert !== undefined) {
-      log.push(`[ALERT ${seen.alert}]`);
+      log.push(`[ALERT ${seen.alert}${seen.alertBody !== '' ? ` — ${seen.alertBody}` : ''}]`);
       await press('Enter', 600 + Math.round(g() * 900));
       continue;
     }
@@ -1467,6 +1470,11 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       page.on('response', (response) => {
         if (response.status() >= 400) {
           said('http', `${response.status()} ${response.request().method()} ${response.url().replace(/^https?:\/\/[^/]+/, '').replace(/\?.*$/, '')}`);
+          // (…and a refused SUBMIT says WHY in the walk — the server's own word: CI's game 270, «400 POST
+          // /player/input-batch» at a colony's trade, and nothing of which rule refused it.)
+          if (response.request().method() === 'POST' && /\/player\/input/.test(response.url())) {
+            void response.text().then((body) => log.push(`[REFUSED ${response.status()} ${body.replace(/\s+/g, ' ').slice(0, 200)}]`), () => undefined);
+          }
         }
       });
       page.on('console', (message) => {
