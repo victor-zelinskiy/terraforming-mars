@@ -2484,7 +2484,16 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
     story that never came on a board the player could see.
 - **Open after the first slice of the sixth count (`fzl-count`, two games on `2bddfb55c7`):** `workspace-conclusion/
   level-door/hand` (info — game 1504: three B presses through a played card's committed beat, then the hand did not
-  conclude by its own edge and the level door closed it 250 ms later) — to read to its root.
+  conclude by its own edge and the level door closed it 250 ms later) — to read to its root. Seen again in the sixth
+  count's game 1656 («hand:committed > parliament:executing», B three times). Two shapes built to reproduce it — a plain
+  play and a play whose vote is hosted in the hand, B ×3 through the beat — are green three runs each and stand as
+  guards (`console-hand-play-back-in-beat`); the field case is still open.
+- **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
+  сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
+  hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read
+  48 ms: a timer due on a frame's instant made the bottle skip the frame — the halves made it regular): the bottle's
+  pending frames keep their instant (`bottleTime.framesAt`, `974671bd10`) — proven three ways (halves off: green; on with
+  the old clock: red; on with the fixed one: green).
 
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick
