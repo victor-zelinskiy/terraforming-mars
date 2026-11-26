@@ -2449,6 +2449,10 @@ type WirePrompt = {
   payProduction?: {cost: number, units: Record<string, number>},
   /** Delta Project — the steps the server allows on the track (`DeltaProjectInputModel`). */
   validSteps?: Array<number>,
+  /** The Hydronetwork's push-back / blockade doors: the targets the server projects. */
+  projection?: {hasLegalTarget?: boolean, targets?: Array<{color: string, legal?: boolean}>},
+  /** The Hydronetwork's reward door: the stages a reward may be claimed at. */
+  claimable?: Array<number>,
   startGamePrompt?: {kind: string},
 };
 
@@ -2783,6 +2787,27 @@ export function answerPrompt(prompt: WirePrompt, plan: SeedPlan): WireResponse {
     // Delta Project's track: the fewest steps the server allows, and its target-bearing reward waived (no follow-up
     // pick to answer — the seat's choice, which the server honours by contract).
     return {type: 'deltaProject', amount: (prompt.validSteps ?? [0])[0], waiveReward: true} as unknown as WireResponse;
+  // THE HYDRONETWORK's OTHER DOORS (CI's autopilot on `a3c1a4cd33`, game 209 — the duo's second seat stood on
+  // «Choose a player to push back on the Hydronetwork» with no answer, ten minutes, STUCK): the first legal target of a
+  // push-back / a blockade (none — the push-back's own «no target»), the first claimable stage of a reward.
+  case 'deltaEspionage': {
+    const target = prompt.projection?.targets?.find((t) => t.legal === true);
+    return (prompt.projection?.hasLegalTarget === true && target !== undefined ?
+      {type: 'deltaEspionage', target: target.color} : {type: 'deltaEspionage'}) as unknown as WireResponse;
+  }
+  case 'deltaBlockade': {
+    const target = prompt.projection?.targets?.find((t) => t.legal === true);
+    expect(target, `a blockade with no legal target: ${describePrompt(prompt)}`).toBeDefined();
+    return {type: 'deltaBlockade', target: target?.color} as unknown as WireResponse;
+  }
+  case 'deltaStageReward':
+    return {type: 'deltaStageReward', position: (prompt.claimable ?? [0])[0]} as unknown as WireResponse;
+  // Ares' planetary-event thresholds: shift nothing (every delta 0 — inside the server's −1 … +1).
+  case 'aresGlobalParameters':
+    return {type: 'aresGlobalParameters', response: {lowOceanDelta: 0, highOceanDelta: 0, temperatureDelta: 0, oxygenDelta: 0}} as unknown as WireResponse;
+  // A delegate's owner (a neutral or the seat's own): the first the server offers.
+  case 'delegate':
+    return {type: 'delegate', player: (prompt.players ?? ['NEUTRAL'])[0]} as unknown as WireResponse;
   default:
     // NAME what it could not answer. A seeder that silently guesses is worse
     // than one that stops: the spec would fail somewhere else entirely.

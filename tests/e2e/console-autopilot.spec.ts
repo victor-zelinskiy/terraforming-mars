@@ -396,6 +396,29 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
             }
           }
         }
+        // A PAYMENT the seat cannot make in M€ alone (CI's game 246 replayed on the box — «Select how to pay N M€ for the
+        // trade fleet», refused at M€ 8: the seat had fewer): its own stock, M€ first, then what the prompt lets it spend.
+        if (asked.type === 'payment') {
+          const me = (await fetchPlayerModel(request, rival) as unknown as {thisPlayer: {megacredits: number, heat: number, steel: number, titanium: number,
+            steelValue?: number, titaniumValue?: number}}).thisPlayer;
+          const can = (asked as {paymentOptions?: Record<string, boolean | undefined>}).paymentOptions ?? {};
+          let owed = (asked as {amount?: number}).amount ?? 0;
+          const pay = {...NO_PAYMENT};
+          pay.megacredits = Math.min(me.megacredits, owed);
+          owed -= pay.megacredits;
+          if (owed > 0 && can.heat === true) {
+            pay.heat = Math.min(me.heat, owed);
+            owed -= pay.heat;
+          }
+          for (const [unit, value] of [['steel', me.steelValue ?? 2], ['titanium', me.titaniumValue ?? 3]] as const) {
+            if (owed > 0 && can[unit] === true) {
+              const n = Math.min(me[unit], Math.ceil(owed / value));
+              pay[unit] = n;
+              owed -= n * value;
+            }
+          }
+          tries.push({type: 'payment', payment: pay});
+        }
         try {
           tries.push(answerPrompt(asked as never, {}));
         } catch {

@@ -347,7 +347,8 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     await live.advance(900);
     expect(live.frames(), 'the door\'s frames of quiet have passed: the frame left — a second in, not eight').to.deep.equal([]);
     expect(doorLines().length, 'said once, as the trail of which flow left its ending to the level').to.equal(1);
-    expect(doorLines()[0]).to.match(/«hand» left by the level door — finished over the free turn and quiet for \d+ frames \/ \d+ ms \(frames: hand:committed\)$/);
+    // (…the line then says its TRAIL — the stack's last verbs, the frame's own debt and refusal: `outcomeController`.)
+    expect(doorLines()[0]).to.match(/«hand» left by the level door — finished over the free turn and quiet for \d+ frames \/ \d+ ms \(frames: hand:committed\) · verbs: .* · owed: \S+.* · refused: .*$/);
     // Past the arbiter's grace: it had nothing to do — and the door said its line ONCE.
     await live.advance(12_000);
     expect(doorLines().length, 'the door does not open twice').to.equal(1);
@@ -1370,5 +1371,38 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     expect(live.liveness().why, 'the player can act').to.deep.equal([]);
     expect(live.lines().filter((line) => line.includes('[start-stage]')), 'the fold is said once').to.have.length(1);
     expect(classes(), 'a planned ending — nothing is filed').to.deep.equal([]);
+  });
+
+  /*
+   * `start-shadow/cure/yield/step/none` + `pad-MISS:start` (#160 / #111 — CI's bottle, seed `ap0:206`, Vitor). A on the
+   * corporation's first action («fund an award, free») while a presentation still plays: the funding's section is held
+   * (`presentation`), and B minimizes the opening meanwhile — the task rises with the start PARKED (a park that never
+   * saw the question). A «Вернуться к решению» brought back the start alone, serving nothing; the start director's
+   * level door reopened the question in the awards seconds later. The law: a section task no restored frame serves,
+   * with the start able to host it, is stood up INSIDE the start on the restore itself (`mandatoryController` — the
+   * router's one door). (The presentation is the replay's own hold: in the field it was the opening's.)
+   */
+  it('the free award funding rises while the opening is minimized: A on the restore card stands it INSIDE the opening — no door, nothing filed', async () => {
+    const table = await bottleServer().bootFixture('field-first-action-vitor');
+    bottle = await bootBottle(table);
+    await bottle.advance(4_000);
+    expect(bottle.frames(), 'the start workspace stands on the first action').to.deep.equal(['start:browse']);
+    const presentation = bottle.pageModules.animationHold.beginAnimationHold('replay-presentation', {maxHoldMs: 20_000});
+    expect(await bottle.press('Enter'), 'A — the first action, under the presentation').to.equal('consumed');
+    await bottle.advance(200);
+    expect(bottle.frames().some((frame) => frame.startsWith('awards:')), 'the funding is held by the presentation').to.equal(false);
+    expect(await bottle.press('Escape'), 'B minimizes the opening').to.equal('consumed');
+    await bottle.advance(500);
+    presentation.release();
+    await bottle.advance(1_500);
+    expect(bottle.frames(), 'the opening is minimized — the funding rose without it').to.deep.equal([]);
+    expect(bottle.bar(), 'the way back is on screen').to.match(/Return to/);
+    expect(await bottle.press('Enter')).to.equal('consumed');
+    await bottle.advance(2_000);
+    expect(bottle.frames(), 'the funding stands inside the opening').to.deep.equal(['start:browse', 'awards:committed']);
+    // Past the start director's own bar: whatever would have cured the screen has looked at it.
+    await bottle.advance(12_000);
+    expect(bottle.lines().filter((line) => line.includes('[start-shadow] cure')), 'no door was needed').to.deep.equal([]);
+    expect(classes(), 'nothing is filed').to.deep.equal([]);
   });
 });

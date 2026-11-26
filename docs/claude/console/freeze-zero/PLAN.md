@@ -2568,9 +2568,23 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
     share; a seat that still cannot answer names the server's last refusal (`RIVAL-STUCK … last refusal`).
   - The pilot's door place now names the bar's GREY verbs (game 220: a land claim whose «A Выбрать клетку» the pilot
     never took — on every cell it walked, the verb stood disabled).
-  - The bottle's two new classes (#160 `start-shadow/cure/yield/step/none` — the start's award-funding step reopened by
-    the shadow's cure; #161 `wait-graph/ceiling/start-bonus:visible-source`) are bottle-only so far (no browser game
-    said them) — open.
+  - **A QUESTION THAT ROSE WHILE THE OPENING WAS PARKED STANDS INSIDE IT ON THE RESTORE** (#160 = #111 — Vitor's first
+    action, the bottle's game 206, deterministic; the triage's own reading). A on «fund an award, free» while a
+    presentation still played held the funding's SECTION (`presentation`); the player minimized the opening meanwhile
+    (B, twice); the task rose with the start parked (`deferred`, a park that never saw the question), and A «Вернуться к
+    решению» brought back the start ALONE — the restore branch returned, the start stood serving nothing, the pad
+    missed, until the start director's level door reopened the question four seconds later. Read by the stack's own
+    verb trail (two `collapseWorkspaceStack` before the rise) and two instrumented runs of the seed. The restore now
+    stands a section task no restored frame serves INSIDE the start (the router's one door, the no-park branch's).
+    Replay: `classReplays.bottle.ts` «the free award funding rises while the opening is minimized» (the presentation is
+    the replay's own hold) — the start director's door said without the fix, nothing with it; the seed's game green.
+  - #161 / `board-card-bonus:hover` — the bottle's border (`LAYOUT_BLIND`, above).
+  - The harness's second seat, three more doors it had no answer for: Delta Project's push-back / blockade / stage
+    reward, Ares' thresholds and a delegate's owner (`answerPrompt` — read off the server's input classes against the
+    harness's cases: `deltaEspionage` stood game 209 again at generation 19), and a payment its M€ alone could not
+    make (game 246 at generation 24 — «… for the trade fleet»). Replayed: 209 to the final scoring (generation 23);
+    246 no longer stuck — on the cap at generation 42, the table's clock reading `T8 · O11 · W2`: nobody places
+    oceans (open — the duo's terraforming).
   - The box's night count (`fzo-count`, 1801 – 1830 on `a3c1a4cd33`, stopped at 30 games to give the box to the fixes'
     proofs): 28 to the final scoring, 2 duo tables on the cap (generations 92 and 43 — the second seat terraforms too
     little: the harness, open), the level door once (fixed above), three Reds doors (the pilot's grey RT, fixed), one

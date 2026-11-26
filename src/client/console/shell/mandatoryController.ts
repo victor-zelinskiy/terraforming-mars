@@ -22,7 +22,7 @@ import {FINALE_KICKER, FINALE_RETURN, FINALE_TITLE} from '@/client/console/final
 import {restoreFinaleSession} from '@/client/console/finalGreenery/finalGreenerySession';
 import {PromptTone, promptToneOf} from '@/client/console/promptTone';
 import {ConsoleRevealMode} from '@/client/components/console/consoleRevealOverlayTypes';
-import {frameServing, restoreWorkspaceStack, workspaceFrameIndex, workspaceFrameMounted, workspaceFramePhase, workspaceFrameAnchor, workspaceFrameKnownPhase, workspaceFrameParked, workspaceStackCollapsed, workspaceSceneOnStage, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {frameServing, workspaceHostForStep, restoreWorkspaceStack, workspaceFrameIndex, workspaceFrameMounted, workspaceFramePhase, workspaceFrameAnchor, workspaceFrameKnownPhase, workspaceFrameParked, workspaceStackCollapsed, workspaceSceneOnStage, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {isCardDiscardActive} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {colonyResolutionFocusIntent, colonyResolutionUi} from '@/client/console/colonyTrade/colonyResolution';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
@@ -901,6 +901,17 @@ export function createMandatoryController(shell: MandatoryPort) {
       if (workspaceFrameMounted('awards') && maFocusState.draft !== undefined &&
           shell.shellTask?.kind === 'awardFunding') {
         shell.seatAwardFundingSurface();
+      }
+      // …AND A QUESTION THAT ARRIVED WHILE THE START WAS PARKED is stood up INSIDE it now (#160 / #111 — Vitor's first
+      // action, CI's bottle game 206, deterministic): B «Свернуть» on the first act, the free funding arrived with the
+      // start parked, A «Вернуться к решению» brought the start back — and only the start: the park held no step for a
+      // question it never saw, this branch returned, and the start stood serving nothing until the start director's
+      // level door reopened the question four seconds later. A section task no restored frame serves, with the start
+      // able to host it, goes through the router's one door — the same the no-park branch below takes.
+      const owed = shell.shellTask;
+      if (owed !== undefined && shell.hostTask === undefined && frameServing(owed.kind) === undefined &&
+          workspaceHostForStep() === 'start') {
+        shell.openShellTaskSurface(owed);
       }
       return;
     }
