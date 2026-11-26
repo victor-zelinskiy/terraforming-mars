@@ -2699,7 +2699,8 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
     sub-answers never stand as a question of their own — summed into the input-type axis); THE RULES THE CREATOR SETS
     on their own stream (random milestones and awards, fast mode, the others' points, the shuffled map, a starting-TR
     bonus); and ONE MORE HUMAN at one table in five of those that already seat another or MarsBot (the creator seats
-    one to four humans against the bot).
+    one to four humans against the bot). And THE DECK ASLEEP, once a storm game: the page not painted for 6 – 17 s
+    (`pageAway.ts` — the frame queue held; half the spells a hidden tab, half a window behind another).
   - The first games of `fzw` (on `5b91495ec0`): the opening through the screen had no hands — the pilot toggled the
     start's cards on and off and stepped back with LT until the door answered (game 2403); it now walks the start as
     a player does (an untaken card is taken, a taken one passed by or the step done, never LT nor B). The slow game
@@ -2716,7 +2717,12 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
     whose source or seat could not be measured when its flight launched (the parliament's own confession, never
     silent). The degrade now names the side it could not measure. And the slow game's 54 long frames are the press
     itself: `onkeydown` scripts of 0.5 – 1.2 s, 70 – 85 % of it FORCED LAYOUT — about 0.2 – 0.4 s a press at the box's
-    speed. Open: a handheld's press — a CPU profile of the press's reaction.
+    speed. Open: a handheld's press — a CPU profile of the press's reaction. A first profile (27 presses on
+    `played-table-50`, 1280×720, CPU ×3): the keydown's own reaction was light (88 ms in all); the forced layout was
+    `getBoundingClientRect` — 1.1 s in all, 40 % of it `ConsoleHandRevealLayer.anchor()` under `applyDockedPoses`
+    (the pack's pose watcher, synchronous on purpose, reading the dock's rect and the root's computed font size right
+    after the press's writes), then `ConsoleParliamentVoteMode.fitReading` / `stands`, `rowLeaveRect.leavingRectOf`.
+    The 0.5 – 1.2 s presses of the slow game are a richer table's; the next profile is taken there.
   - The opening through the screen found the START's own class at once (game 2503, `start-shadow/cure/release/game/
     none` — #128's class, by another road): Beginner Corporation's ten free cards taken by B («Взять всё»), the start
     folded by the next B's and brought back by its plate, the preludes played — and the deployment never settled: the

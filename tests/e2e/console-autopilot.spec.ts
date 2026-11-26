@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import {answerPrompt, cinematicBeat, fetchPlayerModel, NO_PAYMENT, openConsole, reloadConsole, seedGameOverApi, sendPlayerInput, soloGameConfig, syncClient} from './consoleStart';
 import {dealFor, ScopeCard, SCOPE_CARDS} from '../testing/autopilotDeal';
 import {campaignConfig, campaignModelAs, devCommit, launchMission} from './campaignFixtures';
+import {awayFromConsole, installPageAway} from './pageAway';
 import {TENDER_IDS} from '../../src/common/campaign/tenders';
 
 /**
@@ -93,7 +94,9 @@ const IDLE_MIN = Number(process.env.TM_E2E_AUTOPILOT_IDLE_MIN ?? 0);
  *   · `stale` — the press answers a prompt the server has moved on from (the promptId of the one before);
  *   · and ONCE a storm game, a RELOAD between two presses (the app restarted, the Deck woke from its sleep) — the
  *     page boots on whatever stood: a flow mid-way, a question parked, a story owed;
- *   · and ONCE, a BLIP: the whole network gone for six seconds (the Wi-Fi dropped) — the poll, the socket, a press.
+ *   · and ONCE, a BLIP: the whole network gone for six seconds (the Wi-Fi dropped) — the poll, the socket, a press;
+ *   · and ONCE, THE DECK ASLEEP: the page not painted for 6 – 17 s (`pageAway.ts` — the frame queue held; half the
+ *     spells a hidden tab that says so, half a window behind another), wherever the walk stands.
  * `TM_E2E_AUTOPILOT_WEATHER`: `clear` · `storm` · `auto` (the default — one game in three is a storm).
  */
 const WEATHER = process.env.TM_E2E_AUTOPILOT_WEATHER ?? 'auto';
@@ -558,7 +561,8 @@ async function seedRivalOpening(request: APIRequestContext, rival: string): Prom
 }
 
 async function playGame(page: Page, request: APIRequestContext, viewer: string, seed: string, log: Array<string>, ears?: SoakEars, where?: {stood: string},
-  rivals: ReadonlyArray<string> = [], storm?: {reloadAt: number, reloaded: boolean, blipAt: number, blipped: boolean, blip: () => Promise<void>},
+  rivals: ReadonlyArray<string> = [], storm?: {reloadAt: number, reloaded: boolean, blipAt: number, blipped: boolean, blip: () => Promise<void>,
+    awayAt: number, awayDone: boolean, awayMs: number, awayHidden: boolean},
   dealt: ReadonlyArray<string> = []): Promise<Played> {
   const g = rng(`${seed}:pilot`);
   const rivalRng = rng(`${seed}:rival`);
@@ -842,6 +846,12 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       storm.reloaded = true;
       log.push(`[WEATHER reload at ${played.presses}]`);
       await reloadConsole(page);
+      continue;
+    }
+    if (storm !== undefined && !storm.awayDone && played.presses >= storm.awayAt) {
+      storm.awayDone = true;
+      const said = await awayFromConsole(page, storm.awayMs, storm.awayHidden, 'the weather — the Deck put to sleep, by design');
+      log.push(`[WEATHER away ${storm.awayMs} ms ${storm.awayHidden ? 'hidden' : 'behind'} at ${played.presses} — ${said.visibility}${said.starved !== undefined ? ` · starved ${said.starved}` : ''}]`);
       continue;
     }
     if (storm !== undefined && !storm.blipped && played.presses >= storm.blipAt) {
@@ -1498,6 +1508,10 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
           }
         }
       });
+      // (The Deck asleep — `pageAway`'s gate stands before the page loads: GSAP takes the frame clock at its start.)
+      if (storm) {
+        await installPageAway(page);
+      }
       if (slow > 1) {
         test.info().annotations.push({type: 'autopilot-slow', description: `CPU ×${slow}`});
         const cdp = await page.context().newCDPSession(page);
@@ -1508,16 +1522,18 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       let played: Played | undefined;
       try {
         played = await playGame(page, request, viewer, seed, log, ears, where, rivals,
-          storm ? {reloadAt: 120 + ((n * 97) % 900), reloaded: false, blipAt: 60 + ((n * 61) % 700), blipped: false, blip: async () => {
+          storm ? {reloadAt: 120 + ((n * 97) % 900), reloaded: false, awayAt: 90 + ((n * 43) % 800), awayDone: false,
+            awayMs: 6_000 + (n % 12) * 1_000, awayHidden: n % 2 === 0,
+            blipAt: 60 + ((n * 61) % 700), blipped: false, blip: async () => {
             // (The network gone — every request of the page, the socket's too — for six seconds, then back. What the
             // page says of it in that time and the twelve seconds after is the weather's.)
-            weather.explains.push({until: Date.now() + 20_000, says: [/^\[net\] /, /^\[transport\] the poll/]});
-            const cdp = await page.context().newCDPSession(page);
-            await cdp.send('Network.emulateNetworkConditions', {offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1});
-            await cinematicBeat(page, 6_000, 'the weather\'s blip — the network is gone for six seconds, by design');
-            await cdp.send('Network.emulateNetworkConditions', {offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1});
-            await cdp.detach().catch(() => undefined);
-          }} : undefined, dealt);
+              weather.explains.push({until: Date.now() + 20_000, says: [/^\[net\] /, /^\[transport\] the poll/]});
+              const cdp = await page.context().newCDPSession(page);
+              await cdp.send('Network.emulateNetworkConditions', {offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1});
+              await cinematicBeat(page, 6_000, 'the weather\'s blip — the network is gone for six seconds, by design');
+              await cdp.send('Network.emulateNetworkConditions', {offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1});
+              await cdp.detach().catch(() => undefined);
+            }} : undefined, dealt);
         // THE LAST WORD: past the arbiter's grace and the loop's twenty looks — the screen the game left is judged whole.
         await cinematicBeat(page, 25_000, 'the last word — a quiet spell past the liveness grace, so the screen the game left is judged');
       } finally {
