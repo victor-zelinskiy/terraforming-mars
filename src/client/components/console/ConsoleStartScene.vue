@@ -5300,7 +5300,11 @@ const servesNow = computed((): StartServes => {
       deckDrawHolds() || isHandDeliveryActive() || currentRevealEvent() !== undefined,
     outcomePresenting: embedPresenting.value,
     stagePanel: firstActionPanelShown.value || bonusActionPanelShown.value,
-    stageTransit: state.firstAct.submitting,
+    // (…and the stage on its way OUT — its leave due, or running: the corp settling home is the stage's own beat. Read
+    // as «nothing served», the game's menu met a start on the leave's frame — `game > none`, 16 – 20 ms on the box's
+    // lanes on `ebe945d353`, game 2915.)
+    stageTransit: state.firstAct.submitting || state.firstAct.stage === 'leaving' ||
+      (state.firstAct.stage === 'performing' && firstActionLeaveDue.value),
     risk: riskStage.value !== undefined,
     focusables: focusables.value.filter((f) => !f.disabled).length,
   });
