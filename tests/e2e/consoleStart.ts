@@ -2704,6 +2704,13 @@ export function answerPrompt(prompt: WirePrompt, plan: SeedPlan): WireResponse {
     if (distribute !== undefined && (prompt.options ?? []).length > 0) {
       return {type: 'and', responses: (prompt.options ?? []).map((_, i) => ({type: 'amount', amount: i === 0 ? distribute : 0}))};
     }
+    // A GAIN OF N STANDARD RESOURCES (`GainResources` — the Venus track bonus: six dials 0…N, one per resource, the SUM
+    // exactly N): the whole N on the first. Each dial at its minimum gained nothing, and the autopilot's second seat stood
+    // on it — the table waiting ten minutes (CI's game 497 on `1c0976df77`, STUCK: «Select 1 resource(s)»).
+    const dials = prompt.options ?? [];
+    if (dials.length === 6 && dials.every((o) => o.type === 'amount' && (o.min ?? 0) === 0 && o.max === dials[0].max) && (dials[0].max ?? 0) > 0) {
+      return {type: 'and', responses: dials.map((o, i) => ({type: 'amount', amount: i === 0 ? o.max ?? 0 : 0}))};
+    }
     return {type: 'and', responses: (prompt.options ?? []).map((o) => answerPrompt(o, plan))};
   }
   case 'space': {

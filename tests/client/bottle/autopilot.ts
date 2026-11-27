@@ -75,6 +75,8 @@ const ARROWS: ReadonlyArray<BottleKey> = ['ArrowUp', 'ArrowDown', 'ArrowLeft', '
 
 /** The keys that open a LOOK (a viewer, the journal, a dossier) — a player reads it and closes it; a walk that is going somewhere seldom opens one. */
 const LOOK_KEYS: ReadonlySet<BottleKey> = new Set<BottleKey>(['KeyX', 'KeyR', 'KeyC', 'KeyV']);
+/** The presses one question may spend WAITING a flow's own beat out (a committed frame offering neither A nor RT). */
+const WAIT_PRESSES_MAX = 120;
 
 /**
  * The guided pick (`monkeyWalk.guidedPick`, with the pilot's own weights: it is going somewhere — A and RT carry a
@@ -164,7 +166,7 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
   };
 
   // The question the viewer stands on (the server's number), how it has been pressed at, and who answered it.
-  let standing: {promptId: number | undefined, type: string, menu: boolean, presses: number, budget: number, byApi: boolean} | undefined;
+  let standing: {promptId: number | undefined, type: string, menu: boolean, presses: number, budget: number, byApi: boolean, waited: number} | undefined;
   let quietSince = bottle.clock.now();
   let lastAge = -1;
   let sampledGeneration = 0;
@@ -270,7 +272,7 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       // question's.)
       const budget = asked.menu ? (g() < passAtOnce ? 0 : menuMin + Math.floor(g() * (menuMax - menuMin + 1))) :
         asked.type === 'initialCards' ? questionBudget * 4 : questionBudget;
-      standing = {promptId: asked.promptId, type: asked.type, menu: asked.menu, presses: 0, budget, byApi: false};
+      standing = {promptId: asked.promptId, type: asked.type, menu: asked.menu, presses: 0, budget, byApi: false, waited: 0};
     }
     if (standing.presses >= standing.budget) {
       if (standing.menu) {
@@ -307,7 +309,17 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       }
       continue;
     }
-    standing.presses++;
+    // A FLOW PRESENTING ITS OWN BEAT IS WAITED OUT, never spent (CI's bottle on `ea409111c3`, games 2 and 18: a sitting
+    // past its commit, the bar «X Осмотреть · B Свернуть» and no A while its renewal played — the pilot's presses there
+    // used the question's whole budget, and the door answered the «К драфту» that rose a moment later). A press over a
+    // committed frame whose bar offers neither A nor RT is a player waiting; such waits are counted apart, bounded.
+    const top = bottle.frames()[bottle.frames().length - 1] ?? '';
+    const waiting = /:(committed|executing|completing|verdict)/.test(top) && !bottle.offered().some((o) => o.key === 'Enter' || o.key === 'Period');
+    if (waiting && standing.waited < WAIT_PRESSES_MAX) {
+      standing.waited++;
+    } else {
+      standing.presses++;
+    }
     // HALF THE QUESTION's BUDGET SPENT AND IT STILL STANDS: a player asked something the screen in front of them does
     // not answer GOES HOME — the board, where the question's plate or its way back stands. (The passes of
     // 2026-11-24: the pilot browsed the Parliament's delegate stage for four questions in a row, and the door
