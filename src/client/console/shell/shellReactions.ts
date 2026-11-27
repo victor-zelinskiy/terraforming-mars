@@ -99,8 +99,13 @@ export function installShellReactions(shell: Shell): void {
   watch(() => shell.startDiscardStepDue, (due) => shell.whenStartDiscardStepDueChanges(due));
   watch(() => shell.startPartyStepDue, (due) => shell.whenStartPartyStepDueChanges(due));
   watch(() => shell.startHostedStepDue, (kind) => shell.whenStartHostedStepDueChanges(kind));
-  watch(() => shell.startStrandedNow, (now) => shell.whenStartStrandedNowChanges(now));
-  watch(() => shell.startShadowSig, (sig) => shell.whenStartShadowSigChanges(sig));
+  // THE OPENING's TWO JUDGES READ A SETTLED FRAME (`post`): both read the scene's answer through its MIRROR
+  // (`consoleStartState.serves`), written by the scene's own pre-flush watcher — a CHILD's, so in one flush it runs
+  // AFTER the shell's. Judged in `pre`, one mutation was read half-applied: the server's new question beside the
+  // scene's old answer («card:corporationPlay · queue>wizard», 15 looks of ≤ 6 ms over the box's two lanes on
+  // `1c0976df77` — every one «agree» on the same flush's second pass), a disagreement nobody could see.
+  watch(() => shell.startStrandedNow, (now) => shell.whenStartStrandedNowChanges(now), {flush: 'post'});
+  watch(() => shell.startShadowSig, (sig) => shell.whenStartShadowSigChanges(sig), {flush: 'post'});
   watch(() => shell.playerView.waitingFor?.promptId, (id) => shell.whenPlayerViewWaitingForPromptIdChanges(id));
   watch(() => shell.ledgerDiscardStepDue, (due) => shell.whenLedgerDiscardStepDueChanges(due));
   watch(() => shell.consoleForegroundBusy, (busy, wasBusy) => shell.whenConsoleForegroundBusyChanges(busy, wasBusy));
