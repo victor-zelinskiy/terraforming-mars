@@ -1648,6 +1648,7 @@ export function createPlacementController(shell: PlacementPort) {
     boardBeatsWatchable,
     boardCoverReasons,
     boardStoryWaiter,
+    cameraServesAnOwedPlacement,
     onConvertPlantsSpacePicked,
     armBoardBonusIfCardCell,
     cancelPlacement: ownCancelPlacement,

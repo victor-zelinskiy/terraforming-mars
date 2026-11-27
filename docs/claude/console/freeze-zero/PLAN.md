@@ -2983,6 +2983,27 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   the seeder now puts N on the first. CI's bottle on `ea409111c3`, games 2 and 18 — the door answered the sitting's
   «К драфту»: past the commit, no A while the renewal played, the presses spent the question's budget before the A
   rose; a press over a committed frame offering neither A nor RT is a player WAITING, counted apart (bounded).
+- **CI's autopilot on `c975ec4ff6`, game 11 (#184) — A REACTION's TOKEN BORN OVER A FOLDED START.** Poseidon's first
+  action built Europa inside the start; Poseidon's effect answered it with +1 M€ production — the corporation's face rose
+  IN ITS PLACE in the start and held its read beat, and the pilot's B (out of the colonies step, then «Свернуть»)
+  collapsed the start in that beat: the token was born over a surface that was gone
+  (`transfer/surface-folded/birth/production/megacredits`). The collapse already waits for a band surface that HOLDS
+  tokens (R16) — but between the rise and the first birth nothing was registered on the surface. The face now owes its
+  surface the tokens from the moment it is known (`rise` — `owe`, before its effect row is lit) until the last has LEFT
+  it (`oweSurfaceTokens` / `settleSurfaceDebt`, the Parliament reward's book of debts). Proven in the module
+  (`cardReactionDirector.spec` — red without the debt, green with it). The field's road (the start standing
+  `committed` with the ocean asked INSIDE it) did not come on demand: on the box the placement yields the start to the
+  board at once, and a yielded start is no band surface (`shellBounded`) — watched in CI.
+- **CI's bottle on `1c0976df77`, game 535 (#181) — THE FINAL SITTING's PLATE BEHIND THE PLANET's CEREMONY.** The bot
+  finished Mars in generation 18; the same view brought the FINAL sitting, whose «Mars First Budget» asked the player a
+  city. The camera came in for that city at once (`planetFocusTarget` reads the raw prompt — by design: the board is
+  focused when the player arrives), and the terraformed scene, armed, waited for a quiet world — `!isPlanetFocusEngaged`
+  among its terms — while holding the prompts; the sitting's plate waited for the scene, the pick for the plate: a
+  cycle only the armed wait's twenty seconds broke, past the plate's fifteen (`mandatory-gate/overdue/parliament:genn`).
+  A camera AT REST for a placement nobody has come to (`cameraServesAnOwedPlacement`) is no camera in motion: the
+  ceremony takes an engaged camera's mode and gives the pick its own focus back at its end. Reproduced to the line
+  in the bottle on the CI commit (twice, instrumented — `focus: true`, `pf: active:placement`, `wf: space «Place a city
+  tile (Mars First Budget)»`, phase `parliament`) and replayed with the fix.
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read

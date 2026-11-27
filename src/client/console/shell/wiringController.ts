@@ -129,6 +129,7 @@ export type WiringPort = {
   boardBeatsWatchable: UnwrapRef<PlacementController['boardBeatsWatchable']>,
   boardCoverReasons: UnwrapRef<PlacementController['boardCoverReasons']>,
   boardStoryWaiter: UnwrapRef<PlacementController['boardStoryWaiter']>,
+  cameraServesAnOwedPlacement: UnwrapRef<PlacementController['cameraServesAnOwedPlacement']>,
   cardArrivalBusy: UnwrapRef<HandController['cardArrivalBusy']>,
   cardStageExitBusy: UnwrapRef<HandController['cardStageExitBusy']>,
   clearDepartingPlayCard: UnwrapRef<PlayCardController['clearDepartingPlayCard']>,
@@ -1003,8 +1004,14 @@ ${ownerEdge.facts}`;
     registerTerraformedSceneProbes({
       quiet: () => {
         const s = shell.rawAdmissionSignals;
+        // (THE CAMERA AT REST FOR A PLACEMENT NOBODY HAS COME TO is no camera in motion — the bottle on CI, game 535,
+        // #181: the final sitting asked a city of «Mars First Budget» behind its plate, the camera stood in for that
+        // owed pick (`planetFocusTarget` reads the raw prompt), the armed scene waited for the camera, the plate for the
+        // scene — fifteen seconds to the plate's bound. The ceremony takes an engaged camera's mode and gives the pick
+        // its own focus back at its end.)
+        const cameraFree = !isPlanetFocusEngaged() || (planetFocusState.phase === 'active' && shell.cameraServesAnOwedPlacement());
         return !boardSceneSettling() && !s.revealOpen && !s.revealPending && !s.cardArrival && !s.cardDiscard &&
-          !s.playedHero && !s.tileHero && !s.boardBonus && !isPlanetFocusEngaged() && !planetFocusState.arcsReturning &&
+          !s.playedHero && !s.tileHero && !s.boardBonus && cameraFree && !planetFocusState.arcsReturning &&
           generationSceneState.phase === 'idle';
       },
       sectionCovered: () => consoleState.section !== 'board',
