@@ -1507,7 +1507,28 @@ async function waitHydroStoryQuiet(myEpoch: number): Promise<void> {
  * it (the rating is applied, the beat goes idle, this loop is over) — the reactor used to run out twenty seconds
  * before that and pay for a rating that had not landed. Each of the two is a node of the wait graph with ITS bound.
  */
+/**
+ * THE CHAIN WAITS FOR THE BOARD — for a story the BOARD must tell first (the scale step's rating, its token born on the
+ * marker): while it does, the chain holds nothing a workspace owes its own leave to. A workspace covering the board
+ * (the opening after its last stage) that waited for this chain waited for ITSELF — CI's autopilot on `9b18aa2259`, game
+ * 553: Philares' first action raised the oxygen, a rating reactor queued behind the step's TR, the rating's story
+ * waited for a board the start covered, and the start's stage would not leave while the chain stood — until the
+ * story's 32 s due (`presentation-ledger/story-due`, the foreground's lease over nothing). Read by the start's barrier.
+ */
+export function cardReactionWaitsForTheBoard(): boolean {
+  return cardReactionState.waitsForBoard && cardReactionState.phase === 'waiting';
+}
+
 async function waitRatingStoryQuiet(myEpoch: number): Promise<void> {
+  cardReactionState.waitsForBoard = true;
+  try {
+    await waitRatingStoryLoop(myEpoch);
+  } finally {
+    cardReactionState.waitsForBoard = false;
+  }
+}
+
+async function waitRatingStoryLoop(myEpoch: number): Promise<void> {
   const clock = (): number => (typeof performance === 'undefined' ? 0 : performance.now());
   let owedSince = clock();
   /** The touchdown owed on a stage in plain view — the reactor's own bound. */
@@ -1855,6 +1876,7 @@ export function cutCardReactions(reason = 'cut'): void {
   clearDeclaredReactors();
   hurried = false;
   cardReactionState.hurried = false;
+  cardReactionState.waitsForBoard = false;
   cardReactionState.phase = 'idle';
 }
 

@@ -3124,6 +3124,18 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   chain plays beside the decision» is the design's own step — the reaction director's wait ends in silence there, never
   «on its ceiling». ③ Game 561: an opening dropped from the park WITH its own step standing on it (solo Colonies' «Убрать
   плитку» inside the start) ends with the opening like the bare one — not news when nothing of it is owed.
+- **CI's AUTOPILOT ON `9b18aa2259` — the bottle's gate PASS (game 558 clean), the browser 48 of 48, ONE defect: game 553
+  (#119's class `lease:mandatory-choice` on a new road).** Replayed on the box to the same three lines twice, then with a
+  diagnostic in the watchdog's line: Philares' first action (a greenery) raised the oxygen, a rating reactor queued
+  behind the step's TR, and the card-reaction director WAITED for the rating's story (`waitRatingStoryQuiet` — «the
+  rating's stage is covered»); the rating's story waited for a board the START covered; and the start's first-action
+  stage would not leave while `cardReactionState.phase !== 'idle'` — `startStandsBy: hold + first stage performing`, a
+  circle only the story's 32 s due broke (and the foreground's lease stood over nothing rendered meanwhile). A chain that
+  waits for the BOARD holds nothing the stage owes its leave to: the director says so (`cardReactionWaitsForTheBoard` —
+  reactive, `cardReactionState.waitsForBoard`), and both of the start's barriers read it. Replayed: game 553 with NO
+  record (was three); the start / first-action / reaction family on the box 29/29; client 10064/10064, guards 3080. A
+  guard of Philares' first action at the opening was added on the way (`console-first-action-philares.spec`, fixture
+  `first-action-philares-opening` — on the solo table its payout question comes first and the start leaves after it).
 - **STAGE 6 — WHERE IT STANDS (the hand-over, 2026-11-27 night; the owner: this session goes to CI's bugs, the program
   continues in another).** *Coverage:* the autopilot's ledger at ZERO debt over 223 passes (`tests/client/bottle/
   autopilotUnwalked.json` — flows 252 of 274 opened, frames 13 of 13, every key never walked declared with its reason);

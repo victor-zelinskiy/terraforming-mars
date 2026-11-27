@@ -77,6 +77,8 @@ export const cardReactionState = reactive({
   phase: 'idle' as CardReactionPhase,
   /** The chain WAITS on something long of its own (a sitting, the rating's story, a decision, an attached host) — not the table's answer a decision waits for. */
   waitingOnOther: false,
+  /** …and that wait is for a story the BOARD tells first (the scale step's rating) — `cardReactionWaitsForTheBoard`. */
+  waitsForBoard: false,
   /**
    * …and WHOM that wait is for, when it is the PLAYER (`''` otherwise): the rating's stage they keep covered, the
    * decision they keep at the centre. The chain's hold says it (`heldForPlayer`) — a wait over somebody's own time is

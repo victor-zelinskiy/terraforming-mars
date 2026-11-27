@@ -957,6 +957,29 @@ plutoSettlementsTable('pluto-settlements-empty-hand', {cubes: 2, track: 3, forei
   write('first-action-owed-opening', game);
 }
 
+// ── first-action-philares-opening: PHILARES' FIRST ACTION AT THE OPENING — generation 1, «place a greenery» owed (the
+//    menu «the first action | pass»): the greenery raises the oxygen, the step's TR is a story told on the BOARD, and
+//    the start must give the board back for it (CI's autopilot on `9b18aa2259`, game 553 — the start stood over the
+//    board after the placement, serving nothing, the story waiting for a board the start covered: a mutual wait until
+//    the story's ceiling, and the foreground's mandatory lease held over nothing rendered). ──
+{
+  const {game, player} = soloActionPhase({customCorporationsList: [CardName.PHILARES], startingCorporations: 1});
+  const corp = player.playedCards.corporations()[0];
+  if (corp === undefined || corp.initialAction === undefined) {
+    throw new Error(`the first-action-philares-opening fixture expected a corporation with a first action — got ${corp?.name}`);
+  }
+  player.megaCredits = 40;
+  player.pendingInitialActions = [corp];
+  player.popWaitingFor();
+  player.takeAction();
+  runAllActions(game);
+  const menu = player.getWaitingFor();
+  if (game.generation !== 1 || !(menu instanceof OrOptions) || menu.options.length !== 2) {
+    throw new Error(`the first-action-philares-opening fixture expected generation 1 and the menu «first action | pass» — got generation ${game.generation}, ${menu?.constructor.name}`);
+  }
+  write('first-action-philares-opening', game);
+}
+
 // ── rail-reward-action: a solo action phase with TWO plain resource-paying
 //    blue actions in the tableau — Electro Catapult (spend 1 plant / 1 steel
 //    → +7 M€: a STOCK reward with a choice) and Space Mirrors (7 M€ → +1

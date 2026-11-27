@@ -1522,7 +1522,7 @@ import {
 import {
   armFirstActionRail, firstActionRailBusy, firstActionRailOf, firstActionRailState, flyFirstActionRail, releaseFirstActionRail,
 } from '@/client/console/startFirstActionRail';
-import {ReactorEmergence, awaitArrivingFace, cardReactionAnswerFlight, markReactionCause} from '@/client/console/cardReaction/cardReactionDirector';
+import {ReactorEmergence, awaitArrivingFace, cardReactionAnswerFlight, cardReactionWaitsForTheBoard, markReactionCause} from '@/client/console/cardReaction/cardReactionDirector';
 import {buriedUnderAnotherCard, liftInPlace, placeShowsCard, reactorPlaceArriving, settleInPlace} from '@/client/console/cardReaction/reactorPlaces';
 import {
   observedStartQueueBox, observeStartQueueBox, releaseStartQueueBox, retireStartReactorPlace, standStartReactorPlace,
@@ -2905,7 +2905,7 @@ const DEPLOYMENT_SETTLE_TERMS: ReadonlyArray<[string, () => boolean]> = [
   // …and neither is a play the TABLE is still answering (TR82 Proteus — the last Prelude's matching tag): the
   // reactor rises out of its slot on «РАЗЫГРАНО» and lays its token in its own capsule there, so the shelf must
   // stand until the chain has receded — released first, the corporation's data fell into the bare satellite.
-  ['reactionStage.phase === \'idle\'', () => reactionStage.phase === 'idle'],
+  ['reactionStage.phase === \'idle\'', () => reactionStage.phase === 'idle' || cardReactionWaitsForTheBoard()],
   // THE FIRST-ACTION STAGE is the deployment's own conditional last
   // stage now: the workspace may not settle while the corporation still
   // OWES its mandatory first action (domain ledger / live prompt), and
@@ -3492,7 +3492,10 @@ const firstActionChainQuiet = computed((): boolean => {
     startFlowPreludePrompt(props.playerView) === undefined &&
     !heroState.active && currentRevealEvent() === undefined &&
     // THE TABLE'S ANSWER TO THE ACTION (TR81): its rail half in the air, the reactor still standing out of its seat.
-    !firstActionRailBusy() && reactionStage.phase === 'idle' &&
+    // (…a chain that WAITS FOR THE BOARD — the scale step's rating told on the marker first — holds nothing the stage
+    // owes its leave to: the board it waits for is the one this start covers. CI's autopilot on `9b18aa2259`, game 553:
+    // the stage stood «performing» over the board until the rating story's 32 s due — `cardReactionWaitsForTheBoard`.)
+    !firstActionRailBusy() && (reactionStage.phase === 'idle' || cardReactionWaitsForTheBoard()) &&
     // THE DECK IS ALREADY DEALING. A draw's cards come off the deck
     // BEFORE the reveal event exists, so «no reveal yet» is not «no draw»
     // — read that gap as quiet and the stage leaves, the deployment
