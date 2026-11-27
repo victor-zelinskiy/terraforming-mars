@@ -2817,6 +2817,16 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   refused it. Two reactions to one collect; the door's answer is now the cube's (`colonyBonusCollected`). Reproduced
   (`console-screen-shadow-rows` colonyBonus — «the collect was sent once»: red, three refused lines; green), a caller
   trace on the box naming the second sender.
+- **CI's autopilot on `4f01936956` (45929203307), game 418 — A GAME DEAD FOR ITS PAGE (`GET api/player` 404 in
+  generation 7).** The worker server's log (the box replayed the seed and failed the same way): `unable to find player
+  … Error: Can't find space with id c80` — from `AuroraStation.canPlay` in the seat's playable cards. TR27 Aurora
+  Station (a Redux card whose city stands by the VENUS track — `compatibility: ['colonies', 'venus']`) had been dealt to
+  a Colonies + Redux table WITHOUT Venus: the deal rotation filtered by the card's own module only, and a custom list
+  overrides the manifest's gates by upstream's design (its own tests pin it — custom preludes, `includedCards`). Every
+  view of the seat threw, `ApiPlayer` answered 404 — a dead game. The rule's own engine now reads a named city cell
+  this board does not have as «the city cannot be placed» (`Executor.canExecute` — the card unplayable, never a
+  throw), unit-tested red → green on Aurora Station; and the deal rotation skips a card whose other modules are off
+  (`ScopeCard.needs`). (A first cut that left such cards out of the deck broke upstream's override tests — reverted.)
 - **THE SCENARIO AXIS (2026-11-27) — the input-type bar's two gaps closed.** A choice only a blue card's action asks
   (Dutch Mountains' stage reward, Modular Floodgates' blockade) was reached by no dealt game in a pass. Now one game
   in twelve (`n % 12 === 11`, never a campaign's) is a SCENARIO: a fixture standing on those choices (`scenario-delta`

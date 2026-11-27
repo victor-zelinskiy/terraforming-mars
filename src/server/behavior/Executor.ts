@@ -217,7 +217,12 @@ export class Executor implements BehaviorExecutor {
         }
       } else {
         // Special case for Star Vegas. The space may already be occupied.
-        if (game.board.getSpaceOrThrow(behavior.city.space).tile !== undefined) {
+        // …and a named space THIS board does not have (CI's autopilot on `4f01936956`, game 418 — TR27 Aurora
+        // Station's cell by the Venus track, the card dealt by a custom list to a table without Venus Next): the city
+        // cannot be placed, so the card cannot be played — never a throw out of every view of the seat (the playable
+        // cards are read by each view, and `ApiPlayer` answered 404 for the rest of the game).
+        const space = game.board.spaces.find((candidate) => candidate.id === behavior.city?.space);
+        if (space === undefined || space.tile !== undefined) {
           return false;
         }
       }

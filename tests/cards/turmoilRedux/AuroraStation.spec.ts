@@ -192,6 +192,22 @@ describe('AuroraStation', () => {
       expect(u.p1.canPlay(u.card)).is.true;
     });
 
+    // CI's autopilot on `4f01936956`, game 418: the card dealt by a CUSTOM list (which overrides the manifest's gates,
+    // as upstream's custom lists do) to a Colonies + Redux table WITHOUT Venus Next — the board has no cell by the
+    // Venus track, and `canPlay` threw «Can't find space with id c80» out of every view of the seat.
+    it('a table without Venus Next (a custom deal): the cell by the Venus track is not there — unplayable, never a throw', () => {
+      const [game, p1] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true, venusNextExtension: false});
+      game.phase = Phase.ACTION;
+      const parliament = game.parliament!;
+      ([PartyName.GREENS, U, PartyName.INDUSTRIALISTS] as const).forEach((party, i) => seatResolution(parliament, i, quietResolutionOf(party)));
+      seatEnacted(parliament, quietResolutionOf(U));
+      const card = new AuroraStation();
+      p1.cardsInHand.push(card);
+      p1.megaCredits = 20;
+      expect(() => p1.canPlay(card), "the seat's playable cards are read by every view").to.not.throw();
+      expect(p1.canPlay(card)).is.false;
+    });
+
     it('once played the dock works whoever rules', () => {
       const t = table();
       expect(t.parliament.access(t.p1, U).satisfiesRequirement).is.false;

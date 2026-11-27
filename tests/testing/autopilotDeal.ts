@@ -11,7 +11,8 @@ import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
 import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 import {CardName} from '../../src/common/cards/CardName';
 
-export type ScopeCard = {name: CardName, module: string};
+/** A card of the scope: its name, its module and the OTHER modules it needs (its factory's `compatibility`). */
+export type ScopeCard = {name: CardName, module: string, needs: ReadonlyArray<string>};
 export type Deal = {projects: Array<CardName>, corporations: Array<CardName>, preludes: Array<CardName>};
 
 export const SCOPE_CARDS = ((): {projects: Array<ScopeCard>, corporations: Array<ScopeCard>, preludes: Array<ScopeCard>} => {
@@ -24,7 +25,8 @@ export const SCOPE_CARDS = ((): {projects: Array<ScopeCard>, corporations: Array
       for (const name of Object.keys(cards) as Array<CardName>) {
         // (Delta Project is the module's global subsystem, never a prelude a seat is dealt — the creator refuses it.)
         if (inPremiumScope({module: manifest.module, name}) && name !== CardName.DELTA_PROJECT) {
-          into.push({name, module: manifest.module});
+          const compatibility = (cards as Record<string, {compatibility?: string | ReadonlyArray<string>} | undefined>)[name]?.compatibility;
+          into.push({name, module: manifest.module, needs: compatibility === undefined ? [] : typeof compatibility === 'string' ? [compatibility] : [...compatibility]});
         }
       }
     }
@@ -32,12 +34,16 @@ export const SCOPE_CARDS = ((): {projects: Array<ScopeCard>, corporations: Array
   return out;
 })();
 
-/** The next `count` cards of `list` from game `n`'s window whose module the table plays. */
+/**
+ * The next `count` cards of `list` from game `n`'s window whose module the table plays — and whose OTHER modules too
+ * (CI's game 418: TR27 Aurora Station, a Redux card needing Venus, dealt to a table without it; the server leaves such
+ * a card out now — `GameCards.addCustomCards` — and the window's slot would have gone to nothing).
+ */
 export function dealWindow(list: ReadonlyArray<ScopeCard>, n: number, count: number, on: ReadonlySet<string>): Array<CardName> {
   const out: Array<CardName> = [];
   for (let k = 0; k < list.length && out.length < count; k++) {
     const card = list[(n * count + k) % list.length];
-    if (on.has(card.module)) {
+    if (on.has(card.module) && card.needs.every((module) => on.has(module))) {
       out.push(card.name);
     }
   }
