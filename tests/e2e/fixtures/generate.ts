@@ -15979,3 +15979,244 @@ function oneTagCardFor(trackTags: ReadonlyArray<Tag>, avoid: ReadonlyArray<CardN
   }
   write('scenario-choices', game);
 }
+
+// ── scenario-parliament: THE AUTOPILOT's THIRD SCENARIO — the Parliament played FROM THE HAND, the kernel's flows no
+//    dealt game had opened in a whole pass (the flow axis of 2026-11-27: `scene:agenda-walk`, `scene:neutral-rally`,
+//    the support discard, the delegate removal and the exchange, the staged vote, the census vote's dissolve, the
+//    Parliament's leave inside the hand). A 2p Turmoil Redux + Colonies table, blue on the move and IN THE CHAIR, the
+//    Reds ruling by Heat Capture, blue on Agenda step 1 (influence 1): in the hand Minority Representation (the walk),
+//    Nationalist Movement and Red Lawyers (Reds), Political Donation (the staged vote), Party Sanctions (the chair: a
+//    support discard), Banned Delegate:redux and Recruitment:redux (the delegate removal / exchange); in play Martian
+//    Census with 3 data (its vote) and Eden Alliance. Every card is the game's own copy (off the deck — a second copy
+//    would be dealt again later in the game); the dry run proves the plays of the walk, the rally, the sanctions and
+//    the donation. Played TO ITS END (`console-autopilot.spec.ts` — SCENARIO). ──
+/**
+ * A SCENARIO's MARS STANDS HALFWAY (−12 °C, 6 % oxygen — setters, never a rules replay): the table is FOR its cards, and
+ * a game from 0 % ran fifty generations in the bottle (two seats that seldom terraform) until its page ran out of
+ * memory. Halfway, it ends in the time a whole game of the pilot takes.
+ */
+function halfwayMars(game: IGame): void {
+  setTemperature(game, -12);
+  setOxygenLevel(game, 6);
+}
+
+parliamentFixture('scenario-parliament', {
+  stopAt: 'vote',
+  megacredits: [120, 40],
+  agenda: [1, 3],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, HEAT_CAPTURE_ID);
+    seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    seatResolution(parliament, 2, AQUIFER_CONTEST_ID);
+    const [industry, mars, greens] = parliament.slots;
+    parliament.placeVote(p2, industry, 'lobby');
+    parliament.addNeutralVote(industry);
+    parliament.addNeutralVote(mars);
+    parliament.placeVote(p2, greens, 'reserve');
+    parliament.addNeutralVote(greens);
+    for (const party of REDUX_PARTIES) {
+      parliament.popularSupport.set(party, 0);
+    }
+    parliament.popularSupport.set(PartyName.REDS, 1);
+    parliament.popularSupport.set(PartyName.MARS, 2);
+    parliament.popularSupport.set(PartyName.SCIENTISTS, 1);
+    parliament.chairman = p1.id;
+    const own = (name: CardName): IProjectCard => {
+      moveToDeckTop(game, name);
+      return game.projectDeck.drawPile.pop() as IProjectCard;
+    };
+    for (const name of [CardName.MINORITY_REPRESENTATION, CardName.NATIONALIST_MOVEMENT, CardName.RED_LAWYERS, CardName.POLITICAL_DONATION,
+      CardName.PARTY_SANCTIONS, CardName.BANNED_DELEGATE_REDUX, CardName.RECRUITMENT_REDUX]) {
+      p1.cardsInHand.push(own(name));
+    }
+    const census = own(CardName.MARTIAN_CENSUS);
+    census.resourceCount = 3;
+    p1.playedCards.push(census, own(CardName.EDEN_ALLIANCE));
+    halfwayMars(game);
+  },
+  expect: ({game, parliament, p1}) => {
+    const playable = (name: CardName) => {
+      const card = p1.cardsInHand.find((c) => c.name === name);
+      return card !== undefined && p1.canPlay(card);
+    };
+    const facts = {
+      active: game.activePlayer.id === p1.id, chair: parliament.isChairman(p1), ruling: parliament.rulingParty(),
+      walk: playable(CardName.MINORITY_REPRESENTATION), rally: playable(CardName.NATIONALIST_MOVEMENT),
+      sanctions: playable(CardName.PARTY_SANCTIONS), donation: playable(CardName.POLITICAL_DONATION), banned: playable(CardName.BANNED_DELEGATE_REDUX),
+    };
+    if (!facts.active || !facts.chair || facts.ruling !== PartyName.REDS || !facts.walk || !facts.rally || !facts.sanctions || !facts.donation || !facts.banned) {
+      throw new Error(`scenario-parliament: expected blue on the move in the chair, the Reds ruling, the walk / rally / sanctions / donation / ban playable — got ${JSON.stringify(facts)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── scenario-colonies: THE AUTOPILOT's FOURTH SCENARIO — the colonies of Turmoil Redux, the kernel's flows no dealt game
+//    had opened in a whole pass (the flow axis of 2026-11-27: the Nova City scene and its gate, the colony track's move
+//    and the bonus ledger's payout, the fleet's dock, the colony steps inside a hand play and their latches, the focus
+//    restored after Pluto's discard). A 2p Redux + Colonies table in generation 4 (Fringe Colony's clock), blue on the
+//    move with Unity's access by two delegates (Colonization Funding): in the hand Nova City, Colony Sponsors, Fringe
+//    Colony and Exclusive Colony; in play Habitat Science with 4 data (its ledger pays Luna and Pluto) and Water
+//    Hauling (a second fleet, 9 energy for the fees). Six colony tiles open — blue on Luna and Pluto, red on Europa.
+//    Every card is the game's own copy; the dry run proves the four plays and the action. ──
+parliamentFixture('scenario-colonies', {
+  stopAt: 'vote',
+  megacredits: [120, 40],
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+    seatResolution(parliament, 0, COLONIZATION_FUNDING_ID);
+    parliament.placeVote(p1, parliament.slots[0], 'reserve');
+    parliament.placeVote(p1, parliament.slots[0], 'lobby');
+    game.generation = 4;
+    const luna = new Luna();
+    const ceres = new Ceres();
+    const europa = new Europa();
+    const pluto = new Pluto();
+    const io = new Io();
+    const callisto = new Callisto();
+    for (const colony of [luna, ceres, europa, pluto, io, callisto]) {
+      colony.isActive = true;
+    }
+    game.colonies = [luna, ceres, europa, pluto, io, callisto];
+    luna.colonies.push(p1.id);
+    luna.trackPosition = 2;
+    pluto.colonies.push(p1.id);
+    europa.colonies.push(p2.id);
+    const own = (name: CardName): IProjectCard => {
+      moveToDeckTop(game, name);
+      return game.projectDeck.drawPile.pop() as IProjectCard;
+    };
+    const science = own(CardName.HABITAT_SCIENCE);
+    science.resourceCount = 4;
+    p1.playedCards.push(science, own(CardName.WATER_HAULING));
+    p1.colonies.increaseFleetSize();
+    p1.energy = 9;
+    for (const name of [CardName.NOVA_CITY, CardName.COLONY_SPONSORS, CardName.FRINGE_COLONY, CardName.EXCLUSIVE_COLONY]) {
+      p1.cardsInHand.push(own(name));
+    }
+    halfwayMars(game);
+  },
+  expect: ({game, parliament, p1}) => {
+    const playable = (name: CardName) => {
+      const card = p1.cardsInHand.find((c) => c.name === name);
+      return card !== undefined && p1.canPlay(card);
+    };
+    const science = p1.playedCards.get(CardName.HABITAT_SCIENCE) as (IProjectCard & {canAct(p: IPlayer): boolean}) | undefined;
+    const facts = {
+      active: game.activePlayer.id === p1.id, nova: playable(CardName.NOVA_CITY), sponsors: playable(CardName.COLONY_SPONSORS),
+      fringe: playable(CardName.FRINGE_COLONY), exclusive: playable(CardName.EXCLUSIVE_COLONY), science: science?.canAct(p1) === true,
+      fleets: p1.colonies.freeTradeFleets(),
+    };
+    if (!facts.active || !facts.nova || !facts.sponsors || !facts.fringe || !facts.science || facts.fleets !== 2) {
+      throw new Error(`scenario-colonies: expected blue on the move, Nova City / Colony Sponsors / Fringe Colony playable, Habitat Science able to act and two free fleets — got ${JSON.stringify(facts)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── scenario-board: THE AUTOPILOT's FIFTH SCENARIO — the board's own scenes no dealt game had opened, and the one input
+//    type no pass had answered (the input-type bar's `aresGlobalParameters` and the flow axis of 2026-11-27: the nomads'
+//    move, the played cards' return, the scale swing). A 2p Turmoil Redux + Colonies + Ares + Promo table, blue on the
+//    move, the Scientists ruling by a quiet resolution, three oceans down, the temperature at −12 °C and the oxygen at
+//    4 %: in the hand Butterfly Effect (the hazard thresholds), Ecological Experiment (the scale swing), Astra Mechanica
+//    (two plain events on the table to return) and Mars Nomads (the camp, then its move). Every card is the game's own
+//    copy; the dry run proves the four plays. ──
+parliamentFixture('scenario-board', {
+  stopAt: 'vote',
+  megacredits: [120, 40],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], aresExtension: true, promoCardsOption: true},
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.SCIENTISTS));
+    for (const id of [ECOLOGICAL_SITE.plants, ECOLOGICAL_SITE.steel, ECOLOGICAL_SITE.bare]) {
+      const cell = game.board.getSpaceOrThrow(id as SpaceId);
+      if (cell.tile === undefined) {
+        cell.tile = {tileType: TileType.OCEAN};
+        cell.player = undefined;
+      }
+    }
+    setTemperature(game, -12);
+    setOxygenLevel(game, 4);
+    const own = (name: CardName): IProjectCard => {
+      moveToDeckTop(game, name);
+      return game.projectDeck.drawPile.pop() as IProjectCard;
+    };
+    for (const name of [CardName.RELEASE_OF_INERT_GASES, CardName.MINING_EXPEDITION]) {
+      p1.playedCards.push(own(name));
+    }
+    for (const name of [CardName.BUTTERFLY_EFFECT, CardName.ECOLOGICAL_EXPERIMENT, CardName.ASTRA_MECHANICA, CardName.MARS_NOMADS]) {
+      p1.cardsInHand.push(own(name));
+    }
+  },
+  expect: ({game, parliament, p1}) => {
+    const playable = (name: CardName) => {
+      const card = p1.cardsInHand.find((c) => c.name === name);
+      return card !== undefined && p1.canPlay(card);
+    };
+    const facts = {
+      active: game.activePlayer.id === p1.id, butterfly: playable(CardName.BUTTERFLY_EFFECT), ecological: playable(CardName.ECOLOGICAL_EXPERIMENT),
+      astra: playable(CardName.ASTRA_MECHANICA), nomads: playable(CardName.MARS_NOMADS), ruling: parliament.rulingParty(),
+    };
+    if (!facts.active || !facts.butterfly || !facts.ecological || !facts.astra || !facts.nomads || facts.ruling !== PartyName.SCIENTISTS) {
+      throw new Error(`scenario-board: expected blue on the move with Butterfly Effect / Ecological Experiment / Astra Mechanica / Mars Nomads playable under the Scientists — got ${JSON.stringify(facts)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── scenario-opening / scenario-banner: THE AUTOPILOT's OPENINGS — the corporations whose FIRST ACTION is a scene of the
+//    start no dealt game had walked (the autopilot's own ledger, `autopilotUnwalked.json`, 2026-11-27): Lotus Innovations
+//    (+2 TR — the rail's scene, `scene:first-action-rail`) and Septem Tribus:redux (a cube onto a party's banner —
+//    `scene:hold:parliament-banner-cube`). The first action is LEFT OWED: the scenario's game opens on the start's own
+//    stage, played through the screen. Beside it, what else the ledger asks:
+//      · `scenario-opening` — Colony Sponsors in the hand with blue's colony on Luna (the track maximised on the colony's
+//        stage, `scene:colony-track-move`), Tharsis Alliance in play (a ruling change's draw inside the Parliament,
+//        `step:reveal-parliament-latch`);
+//      · `scenario-banner` — the Reds' Diverted Research ENACTED (RX35: a Greenery / Aquifer / Asteroid standard project
+//        with a card that holds data asks where the data goes, `step:std-project-pick-response`), Martian Census with 2
+//        data in play.
+//    Every card is the game's own copy. ──
+for (const opening of ['scenario-opening', 'scenario-banner'] as const) {
+  const corp = opening === 'scenario-opening' ? CardName.LOTUS_INNOVATIONS : CardName.SEPTEM_TRIBUS_REDUX;
+  parliamentFixture(opening, {
+    stopAt: 'vote',
+    megacredits: [80, 40],
+    options: {customCorporationsList: [corp, REDUX_TABLE_CORPORATIONS[1]]},
+    arrange: ({game, p1, parliament}) => {
+      const own = (name: CardName): IProjectCard => {
+        moveToDeckTop(game, name);
+        return game.projectDeck.drawPile.pop() as IProjectCard;
+      };
+      if (opening === 'scenario-opening') {
+        const luna = game.colonies.find((c) => c.name === ColonyName.LUNA) ?? new Luna();
+        if (!game.colonies.includes(luna)) {
+          game.colonies.push(luna);
+        }
+        luna.isActive = true;
+        luna.colonies.push(p1.id);
+        p1.cardsInHand.push(own(CardName.COLONY_SPONSORS));
+        p1.playedCards.push(own(CardName.THARSIS_ALLIANCE));
+      } else {
+        seatEnacted(parliament, DIVERTED_RESEARCH_ID);
+        const census = own(CardName.MARTIAN_CENSUS);
+        census.resourceCount = 2;
+        p1.playedCards.push(census);
+      }
+      halfwayMars(game);
+    },
+    expect: ({game, parliament, p1}) => {
+      const owed = p1.pendingInitialActions.map((c) => c.name);
+      const sponsors = p1.cardsInHand.find((c) => c.name === CardName.COLONY_SPONSORS);
+      const facts = {
+        corp: p1.playedCards.has(corp), owed: owed.join(','),
+        sponsors: opening === 'scenario-opening' ? sponsors !== undefined : true,
+        law: opening === 'scenario-banner' ? parliament.enacted === resolutionInstanceId(DIVERTED_RESEARCH_ID, 0) : true,
+      };
+      if (!facts.corp || !owed.includes(corp) || !facts.sponsors || !facts.law) {
+        throw new Error(`${opening}: expected blue on ${corp} with its first action owed (and the scenario's cards) — got ${JSON.stringify(facts)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}

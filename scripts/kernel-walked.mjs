@@ -18,6 +18,12 @@
  *   node scripts/kernel-walked.mjs <pass dir> … --gate                  exit 3 when a key is neither walked nor on
  *                                                                       the ledger (the ledger is stale — or the
  *                                                                       passes given are fewer than it was written from)
+ *   … --ledger=autopilot                                                THE AUTOPILOT's OWN ledger (stage 6 — «the
+ *                                                                       autopilot covers every situation of the game»):
+ *                                                                       `tests/client/bottle/autopilotUnwalked.json`, held
+ *                                                                       against the autopilot's passes alone (the box's
+ *                                                                       lanes, CI's browser and bottle) — what no whole
+ *                                                                       game of the pilot walks, each with its reason
  *
  * A pass directory is what the monkey writes (`<dir>/cause-classes/*.json`, each with the page's `coverage`).
  */
@@ -29,6 +35,7 @@ import {flowUniverse} from './flow-universe.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const LEDGER = path.join(ROOT, 'tests', 'client', 'bottle', 'kernelUnwalked.json');
+const AUTOPILOT_LEDGER = path.join(ROOT, 'tests', 'client', 'bottle', 'autopilotUnwalked.json');
 
 /** Every parsed `cause-classes` file under the pass directories given. */
 export function readPasses(dirs) {
@@ -103,6 +110,8 @@ export function judgeWalked(unwalked, ledger) {
 function main() {
   const args = process.argv.slice(2);
   const dirs = args.filter((a) => !a.startsWith('--'));
+  const ledgerArg = args.find((a) => a.startsWith('--ledger='))?.slice('--ledger='.length);
+  const ledgerFile = ledgerArg === undefined ? LEDGER : ledgerArg === 'autopilot' ? AUTOPILOT_LEDGER : path.resolve(ledgerArg);
   if (dirs.length === 0) {
     console.error('usage: node scripts/kernel-walked.mjs <pass dir> [<pass dir> …] [--write | --gate]');
     process.exit(2);
@@ -114,7 +123,7 @@ function main() {
     process.exit(2);
   }
   const unwalked = unwalkedOf(coverage);
-  const ledger = readLedger();
+  const ledger = readLedger(ledgerFile);
   const verdict = judgeWalked(unwalked, ledger);
   const moves = Object.values(coverage.machines).reduce((a, row) => ({all: a.all + row.moves, made: a.made + row.made}), {all: 0, made: 0});
   console.log(`THE KERNEL'S STATE SPACE, OVER ${dirs.length} PASS(ES) — ${coverage.walks} walk(s), ${coverage.keys} key(s)`);
@@ -130,14 +139,17 @@ function main() {
   if (args.includes('--write')) {
     const keep = (keys, rows) => Object.fromEntries(keys.map((key) => [key, rows[key] ?? '']));
     const next = {
-      note: 'THE KERNEL\'S STATE SPACE THAT NO PASS WALKS — each key with the reason it may stand unwalked (\'\' = nobody has said yet). ' +
+      note: ledgerFile === AUTOPILOT_LEDGER ?
+        'THE KERNEL\'S STATE SPACE THAT NO WHOLE GAME OF THE AUTOPILOT WALKS — each key with the reason the pilot may leave it unwalked ' +
+        '(\'\' = nobody has said yet: the debt of stage 6). Rewritten by `node scripts/kernel-walked.mjs <autopilot passes…> --ledger=autopilot --write`. FREEZE ZERO, stage 6.' :
+        'THE KERNEL\'S STATE SPACE THAT NO PASS WALKS — each key with the reason it may stand unwalked (\'\' = nobody has said yet). ' +
         'Rewritten by `node scripts/kernel-walked.mjs <passes…> --write`: a key the passes walked leaves, the reasons are kept. FREEZE ZERO, stage 4.',
       flows: keep(unwalked.flows, ledger.flows),
       frames: keep(unwalked.frames, ledger.frames),
       moves: Object.fromEntries(Object.entries(unwalked.moves).map(([machine, keys]) => [machine, keep(keys, ledger.moves[machine] ?? {})])),
     };
-    fs.writeFileSync(LEDGER, `${JSON.stringify(next, null, 1)}\n`);
-    console.log(`→ ${path.relative(ROOT, LEDGER)} rewritten`);
+    fs.writeFileSync(ledgerFile, `${JSON.stringify(next, null, 1)}\n`);
+    console.log(`→ ${path.relative(ROOT, ledgerFile)} rewritten`);
     return;
   }
   for (const line of verdict.missing.slice(0, 40)) {

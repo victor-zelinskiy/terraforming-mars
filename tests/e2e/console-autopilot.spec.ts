@@ -370,6 +370,24 @@ const INTENTS: ReadonlyArray<{name: string, keys: ReadonlyArray<string>}> = [
   {name: 'convert-heat', keys: ['Comma', 'ArrowRight']},
 ];
 
+/**
+ * THE GAME's OWN CARDS FIRST (stage 6 — the scenarios' first passes on the box, 2026-11-27: of the seven cards the
+ * Parliament's table is FOR, the rotation's visits of the hand — two intents in ten — played two in fourteen
+ * generations, and the flows they stand on stayed unopened): when the menu offers a card of the game's own list
+ * (`dealt` — the deal, or a scenario's targets) to PLAY, the turn goes to the hand; when it offers one's ACTION, to
+ * «Действия карт». Otherwise the rotation — `undefined`.
+ */
+function dealtIntent(options: ReadonlyArray<{type: string, cards?: ReadonlyArray<{name: string, isDisabled?: boolean}>}> | undefined,
+  dealt: ReadonlyArray<string>, tableau: ReadonlyArray<string>): number | undefined {
+  const offered = (type: string, played: boolean) => (options ?? []).filter((o) => o.type === type).flatMap((o) => o.cards ?? [])
+    .some((c) => dealt.includes(c.name) && c.isDisabled !== true && (!played || tableau.includes(c.name)));
+  const at = (name: string) => INTENTS.findIndex((i) => i.name === name);
+  // (…and a STANDARD PROJECT of the list — a scenario's law that answers one, RX35's pick of the data card.)
+  const project = (options ?? []).flatMap((o) => o.cards ?? []).some((c) => dealt.includes(c.name) && c.isDisabled !== true && SP_ROTATION.includes(c.name));
+  // (A card's ACTION is a PLAYED card's — the menu's other card pick, «sell patents», lists the hand.)
+  return offered('projectCard', false) ? at('hand') : offered('card', true) ? at('card-actions') : project ? at('standard-projects') : undefined;
+}
+
 async function look(page: Page): Promise<Screen> {
   return page.evaluate((glyphs) => {
     const offered: Array<{key: string, hot: boolean}> = [];
@@ -988,14 +1006,21 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       // the board for forty-five presses until the door acted for it (the third hundred's game 906). It is a turn
       // like any other — always with an intent, and a second one when the first led nowhere.
       const bonus = PILOT >= 2 && wf.type === 'or' && !menu && wf.bonusActionPrompt !== undefined;
-      const intentful = PILOT >= 2 && (bonus || (menu && g() < 0.75));
-      const intent = intentful ? [...INTENTS[menus++ % INTENTS.length].keys] : [];
-      const budget = bonus ? 60 : menu ? (g() < (intentful ? 0.05 : 0.18) ? 0 : (intentful ? 9 : 4) + Math.floor(g() * 23)) : 45;
+      // (…never on the START's own menu — the corporation's first action owed, `startGamePrompt`: its stage is the start's
+      // «A Выполнить первое действие», and an intent there minimized the opening on its way to another section — the
+      // scenario of Lotus Innovations played its rail's scene nowhere.)
+      const opening = wf.startGamePrompt !== undefined;
+      const intentful = PILOT >= 2 && (bonus || (menu && !opening && g() < 0.75));
+      const ownCards = intentful ? dealtIntent(wf.options, dealt, (model.thisPlayer?.tableau ?? []).map((c) => c.name)) : undefined;
+      const intentAt = ownCards ?? menus++ % INTENTS.length;
+      const intent = intentful ? [...INTENTS[intentAt].keys] : [];
+      // (…and the start's own menu is never passed at once: its first action is what the opening is for.)
+      const budget = bonus ? 60 : opening ? 30 : menu ? (g() < (intentful ? 0.05 : 0.18) ? 0 : (intentful ? 9 : 4) + Math.floor(g() * 23)) : 45;
       standing = {promptId: wf.promptId, type: wf.type, menu, bonus, presses: 0, budget, byApi: false, intent: budget > 0 ? intent : [], intentful: intentful && budget > 0, still: 0, lastStood: '', heldAway: 0, collapsed: false,
         shape: questionShape(wf, menu), stdpTarget: undefined, handTarget: undefined, actionTarget: undefined,
         variantTarget: undefined, variantChosen: false};
       if (standing.intent.length > 0) {
-        log.push(`[INTENT ${INTENTS[(menus - 1) % INTENTS.length].name}]`);
+        log.push(`[INTENT ${INTENTS[intentAt].name}${ownCards !== undefined ? ' — the game\'s own card' : ''}]`);
       }
     }
     if (standing.menu && sampledGeneration !== model.game.generation) {
@@ -1205,7 +1230,9 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         // is still taken now and then: the last of the rotation.)
         const lit = grid.cards.filter((c) => c.go && !c.futile).map((c) => c.name);
         const futile = grid.cards.filter((c) => c.go && c.futile).map((c) => c.name);
-        const order = [...SP_ROTATION.filter((name) => lit.includes(name)), ...lit.filter((name) => !SP_ROTATION.includes(name)), ...futile.slice(0, 1)];
+        // (…the game's own projects FIRST — a scenario's `dealt`: the one its law answers.)
+        const rotation = [...SP_ROTATION.filter((name) => dealt.includes(name)), ...SP_ROTATION.filter((name) => !dealt.includes(name))];
+        const order = [...rotation.filter((name) => lit.includes(name)), ...lit.filter((name) => !SP_ROTATION.includes(name)), ...futile.slice(0, 1)];
         standing.stdpTarget = order.length === 0 ? undefined : order[stdpVisits++ % order.length];
         if (standing.stdpTarget !== undefined) {
           log.push(`[SP ${standing.stdpTarget}]`);
@@ -1326,6 +1353,14 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     // the server has the answer.
     if (PILOT >= 2 && wf.type === 'productionToLose' && seen.prodLoss && seen.look === '' && !seen.zoom) {
       await press((['Enter', 'Enter', 'ArrowDown', 'KeyX'] as const)[standing.presses % 4], pause());
+      continue;
+    }
+    // THE HAZARD THRESHOLDS (stage 6 — `aresGlobalParameters`, Butterfly Effect: CI's browser on `1c0976df77` met it
+    // twice, and the door answered both — «LB −1 · RB +1 · X Применить», no «A», no meter): a step on the focused row,
+    // the next row, a step back, and the apply — a player trying the thresholds, then committing. (On its own screen
+    // only: at home, with the question set aside, X is the table's «Разыграно».)
+    if (PILOT >= 3 && wf.type === 'aresGlobalParameters' && seen.bar.includes('Применить') && seen.look === '' && !seen.zoom) {
+      await press((['KeyE', 'ArrowDown', 'KeyQ', 'KeyX'] as const)[standing.presses % 4], pause());
       continue;
     }
     // THE COMPOSITES WHOSE COMMIT IS NOT «A» — read BEFORE the home's wait below, which takes a bar with no «A» for a
@@ -1509,7 +1544,9 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       const dealt = scenario !== undefined ? [...SCENARIO_TARGETS[scenario]] : table.deal.filter((name) => offered.has(name));
       const is = (list: ReadonlyArray<ScopeCard>) => (name: string) => list.some((c) => c.name === name);
       // (…a campaign's mission opens through the screen always: its tenders stand in the start scene.)
-      const uiOpening = OPENING === 'ui' || (OPENING === 'auto' && n % 4 === 3) || mission !== undefined;
+      // (…and a SCENARIO's opening is its own — a corporation's first action left owed in the fixture is played through
+      // the start's screen, never seeded over the API.)
+      const uiOpening = OPENING === 'ui' || (OPENING === 'auto' && n % 4 === 3) || mission !== undefined || scenario !== undefined;
       await Promise.all([
         ...(uiOpening ? [] : [seedGameOverApi(request, viewer, {
           buy: 4,

@@ -3004,6 +3004,42 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   ceremony takes an engaged camera's mode and gives the pick its own focus back at its end. Reproduced to the line
   in the bottle on the CI commit (twice, instrumented — `focus: true`, `pf: active:placement`, `wf: space «Place a city
   tile (Mars First Budget)»`, phase `parliament`) and replayed with the fix.
+- **STAGE 6 — FIVE MORE SCENARIO TABLES (the kernel's flow axis, 2026-11-27).** Of the 274 declared flows the lanes
+  had opened 200; the 48 never opened were mapped to their triggers (42 reachable in a normal game, 1 campaign-only, 2
+  test switches, 2 failure / dead paths). Three fixtures stand on them, played to their end by both pilots:
+  `scenario-parliament` (the Parliament FROM THE HAND — Minority Representation, Nationalist Movement, Red Lawyers,
+  Political Donation, Party Sanctions, Banned Delegate:redux, Recruitment:redux; Martian Census with 3 data; blue in the
+  chair, the Reds ruling), `scenario-colonies` (Redux colonies — Nova City, Colony Sponsors, Fringe Colony, Exclusive
+  Colony; Habitat Science with 4 data and Water Hauling; generation 4, Unity's access) and `scenario-board` (Butterfly
+  Effect — the never-answered `aresGlobalParameters`, Ecological Experiment, Astra Mechanica with two events to return,
+  Mars Nomads; Redux + Ares + Promo), and two OPENINGS whose corporation's first action is left owed — played through
+  the start's own screen (`uiOpening` for every scenario): `scenario-opening` (Lotus Innovations' rail; Colony Sponsors
+  beside blue's colony on Luna; Tharsis Alliance) and `scenario-banner` (Septem Tribus:redux's banner cube; the Reds'
+  Diverted Research ENACTED — RX35's pick of the data card on a Greenery / Aquifer / Asteroid; Martian Census). Every
+  card is the game's own copy (off the deck); Mars stands halfway (`halfwayMars` — from 0 % a two-seat table ran fifty
+  generations in the bottle and its page ran out of memory). Seven scenarios, one game in eight (`n % 8 === 3`, never a
+  campaign's `n % 8 === 5`).
+  The pilots go TO those cards: the browser's turn intent takes the game's own card first (`dealtIntent` — a card of
+  `dealt` offered to play → the hand, a played one's action → «Действия карт»; the rotation otherwise), and the bottle's
+  pilot steers too now (`targets` — home → the quick wheel's centre → the album's cursor to a playable target, as the
+  browser's `seen.hand`): the bottle's Parliament table went from one targeted flow to seven (the walk, the rally, the
+  support discard, the delegate removal, the staged vote, the Parliament's leave and the hand's dissolve). The first
+  browser games of the three: 0 records, 0 doors, all to the final scoring; `aresGlobalParameters` answered ON THE
+  SCREEN for the first time (the pilot's rule «LB / RB a step, ↓, X Применить» — CI's browser on `1c0976df77` had given
+  it to the door twice). The autopilot's own axis is held by its own ledger now (`kernel-walked.mjs
+  --ledger=autopilot` → `tests/client/bottle/autopilotUnwalked.json`): over the box's lanes and the scenario games on
+  disk, flows 238 of 274, frames 13 of 13, machine moves 39 of 66 — of what stays unwalked 38 keys are declared with
+  their reason (a failure path, a test switch, a playground, a pointer's), 25 are the stage's debt, each named in the
+  ledger (the rival's nomads, Early Colonization's raise, the scale swing, the campaign's map, …). (A pass of the same
+  snapshot replaces the one before it: the scenario games of one run were measured and are not on disk — they come
+  back with CI's passes.)
+- **A COMMIT NEVER LEAVES THE BAR (the bottle's scenario of the colonies, 2026-11-27).** Habitat Science's ledger paid
+  Pluto's «draw 1, then discard 1» inside «Действия карт»; on the bottle's narrow bar the pick stood as «A Выбрать /
+  Снять · B Свернуть» — its commit RT (`priority: 0`, «drops after every hint, never before one») dropped all the same
+  once A, B and it did not fit, and the pilot toggled cards until the door answered (twelve doors in the game; twice the
+  claim of the draw then outlived its host). A command whose priority is zero is the surface's own verb on another
+  glyph — a multi pick's commit, a deck pick's «Разыграть сейчас», a distribution's LB / RB, an explorer's «Закрыть»: it
+  is KEPT like A and B (`consoleCommandModel.commandKeeps`); the CSS clip stays the last resort.
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read

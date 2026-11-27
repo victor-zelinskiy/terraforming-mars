@@ -1,0 +1,79 @@
+{
+ "note": "THE KERNEL'S STATE SPACE THAT NO WHOLE GAME OF THE AUTOPILOT WALKS — each key with the reason the pilot may leave it unwalked ('' = nobody has said yet: the debt of stage 6). Rewritten by `node scripts/kernel-walked.mjs <autopilot passes…> --ledger=autopilot --write`. FREEZE ZERO, stage 6.",
+ "flows": {
+  "scene:colony-track-raise": "",
+  "scene:fleet-dock-scene": "",
+  "scene:hold:nomad-move-remote": "",
+  "scene:hold:screen-control-owed": "A TEST SWITCH — opened only behind a URL switch of the e2e (`?screenControl=1 — console-parliament-into-draft`); no game of the product reaches it.",
+  "scene:hold:trade-fleet-dock": "",
+  "scene:hold:wait-graph-control:still": "A TEST SWITCH — opened only behind a URL switch of the e2e (`?waitGraphControl=strand — console-wait-graph-dead-end`); no game of the product reaches it.",
+  "scene:nomad-move-remote": "",
+  "scene:played-card-return": "",
+  "scene:played-card-return:flights": "",
+  "step:colony-resolution-release-owed": "FAILURE PATH — raised only when the release of a colony resolution's outcome is REFUSED at the resolution's end (`releaseWorkspaceOutcome('resolution-end')`).",
+  "step:law-play-fold": "DEAD BY READING, ONE RACE UNPROVEN (2026-11-25) — the fold is raised only where an awaiting handoff resolves with the law's card landing and NO claim in the frame; the direct commit places its claim before the emit (`claimLawPlayOutcome`), and the staged door begins no awaiting handoff. Left in place as the guard of the one unproven race (a claim released mid round-trip): without it the workspace would fold under a landing card. To walk: a unit of `resolveAnsweredCommit` with the claim released by hand.",
+  "step:owed:scale-swing:quiet": "",
+  "step:std-project-pick-response": "",
+  "story:scale-swing": "",
+  "surface:bot-attack": "",
+  "surface:card-album": "",
+  "surface:card-annotations-layer": "POINTER ONLY — armed by a pointer hover or a click (the journal chips: `console-journal-chips` walks them); the pilot plays by the pad, as the console player does.",
+  "surface:card-list": "",
+  "surface:colony-controller": "FAILURE PATH (re-read 2026-11-24) — the scope waits only in its two bounded nets: the entry's («entered, and nothing ever arrived», `COLONY_BONUS_ENTRY_WAIT_MS`) and the sequence's («another cycle is owed and nothing of it has arrived», `COLONY_BONUS_CYCLE_WAIT_MS`). The remote colony bonus itself IS walked — `console-colony-remote-bonus` (three tests) and `console-pluto-two-colony-sequence` on every whole suite, the `miranda-remote-bonus` / `pluto-settlements-*` tables under the monkey — and arms neither: the evidence is already there when the viewer walks in, and the next cycle rides the answer of the one before. To walk: the fault pass with the colony's answer HELD between the entry and its first evidence, or between two cycles.",
+  "surface:console-campaign-map": "",
+  "surface:console-carryover-picker": "",
+  "surface:console-menu-zoom-host": "BEFORE A GAME — the main menu's card viewer; the pilot opens its game by the API (or the creator's own screen), never the menu's gallery.",
+  "surface:console-teleport": "",
+  "surface:console-tenders-playground": "A DEV PLAYGROUND — a route of its own (`the tenders playground`), never a screen of a game.",
+  "surface:draft-tray": "DEAD BY READING (2026-11-25) — the tray mounts only in Phase.INITIALDRAFTING (`draftController.draftTrayMounted`), and no creation path of the product can ask for that phase (the creator sends `initialDraft: false` — `buildCreateGamePayload`; campaigns and rematches copy it; the server's default is false). Its rise half contradicts itself: armed only by a RESEARCH buy, when the tray has already unmounted — and the task host's `riseExtras` with it. Leaves with its code: the component, `draftTrayMounted` and its two pad/bar terms, `riseExtras`, the INITIALDRAFTING terms of `isDraftPick` / `DRAFT_PHASES`, the `.con-drafttray*` rules.",
+  "surface:fleet-dock-stage": "",
+  "surface:gamepad-focus-ring": "",
+  "surface:journal-card-chip": "POINTER ONLY — armed by a pointer hover or a click (the journal chips: `console-journal-chips` walks them); the pilot plays by the pad, as the console player does.",
+  "surface:journal-colony-chip": "POINTER ONLY — armed by a pointer hover or a click (the journal chips: `console-journal-chips` walks them); the pilot plays by the pad, as the console player does.",
+  "surface:journal-ma-chip": "POINTER ONLY — armed by a pointer hover or a click (the journal chips: `console-journal-chips` walks them); the pilot plays by the pad, as the console player does.",
+  "surface:played-controller": "DEAD BY READING (2026-11-25) — the played hero's `overlay` host: every entry point of a play resolves to the `workspace` host (a prelude of the start, a deck pick, the staged ritual — hard-coded; the hand's play — the hand frame is always descended and «Разыграно» cannot stand open under a composer; the law's play — the card-actions frame is mounted and the bill is set). The scope's one wait is the departing-card safety of `lifting` under a non-workspace host. Leaves with the `overlay` host: a refactor of `consolePlayedHero` / `ConsolePlayedOverlay`'s hero half, not a deletion of a file.",
+  "surface:played-overlay": "DEAD BY READING (2026-11-25) — the same `overlay` host as `surface:played-controller`: the overlay's hero frame is measured only for `heroIncoming`, which only an overlay-hosted play raises.",
+  "surface:player-cube-playground": "A DEV PLAYGROUND — a route of its own (`the player cube playground`), never a screen of a game.",
+  "surface:premium-card-art": "",
+  "surface:rematch-layer": "",
+  "surface:turn-handoff-layer": ""
+ },
+ "frames": {},
+ "moves": {
+  "submit": {
+   "presenting → abandoned": "FAILURE PATH — a presentation that never ends: the submit's own bound over the story its answer set off (120 s). The fault pass breaks the WIRE (7 of 8 moves); this one needs a story that hangs. To walk: the synthetic-layout pass with a flight that never lands.",
+   "presenting → failed": "",
+   "sending → silent": ""
+  },
+  "frame": {
+   "browse → executing.away": "ON THE PROTOCOL, NEVER MADE ASIDE — a beat entered while the frame stands off stage (parked, stepped aside for the board): a phase is written by the frame's own press or its answer's stage, and a frame aside takes no press. Held by the walks, not proven by reading — if one makes it, note that the beat's bound runs on stage only.",
+   "committed → completing.away": "ON THE PROTOCOL, NEVER MADE ASIDE — a beat entered while the frame stands off stage (parked, stepped aside for the board): a phase is written by the frame's own press or its answer's stage, and a frame aside takes no press. Held by the walks, not proven by reading — if one makes it, note that the beat's bound runs on stage only.",
+   "committed → executing.away": "ON THE PROTOCOL, NEVER MADE ASIDE — a beat entered while the frame stands off stage (parked, stepped aside for the board): a phase is written by the frame's own press or its answer's stage, and a frame aside takes no press. Held by the walks, not proven by reading — if one makes it, note that the beat's bound runs on stage only.",
+   "completing.away → committed": "FAILURE PATH — the completing beat's own bound (`FRAME_BEAT_MAX_MS`, 180 s on stage) and the recovery that follows it. To walk: a result whose flight never ends (the synthetic-layout pass).",
+   "completing.away → completing.onStage": "NEVER MADE — the completing beat is the result's leave (about a second): no walk parks or yields a frame inside it.",
+   "completing.onStage → committed": "FAILURE PATH — the completing beat's own bound (`FRAME_BEAT_MAX_MS`, 180 s on stage) and the recovery that follows it. To walk: a result whose flight never ends (the synthetic-layout pass).",
+   "completing.onStage → completing.away": "NEVER MADE — the completing beat is the result's leave (about a second): no walk parks or yields a frame inside it.",
+   "configure → executing.away": "ON THE PROTOCOL, NEVER MADE ASIDE — a beat entered while the frame stands off stage (parked, stepped aside for the board): a phase is written by the frame's own press or its answer's stage, and a frame aside takes no press. Held by the walks, not proven by reading — if one makes it, note that the beat's bound runs on stage only.",
+   "executing.away → browse": "ON THE PROTOCOL, NEVER MADE ASIDE — a beat that stepped aside for the board (51 walks) either comes BACK on stage before its phase moves (12) or its frame leaves the stack whole (39); a phase written to it while aside was never made.",
+   "executing.away → committed": "ON THE PROTOCOL, NEVER MADE ASIDE — a beat that stepped aside for the board (51 walks) either comes BACK on stage before its phase moves (12) or its frame leaves the stack whole (39); a phase written to it while aside was never made.",
+   "executing.away → completing.away": "ON THE PROTOCOL, NEVER MADE ASIDE — a beat that stepped aside for the board (51 walks) either comes BACK on stage before its phase moves (12) or its frame leaves the stack whole (39); a phase written to it while aside was never made.",
+   "executing.away → configure": "ON THE PROTOCOL, NEVER MADE ASIDE — a beat that stepped aside for the board (51 walks) either comes BACK on stage before its phase moves (12) or its frame leaves the stack whole (39); a phase written to it while aside was never made.",
+   "executing.away → verdict": "ON THE PROTOCOL, NEVER MADE ASIDE — a beat that stepped aside for the board (51 walks) either comes BACK on stage before its phase moves (12) or its frame leaves the stack whole (39); a phase written to it while aside was never made.",
+   "verdict → executing.away": "ON THE PROTOCOL, NEVER MADE ASIDE — a beat entered while the frame stands off stage (parked, stepped aside for the board): a phase is written by the frame's own press or its answer's stage, and a frame aside takes no press. Held by the walks, not proven by reading — if one makes it, note that the beat's bound runs on stage only."
+  },
+  "claim": {
+   "live/arrival: timed → closed": "RARE — a GATED retain (the next card outcome of one flow) while the previous batch is still arriving. To walk: a card action whose result draws, retained for a second draw before the first has landed.",
+   "live/beat: over → pending": "RARE — the execution beat re-armed after it was over: a retained claim's NEXT commit while it still awaits. To walk: a two-commit flow on one claim (a repeat of an action inside one workspace).",
+   "live/host: orphaned → bound": "",
+   "live/stage: awaiting → held": "",
+   "live/stage: held → awaiting": "FAILURE PATH, second half — `held` is reached only by the claim's SAFETY (8 walks of the broken wire); leaving it by a RETAIN needs the flow to go on after that. To walk: a silent server, then a retained outcome.",
+   "live/stage: held → presenting": "FAILURE PATH, second half — the artifact arriving AFTER the claim's safety put it in `held`: a late answer behind a broken wire. To walk: the fault pass with the answer released after the safety.",
+   "live/stage: presentingOwed → awaiting": "RARE — a release REFUSED while the claim presents (2 walks reach `presentingOwed`), then the same claim retained for the next outcome before the bound re-asks."
+  },
+  "announce": {
+   "late → acknowledged": "RARE — an announce past its bound (9 walks reach `late`) that the player then acknowledges; the walks move on or end first. To walk: stand on an announced question past the bound, then press.",
+   "late → presented": "FAILURE PATH — a first presentation past its bound: the plate's door (`mandatory-gate/overdue`, a defect the gate files — #181 was one). A whole game of the pilot walks it only by a defect.",
+   "pending → late": "FAILURE PATH — a first presentation past its bound: the plate's door (`mandatory-gate/overdue`, a defect the gate files — #181 was one). A whole game of the pilot walks it only by a defect."
+  }
+ }
+}

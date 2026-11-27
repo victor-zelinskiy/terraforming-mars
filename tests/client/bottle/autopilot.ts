@@ -46,6 +46,12 @@ export type AutopilotOptions = {
   sample?: () => Record<string, number>,
   /** A word about the page appended to every press of the log (a reading aid: what stood AFTER the press and its pause). */
   trace?: () => string,
+  /**
+   * THE CARDS THE GAME IS FOR (stage 6, total coverage — the browser pilot's `dealt`): the deal's projects, or a
+   * scenario's targets. On the action menu the pilot goes to the hand when one of them stands in it, and walks the
+   * album's cursor to a playable one.
+   */
+  targets?: ReadonlyArray<string>,
 };
 
 export type AutopilotResult = {
@@ -108,9 +114,14 @@ function pilotPick(bottle: ConsoleBottle, g: () => number, last: BottleKey | und
     return 'Enter';
   }
   const roll = g();
+  // A LOOK JUST CLOSED IS NOT OPENED AGAIN AT ONCE (the bottle on the scenario of the Parliament, 2026-11-27: at the
+  // sitting's verdict «X Осмотреть» opened a corporation's look, B closed it to a level that offered X again, and the
+  // thumb walked X · B · X · B to the end of the question's budget — «A К исследованию» one B further up; the door
+  // answered). After B, a player goes on — up, along, or with the flow — never straight back into the look.
+  const reopens = (o: {key: BottleKey}): boolean => last === 'Escape' && LOOK_KEYS.has(o.key);
   if (roll < (toTheQuestion ? 0.8 : 0.7) && offered.length > 0) {
     const carries = (o: {key: BottleKey, hot: boolean}): number => (o.hot ? 8 : 0) + (o.key === 'Enter' ? 6 : o.key === 'Period' ? 4 : 0);
-    const weight = (o: {key: BottleKey, hot: boolean}): number => (toTheQuestion ?
+    const weight = (o: {key: BottleKey, hot: boolean}): number => reopens(o) ? 0 : (toTheQuestion ?
       (carries(o) > 0 ? carries(o) + 4 : o.key === 'KeyX' ? (onTaskHost ? 8 : 2) : LOOK_KEYS.has(o.key) || o.key === 'Escape' || o.key === 'Comma' || o.key === 'KeyY' ? 0.1 : 1) :
       (LOOK_KEYS.has(o.key) ? 0.5 : (o.hot ? 8 : 0) + (o.key === 'Enter' ? 6 : o.key === 'Period' ? 4 : o.key === 'Escape' ? 0.5 : 2)));
     let x = g() * offered.reduce((sum, o) => sum + weight(o), 0);
@@ -166,7 +177,9 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
   };
 
   // The question the viewer stands on (the server's number), how it has been pressed at, and who answered it.
-  let standing: {promptId: number | undefined, type: string, menu: boolean, presses: number, budget: number, byApi: boolean, waited: number} | undefined;
+  let standing: {promptId: number | undefined, type: string, menu: boolean, presses: number, budget: number, byApi: boolean, waited: number,
+    handVisits: number, handTarget?: string, handSteps: number} | undefined;
+  const targets = new Set(options.targets ?? []);
   let quietSince = bottle.clock.now();
   let lastAge = -1;
   let sampledGeneration = 0;
@@ -224,6 +237,32 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
     }
     return false;
   };
+  /**
+   * THE HAND's ALBUM as it stands — by its own structure (a card's page, its row, its place in the row), never a rect:
+   * the browser pilot's probe (`console-autopilot.spec.ts` — `seen.hand`), read off the bottle's document.
+   */
+  type AlbumCard = {name: string, playable: boolean, page: number, row: number, col: number};
+  const album = (): {focused: number, cards: Array<AlbumCard>} | undefined => {
+    type El = {classList: {contains(c: string): boolean}, getAttribute(a: string): string | null, closest(q: string): El | null,
+      parentElement: El | null, querySelectorAll(q: string): Iterable<El>};
+    const doc = (globalThis as unknown as {window: {document: {querySelectorAll(q: string): Iterable<El>}}}).window.document;
+    const slots = [...doc.querySelectorAll('.con-hand__slot')];
+    if (slots.length === 0 || !slots.some((el) => el.classList.contains('con-hand__slot--playable') || el.classList.contains('con-hand__slot--unplayable') ||
+        el.classList.contains('con-hand__slot--notnow'))) {
+      return undefined;
+    }
+    const index = (el: El | null, of: El | null | undefined, selector: string): number =>
+      el === null || of === null || of === undefined ? -1 : [...of.querySelectorAll(`:scope > ${selector}`)].indexOf(el);
+    return {
+      focused: slots.findIndex((el) => el.classList.contains('con-hand__slot--selected')),
+      cards: slots.map((el) => {
+        const row = el.closest('.con-hand__row');
+        const page = el.closest('.con-hand__page');
+        return {name: el.getAttribute('data-zoom-slot') ?? '', playable: el.classList.contains('con-hand__slot--playable'),
+          page: index(page, page?.parentElement, '.con-hand__page'), row: index(row, page, '.con-hand__row'), col: index(el, row, '.con-hand__slot')};
+      }),
+    };
+  };
   /** What stands on screen, in a line (the frames, the bar) — read BEFORE the door answers. */
   const standsNow = (): string => `frames ${bottle.frames().join('>') || 'none'} · bar «${bottle.bar().replace(/\s+/g, ' ').slice(0, 160)}»`;
 
@@ -275,7 +314,7 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       // question's.)
       const budget = asked.menu ? (g() < passAtOnce ? 0 : menuMin + Math.floor(g() * (menuMax - menuMin + 1))) :
         asked.type === 'initialCards' ? questionBudget * 4 : questionBudget;
-      standing = {promptId: asked.promptId, type: asked.type, menu: asked.menu, presses: 0, budget, byApi: false, waited: 0};
+      standing = {promptId: asked.promptId, type: asked.type, menu: asked.menu, presses: 0, budget, byApi: false, waited: 0, handVisits: 0, handSteps: 0};
     }
     if (standing.presses >= standing.budget) {
       if (standing.menu) {
@@ -353,15 +392,56 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       await press(key, pause());
       continue;
     }
+    // THE CARD A TURN PLAYS (stage 6, total coverage — the browser pilot's rule, now the bottle's too: the bottle's games
+    // of a scenario played its hand by chance, and the flows the scenario stands on stayed unopened — the Parliament's
+    // walk, rally, sanctions, the staged vote). On the action menu, with a target in the hand: home → the quick wheel's
+    // centre (the hand), and in the album the cursor walks to a playable target (a page, a row, along it) and A plays
+    // it — the composer and its steps are the pilot's as for any card. Twice a menu at most; a target not reached in
+    // sixteen steps is let go.
+    if (standing.menu && targets.size > 0 && !sees('dialog.con-zoom[open]')) {
+      const top = bottle.frames()[bottle.frames().length - 1] ?? '';
+      const hand = album();
+      if (/^hand:browse/.test(top) && hand !== undefined && hand.focused >= 0) {
+        const playable = hand.cards.filter((c) => c.playable && targets.has(c.name)).map((c) => c.name);
+        if (standing.handTarget === undefined || (standing.handTarget !== '' && !playable.includes(standing.handTarget))) {
+          standing.handTarget = playable[0] ?? '';
+          standing.handSteps = 0;
+          if (standing.handTarget !== '') {
+            result.log.push(`[HAND ${standing.handTarget}]`);
+          }
+        }
+        const at = standing.handTarget === '' ? -1 : hand.cards.findIndex((c) => c.name === standing?.handTarget);
+        if (at >= 0 && ++standing.handSteps <= 16) {
+          const [from, to] = [hand.cards[hand.focused], hand.cards[at]];
+          await press(to.page !== from.page ? (to.page > from.page ? 'ArrowRight' : 'ArrowLeft') :
+            to.row !== from.row ? (to.row > from.row ? 'ArrowDown' : 'ArrowUp') :
+              to.col !== from.col ? (to.col > from.col ? 'ArrowRight' : 'ArrowLeft') : 'Enter', pause());
+          continue;
+        }
+      } else if (standing.handVisits < 2 && bottle.frames().length === 0 && !sees('.con-quick') &&
+          (bottle.view()?.cardsInHand ?? []).some((c) => targets.has(c.name) && c.isDisabled !== true)) {
+        standing.handVisits++;
+        standing.handTarget = undefined;
+        result.log.push('[TO THE HAND]');
+        await press('Period', 400);
+        await bottle.until(() => sees('.con-quick'), 1_500, 100);
+        await press('Enter', 1_200);
+        continue;
+      }
+    }
     // A PICK OF CARDS THAT COMMITS BY RT (the browser pilot's rule — CI's bottle on `1c0976df77`, game 521: «Корпоративные
     // архивы», keep two of seven, the commit standing GREY until exactly two were taken; the thumb toggled cards on and
     // off until the door answered). Once the question has stood a third of its budget: the lit commit is pressed, an
     // untaken card under the cursor taken, a taken one walked past — a player reading the grey RT as the commit to come.
+    // (…the PICK's RT only: on a screen of no frame RT is the quick wheel — «RT Действия» at the board home, where the
+    // question's way is the plate's A; the colonies' scenario on the bottle pressed the wheel open over a colony bonus's
+    // «A Открыть» until the door answered.)
     const offeredNow = bottle.offered();
     const aNow = offeredNow.find((o) => o.key === 'Enter')?.label ?? '';
-    if (asked.type === 'card' && !standing.menu && standing.presses >= Math.floor(standing.budget / 3) &&
-        !sees('dialog.con-zoom[open]') && !sees('.con-quick') && (offeredNow.some((o) => o.key === 'Period') || barGreys('RT')) && aNow !== '') {
-      const key: BottleKey = offeredNow.some((o) => o.key === 'Period') ? 'Period' :
+    const rtCommits = offeredNow.some((o) => o.key === 'Period' && !/^Actions/.test(o.label));
+    if (asked.type === 'card' && !standing.menu && standing.presses >= Math.floor(standing.budget / 3) && bottle.frames().length > 0 &&
+        !sees('dialog.con-zoom[open]') && !sees('.con-quick') && (rtCommits || barGreys('RT')) && aNow !== '') {
+      const key: BottleKey = rtCommits ? 'Period' :
         !/^(Unpick|Deselect|Unselect)/.test(aNow) ? 'Enter' : (['ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowLeft'] as const)[standing.presses % 4];
       await press(key, pause());
       continue;
