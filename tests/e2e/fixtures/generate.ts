@@ -177,6 +177,7 @@ import {Luna} from '../../../src/server/colonies/Luna';
 import {Titan} from '../../../src/server/colonies/Titan';
 import {Europa} from '../../../src/server/colonies/Europa';
 import {Callisto} from '../../../src/server/colonies/Callisto';
+import {MarsNomads} from '../../../src/server/cards/promo/MarsNomads';
 import {Ganymede} from '../../../src/server/colonies/Ganymede';
 import {Miranda} from '../../../src/server/colonies/Miranda';
 import {LawSuit} from '../../../src/server/cards/promo/LawSuit';
@@ -16100,9 +16101,19 @@ parliamentFixture('scenario-colonies', {
     for (const name of [CardName.NOVA_CITY, CardName.COLONY_SPONSORS, CardName.FRINGE_COLONY, CardName.EXCLUSIVE_COLONY]) {
       p1.cardsInHand.push(own(name));
     }
+    // RED's CAMP (stage 6 — `scene:nomad-move-remote`, the camp moved by ANOTHER seat: no dealt game gives the rival
+    // Mars Nomads with its action open): the card in red's play, the camp on a plain land cell with room around it;
+    // the pilot's rival takes its action now and then (`RIVAL_ACTIONS`), and blue's board tells the move.
+    p2.playedCards.push(new MarsNomads());
+    const camp = game.board.getNonReservedLandSpaces().find((space) => space.tile === undefined && space.bonus.length === 0 &&
+      game.board.getAdjacentSpaces(space).filter((near) => near.spaceType === SpaceType.LAND && near.tile === undefined).length >= 4);
+    if (camp === undefined) {
+      throw new Error('scenario-colonies: no plain land cell with room around it for the camp of red');
+    }
+    game.nomadSpace = camp.id;
     halfwayMars(game, p2);
   },
-  expect: ({game, parliament, p1}) => {
+  expect: ({game, parliament, p1, p2}) => {
     const playable = (name: CardName) => {
       const card = p1.cardsInHand.find((c) => c.name === name);
       return card !== undefined && p1.canPlay(card);
@@ -16113,8 +16124,9 @@ parliamentFixture('scenario-colonies', {
       fringe: playable(CardName.FRINGE_COLONY), exclusive: playable(CardName.EXCLUSIVE_COLONY), science: science?.canAct(p1) === true,
       fleets: p1.colonies.freeTradeFleets(),
     };
-    if (!facts.active || !facts.nova || !facts.sponsors || !facts.fringe || !facts.science || facts.fleets !== 2) {
-      throw new Error(`scenario-colonies: expected blue on the move, Nova City / Colony Sponsors / Fringe Colony playable, Habitat Science able to act and two free fleets — got ${JSON.stringify(facts)}`);
+    const nomads = p2.playedCards.get(CardName.MARS_NOMADS) as (IProjectCard & {canAct(p: IPlayer): boolean}) | undefined;
+    if (!facts.active || !facts.nova || !facts.sponsors || !facts.fringe || !facts.science || facts.fleets !== 2 || nomads?.canAct(p2) !== true) {
+      throw new Error(`scenario-colonies: expected blue on the move, Nova City / Colony Sponsors / Fringe Colony playable, Habitat Science able to act, two free fleets and red's camp able to move — got ${JSON.stringify({...facts, camp: nomads?.canAct(p2)})}`);
     }
     parliament.assertLedger(game);
   },

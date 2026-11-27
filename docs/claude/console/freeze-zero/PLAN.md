@@ -3074,6 +3074,23 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   Proven: `finale-diverted-bare` (no card to hold the data) is RED on the old build with exactly the field's line
   (`stall (unserved) … holder: stranded`) and GREEN with the cure; `finale-diverted` (Martian Census) now also holds
   «the next offer waits for its press»; the finale family on the box 24/24; unit pin in `finalGreeneryModel.spec`.
+- **THE DOOR OF GAME 540 (CI's autopilot on `6ba4e117ff` — the run's one door): «A» GREY UNDER «ALL CELLS».** The ocean
+  of a temperature step (convert heat, Terra Cimmeria Nova, Ares + Redux): the pilot's own R3 (a look key) widened the
+  board to every cell, its next press left the look on, the cursor stood on a cell the ocean cannot take, and its arrows
+  walked the board cell by cell until the door answered. Two halves, each a player's: R3 back to «Только доступные» now
+  lands the cursor on the legal cell NEAREST where it stood (`ConsoleBoardSection` — it stayed on the illegal cell with
+  «A» grey under «available cells only»; `consoleBoardSection.spec`, RED without, GREEN with), and both pilots read a
+  grey «A» on a cell pick with R3 offering «Только доступные» as the way back (`[LEGAL-CELLS]`).
+- **THE PILOT's LAST ROADS OF THE LEDGER.** A rematch the table DECLINES (`surface:rematch-layer` — at a table of one
+  human an offer creates the game at once): at a finale of two humans or more the pilot walks the results' actions to
+  «Предложить реванш» and offers it, another human says no at its own console (`[REMATCH-DECLINED]`). The camp moved by
+  ANOTHER seat (`scene:nomad-move-remote` — no dealt game gives the rival Mars Nomads): `scenario-colonies` seats red's
+  camp, and the rival takes its action now and then (`RIVAL_ACTIONS`). Declared with their reasons: the DOM focus
+  engine's refusal shake (a page-level scope — the curtain; a game stands on console-owned scopes) and a claim's host
+  re-entered inside its 1.5 s grace (a park keeps the scope; the machine's explorer and the monkey walk it).
+- **A UNIT SPEC THAT SLEPT THE MOTION's SUM** (`consoleCarryoverPicker.spec`, the full client suite on a loaded laptop:
+  `expected 'list' to equal 'album'`): fixed sleeps of 650 / 1500 / 3200 ms read the stage half-way. It waits for the
+  STATE now (the stage, the picker's own `stageMoving`, the sheet's phase) under a ceiling that only says «never came».
 - **THE PILOTS' ROADS TO THE GAME's CARDS, widened.** The browser's own intents rotate over every road the game's cards
   ask (`dealtIntents` — the hand, an action, a project of the list, the TRADE when a fleet dock of the list is in play),
   the album's target goes by the order of the list (a card whose window closes first stands first — Ecological

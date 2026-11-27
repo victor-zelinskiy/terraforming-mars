@@ -656,7 +656,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1795785163001,
+ "createdTimeMs": 1795791888634,
  "currentSeed": 833362444915,
  "deferredActions": [],
  "donePlayers": [],
@@ -666,6 +666,7 @@
  "fundedAwards": [],
  "gagarinBase": [],
  "stJosephCathedrals": [],
+ "nomadSpace": "08",
  "gameAge": 20,
  "gameLog": [
   {
@@ -676,7 +677,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1795785163000
+   "timestamp": 1795791888634
   },
   {
    "message": "Good luck ${0}!",
@@ -686,7 +687,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1795785163001,
+   "timestamp": 1795791888634,
    "playerId": "p-player1-id"
   },
   {
@@ -697,7 +698,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1795785163001,
+   "timestamp": 1795791888634,
    "playerId": "p-player2-id"
   },
   {
@@ -708,7 +709,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1795785163001,
+   "timestamp": 1795791888634,
    "type": 1
   },
   {
@@ -723,7 +724,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1795785163001,
+   "timestamp": 1795791888635,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -741,7 +742,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1795785163001,
+   "timestamp": 1795791888635,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -758,7 +759,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1795785163001,
+   "timestamp": 1795791888635,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -776,7 +777,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1795785163001,
+   "timestamp": 1795791888635,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -801,7 +802,7 @@
      "value": "04"
     }
    ],
-   "timestamp": 1795785163002
+   "timestamp": 1795791888639
   },
   {
    "message": "${0} gained ${1} ${2}",
@@ -819,7 +820,7 @@
      "value": "steel"
     }
    ],
-   "timestamp": 1795785163002,
+   "timestamp": 1795791888639,
    "role": "detail"
   },
   {
@@ -842,7 +843,7 @@
      "value": "06"
     }
    ],
-   "timestamp": 1795785163003
+   "timestamp": 1795791888639
   },
   {
    "message": "${0} ${1} ${2} card(s)",
@@ -860,7 +861,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1795785163003,
+   "timestamp": 1795791888639,
    "role": "detail"
   },
   {
@@ -877,7 +878,7 @@
      ]
     }
    ],
-   "timestamp": 1795785163003,
+   "timestamp": 1795791888639,
    "playerId": "p-player2-id",
    "role": "detail"
   },
@@ -901,7 +902,7 @@
      "value": "07"
     }
    ],
-   "timestamp": 1795785163003
+   "timestamp": 1795791888639
   },
   {
    "message": "${0} gained ${1} ${2} from ${3} ocean(s)",
@@ -923,7 +924,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1795785163003,
+   "timestamp": 1795791888640,
    "role": "detail"
   },
   {
@@ -946,7 +947,7 @@
      "value": "13"
     }
    ],
-   "timestamp": 1795785163003
+   "timestamp": 1795791888640
   },
   {
    "message": "${0} ${1} ${2} card(s)",
@@ -964,7 +965,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1795785163003,
+   "timestamp": 1795791888640,
    "role": "detail"
   },
   {
@@ -982,7 +983,7 @@
      ]
     }
    ],
-   "timestamp": 1795785163003,
+   "timestamp": 1795791888640,
    "playerId": "p-player2-id",
    "role": "detail"
   },
@@ -1006,7 +1007,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1795785163003,
+   "timestamp": 1795791888640,
    "role": "detail"
   }
  ],
@@ -1438,7 +1439,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Rarefied Quartz Current",
+ "name": "Stable Pressure Beam",
  "oxygenLevel": 10,
  "passedPlayers": [],
  "phase": "action",
@@ -1551,10 +1552,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1795785163001,
+    "startedAt": 1795791888636,
     "running": true,
     "enabled": true,
-    "lastStoppedAt": 1795785163001
+    "lastStoppedAt": 1795791888636
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1644,6 +1645,10 @@
      "resourceCount": 0,
      "isDisabled": false,
      "allTags": []
+    },
+    {
+     "name": "Mars Nomads",
+     "resourceCount": 0
     }
    ],
    "draftedCards": [],
@@ -1673,11 +1678,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 0,
-    "startedAt": 1795785163001,
+    "sumElapsed": 1,
+    "startedAt": 1795791888635,
     "running": false,
     "enabled": true,
-    "lastStoppedAt": 1795785163001
+    "lastStoppedAt": 1795791888636
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],

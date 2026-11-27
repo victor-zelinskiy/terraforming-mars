@@ -1824,6 +1824,32 @@ watch(() => props.placementActive, (now: boolean) => {
     cursorBonusZone.value = undefined;
   }
 });
+// NARROWING BACK TO THE LEGAL CELLS (R3 «Только доступные» over a placement): the cursor stood where the all-cells look
+// left it — often a cell the tile cannot take, «A» grey under «available cells only». It lands on the legal cell
+// NEAREST where it stood (the player's place on the board kept, never a jump to the centre). CI's autopilot on
+// `6ba4e117ff`, game 540: the ocean of a temperature step, the board widened by R3, the arrows walked it cell by cell.
+watch(() => consoleState.freeRoam, (now: boolean) => {
+  if (now || !props.placementActive) {
+    return;
+  }
+  const here = cellEl(selectedSpaceId.value);
+  if (here?.classList.contains('board-space--available') === true) {
+    return;
+  }
+  void nextTick(() => {
+    const cells = candidates();
+    if (cells.length === 0) {
+      return;
+    }
+    const at = here?.getBoundingClientRect();
+    if (at === undefined || at.width === 0) {
+      seed(true);
+      return;
+    }
+    const idx = pickNearest(rectCenter({left: at.left, top: at.top, width: at.width, height: at.height}), cells.map((c) => c.rect));
+    landOn(cells[idx ?? 0]);
+  });
+});
 watch(() => selectedSpaceId.value, (now: string | undefined, before: string | undefined) => {
   applySpotlight(before, now);
   if (now !== undefined) {

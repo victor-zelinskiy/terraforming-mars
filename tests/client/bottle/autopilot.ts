@@ -453,6 +453,15 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       await press(key, pause());
       continue;
     }
+    // A CELL PICK WHOSE «A» IS GREY UNDER THE ALL-CELLS LOOK (the browser pilot's rule — CI's autopilot on `6ba4e117ff`,
+    // game 540: the pilot's own R3 widened the board, the cursor stood on a cell the tile cannot take, the arrows walked
+    // the board until the door answered): R3 «Available only» narrows it back, and the cursor lands on the nearest.
+    if (asked.type === 'space' && bottle.frames().length === 0 && !sees('dialog.con-zoom[open]') && !sees('.con-quick') &&
+        barGreys('A') && offeredNow.some((o) => o.key === 'KeyV' && o.label === 'Available only')) {
+      result.log.push('[LEGAL-CELLS]');
+      await press('KeyV', pause());
+      continue;
+    }
     await press(pilotPick(bottle, g, lastKey, !standing.menu && standing.presses >= Math.floor(standing.budget / 2)), pause());
   }
 

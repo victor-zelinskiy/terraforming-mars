@@ -372,6 +372,18 @@ describe('ConsoleBoardSection — the console\'s board stage', () => {
     expect(surface.activate()).to.eq(false);
     expect(clicks, 'nothing is clicked on an illegal cell').to.deep.eq(['17']);
 
+    // R3 back to «available cells only» over that illegal cell (CI's autopilot on `6ba4e117ff`, game 540): the cursor
+    // lands on the legal cell NEAREST where it stood — never the centre's seed — and A takes it.
+    consoleState.freeRoam = true;
+    await nextTick();
+    expect(consoleState.boardSpaceId, 'the all-cells look keeps the cursor where it stands').to.eq('10');
+    consoleState.freeRoam = false;
+    await nextTick();
+    await nextTick();
+    expect(consoleState.boardSpaceId, 'the legal cell nearest the cursor (the centre would be 17)').to.eq('11');
+    expect(surface.activate()).to.eq(true);
+    expect(clicks).to.deep.eq(['17', '11']);
+
     // The placement ends: the reticle goes with it. The unmount takes the scale back.
     await wrapper.setProps({placementActive: false});
     expect(reticle().exists()).to.eq(false);

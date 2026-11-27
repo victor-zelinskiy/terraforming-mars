@@ -159,12 +159,20 @@ describe('ConsoleCarryoverPicker — the album chassis (P87)', () => {
       {instance: 'c2', id: 'openCall', status: 'held', window: 'start', blocked: 'Executed at the finale\'s start'},
     ];
     const w = mountPicker({tenders});
-    const vm = w.vm as unknown as {handleIntent(i: GamepadIntent): boolean, stage: string, tenderMode?: {instance: string}, sheet?: {instance: string, phase: string}};
-    const settle = () => new Promise((r) => setTimeout(r, 650));
-    /** The sheet's commit: the stamp's beat, the park of the list, the album's return (the motion's own clocks). */
-    const settleCommit = () => new Promise((r) => setTimeout(r, 3200));
-    /** A sheet's flight in or out (the flight measures its target for up to 40 frames where nothing paints). */
-    const settleSheet = () => new Promise((r) => setTimeout(r, 1500));
+    const vm = w.vm as unknown as {handleIntent(i: GamepadIntent): boolean, stage: string, stageMoving: boolean, tenderMode?: {instance: string}, sheet?: {instance: string, phase: string}};
+    /**
+     * WAIT FOR THE STATE, never for the machine's speed: each step's motion runs on its own clocks (the list's park, a
+     * sheet's flight measuring its target for up to 40 frames, the stamp's beat, the album's return) — a fixed sleep of
+     * their sum read the state half-way on a loaded runner (`expected 'list' to equal 'album'`). The ceiling only says
+     * «never came».
+     */
+    const until = async (ok: () => boolean, what: string, ceilingMs = 12_000): Promise<void> => {
+      const end = Date.now() + ceilingMs;
+      while (!ok() && Date.now() < end) {
+        await new Promise((r) => setTimeout(r, 40));
+      }
+      expect(ok(), `never came: ${what}`).to.eq(true);
+    };
     // (The wrapper is not attached to the document — a layer's presence is its v-show, never isVisible.)
     const shown = (sel: string) => (w.find(sel).element as HTMLElement).style.display !== 'none';
     expect(vm.stage, 'the album first — the page the legacy tenders change').to.eq('album');
@@ -174,7 +182,7 @@ describe('ConsoleCarryoverPicker — the album chassis (P87)', () => {
     expect(bar).to.deep.include({stage: 'album', door: {ready: 1}});
     // L3 → the list: the ready certificate FIRST, the blocked one after it with its reason.
     vm.handleIntent(press('stickL'));
-    await settle();
+    await until(() => vm.stage === 'list' && !vm.stageMoving, 'the list stands and takes the pad (its motion over)');
     expect(vm.stage).to.eq('list');
     expect(shown('[data-carry-tenders-stage]')).to.eq(true);
     const slots = w.findAll('[data-tport-slot]');
@@ -191,7 +199,7 @@ describe('ConsoleCarryoverPicker — the album chassis (P87)', () => {
     // ◀ back, A → the ACTIVATION SHEET: the certificate as its hero, the RESULT in the seat's numbers («2 → 3»).
     vm.handleIntent(nav('left'));
     vm.handleIntent(press('confirm'));
-    await settleSheet();
+    await until(() => vm.sheet?.phase === 'open', 'the activation sheet is open');
     expect(vm.sheet?.instance).to.eq('c1');
     expect(vm.sheet?.phase).to.eq('open');
     expect(w.find('[data-tender-sheet]').attributes('data-tender-sheet-id')).to.eq('extendedLegacy');
@@ -201,15 +209,16 @@ describe('ConsoleCarryoverPicker — the album chassis (P87)', () => {
     expect(bar).to.deep.include({stage: 'sheet', primary: 'Execute the tender', primaryEnabled: true});
     // B — one level back to the list, nothing sent.
     vm.handleIntent(press('back'));
-    await settleSheet();
+    await until(() => vm.sheet === undefined && !vm.stageMoving, 'the sheet has left');
     expect(vm.sheet).to.eq(undefined);
     expect(vm.stage).to.eq('list');
     expect(w.emitted('executeTender')).to.eq(undefined);
     // A → the sheet again; A executes: the stamp, the album back with the GHOST seat «+3», then ONE emit.
     vm.handleIntent(press('confirm'));
-    await settleSheet();
+    await until(() => vm.sheet?.phase === 'open', 'the activation sheet is open again');
     vm.handleIntent(press('confirm'));
-    await settleCommit();
+    await until(() => vm.stage === 'album' && !vm.stageMoving && vm.sheet === undefined && w.emitted('executeTender') !== undefined,
+      'the commit landed: the album back, the sheet gone, the emit made');
     expect(vm.stage).to.eq('album');
     expect(vm.sheet).to.eq(undefined);
     expect(vm.tenderMode?.instance).to.eq('c1');

@@ -313,6 +313,8 @@ type Wire = {
 const TERRAFORMING_SP: ReadonlyArray<string> = ['Asteroid:SP', 'Aquifer', 'Greenery', 'Air Scrapping'];
 /** The cards that are a TRADE's destination — a fleet dock in the trading grid (Turmoil Redux TR06 / TR26 / TR27). */
 const DOCK_CARDS: ReadonlyArray<string> = ['Water Hauling', 'UNMI Liner', 'Aurora Station'];
+/** The card ACTIONS a rival seat takes now and then — a move another console must SEE (Mars Nomads: the camp moved by another seat). */
+const RIVAL_ACTIONS: ReadonlySet<string> = new Set(['Mars Nomads']);
 
 /** The keys of the pad as the key bridge maps them — by the glyph the bar prints. */
 const GLYPH_KEY: Readonly<Record<string, string>> = {
@@ -722,6 +724,17 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         // the others, in an order of its own.)
         const terraforms = (c: {name: string, isDisabled?: boolean, standardProjectPreview?: {futile?: unknown}}): boolean =>
           TERRAFORMING_SP.includes(c.name) && c.isDisabled !== true && c.standardProjectPreview?.futile === undefined;
+        // (…and A CARD's ACTION of its own that another console must SEE — stage 6, `scene:nomad-move-remote`: the
+        // rival's camp moved, the viewer's board telling the hop. Taken now and then, BEFORE a project; the move's cell
+        // follows as the seat's next question, answered like any other.)
+        const rivalAction = (c: {name: string, isDisabled?: boolean}): boolean => RIVAL_ACTIONS.has(c.name) && c.isDisabled !== true;
+        const acting = options.findIndex((o) => o.type === 'card' && (o.cards ?? []).some(rivalAction));
+        if (acting >= 0 && rivalRng() < 0.5) {
+          const card = (options[acting].cards ?? []).find(rivalAction);
+          if (card !== undefined) {
+            tries.push({type: 'or', index: acting, response: {type: 'card', cards: [card.name]}});
+          }
+        }
         const projects = options.findIndex((o) => o.type === 'projectCard' && (o.cards ?? []).some(terraforms));
         const menuGen = pass >= 0 ? ((await fetchPlayerModel(request, rival)) as unknown as {game?: {generation?: number}}).game?.generation ?? 0 : 0;
         if (pass >= 0 && !spSeenGen.has(menuGen)) {
@@ -1438,6 +1451,16 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       await press(([add, 'ArrowDown', add, 'KeyX'] as const)[standing.presses % 4], pause());
       continue;
     }
+    // A CELL PICK WHOSE «A» IS GREY UNDER THE ALL-CELLS LOOK (CI's autopilot on `6ba4e117ff`, game 540 — the ocean of a
+    // temperature step): the pilot's own R3 had widened the board to every cell, the cursor stood on one the tile cannot
+    // take, and the arrows walked the board cell by cell until the door answered. A player who sees «A» grey there
+    // narrows the board back to the legal cells — R3 «Только доступные» — and the cursor lands on the nearest of them.
+    if (PILOT >= 3 && wf.type === 'space' && seen.look === '' && !seen.zoom && !seen.quick && seen.greyed.includes('Enter') &&
+        seen.offered.some((o) => o.key === 'KeyV') && seen.bar.includes('Только доступные')) {
+      log.push('[LEGAL-CELLS]');
+      await press('KeyV', pause());
+      continue;
+    }
     // A QUESTION THE SCREEN IN FRONT OF THE PILOT DOES NOT ANSWER (pilot 3). A player who presses and gets nothing
     // does not keep pressing: six presses in a row that changed nothing of what stands, inside a workspace → HOME,
     // where the question's plate or its way back stands. And AT home, with the question standing and no «A» on the
@@ -1514,7 +1537,25 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
   }
   if (played.phase === 'end') {
     // THE FINALE: the ceremony's screens are the page's own — pressed through like everything else.
-    for (let i = 0; i < 40 && !page.isClosed(); i++) {
+    // …AND A REMATCH THE TABLE DECLINES (a table of two humans or more — stage 6, `surface:rematch-layer`; at a table of
+    // one human an offer creates the new game at once, nobody can say no): once the results' actions stand, the pilot
+    // walks to «Предложить реванш» and offers it; another human says no at its own console (over the API — to this page
+    // exactly what another player's console does). The action comes back and names who declined; the finale goes on.
+    const rematchOf = async (seat: string): Promise<string> =>
+      ((await (await request.get(`/api/game/rematch?id=${seat}`)).json()) as {status?: string}).status ?? '';
+    let rematchOwed = rivals.length > 0;
+    for (let i = 0; i < (rematchOwed ? 90 : 40) && !page.isClosed(); i++) {
+      if (rematchOwed && await page.locator('.con-eg__action[data-eg-action="rematch-offer"], .con-eg__action[data-eg-action="rematch-cancel"]').count() > 0) {
+        if (await rematchOf(viewer) === 'offered') {
+          const declined = await request.post(`/api/game/rematch?id=${rivals[0]}&action=decline`);
+          log.push(`[REMATCH-DECLINED${declined.ok() ? '' : ` REFUSED ${declined.status()}`}]`);
+          rematchOwed = false;
+          continue;
+        }
+        const focused = await page.evaluate(() => document.querySelector('.con-eg__action--focused')?.getAttribute('data-eg-action') ?? '');
+        await press(focused === 'rematch-offer' ? 'Enter' : 'ArrowDown', pause());
+        continue;
+      }
       await press(pilotPick(await look(page), g, lastKey), 700 + Math.round(g() * 1_300));
     }
     played.end = 'finished';
