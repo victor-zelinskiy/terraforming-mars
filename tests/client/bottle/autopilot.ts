@@ -453,6 +453,15 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       await press(key, pause());
       continue;
     }
+    // THE DISTRIBUTION OF RESOURCES (the browser pilot's rule — the bottle's Philares, games 7 and 13: «Gain 1 standard
+    // resource», A placed the unit and took it back until the door answered): a unit onto the focused row (RB where the
+    // layout steps by LB / RB, A where A adds), the next row, another — and X, the take.
+    if (asked.type === 'resources' && bottle.frames().length === 0 && !sees('dialog.con-zoom[open]') && !sees('.con-quick') &&
+        bottle.bar().replace(/\s+/g, ' ').trim().startsWith('Distribute resources')) {
+      const add: BottleKey = offeredNow.some((o) => o.key === 'KeyE') ? 'KeyE' : 'Enter';
+      await press(([add, 'ArrowDown', add, 'KeyX'] as const)[standing.presses % 4], pause());
+      continue;
+    }
     // A CELL PICK WHOSE «A» IS GREY UNDER THE ALL-CELLS LOOK (the browser pilot's rule — CI's autopilot on `6ba4e117ff`,
     // game 540: the pilot's own R3 widened the board, the cursor stood on a cell the tile cannot take, the arrows walked
     // the board until the door answered): R3 «Available only» narrows it back, and the cursor lands on the nearest.

@@ -55,18 +55,21 @@ export function dealWindow(list: ReadonlyArray<ScopeCard>, n: number, count: num
  * flow no whole game had opened and no fixture can stand on (a prelude is played in the START, which a fixture cannot
  * leave owed): Early Colonization's colony track raised in the start (`scene:colony-track-raise`), Astra Mechanica's
  * return of played events (`scene:played-card-return`). One game in three deals the next of them the table can play
- * FIRST, ahead of the rotation's window.
+ * FIRST, ahead of the rotation's window. …and the input-type axis' last gap, `resources` (a free split of standard
+ * resources — no dealt game of a pass asked it): Philares, whose every tile placed next to its own pays one of the
+ * owner's choice — one game in six (offset from the cards', so the corporation's rotation keeps five of its six).
  */
-export const LEDGER_CARDS: {projects: ReadonlyArray<CardName>, preludes: ReadonlyArray<CardName>} = {
+export const LEDGER_CARDS: {projects: ReadonlyArray<CardName>, preludes: ReadonlyArray<CardName>, corporations: ReadonlyArray<CardName>} = {
   projects: [CardName.ASTRA_MECHANICA],
   preludes: [CardName.EARLY_COLONIZATION],
+  corporations: [CardName.PHILARES],
 };
 
-/** The ledger's card of `list` for game `n` — one game in three, the next one the table plays (or none). */
-function ledgerCard(names: ReadonlyArray<CardName>, list: ReadonlyArray<ScopeCard>, n: number, on: ReadonlySet<string>): Array<CardName> {
+/** The ledger's card of `list` for game `n` — one game in `every` (at `n % every === at`), the next one the table plays (or none). */
+function ledgerCard(names: ReadonlyArray<CardName>, list: ReadonlyArray<ScopeCard>, n: number, on: ReadonlySet<string>, every = 3, at = 0): Array<CardName> {
   const playable = names.map((name) => list.find((c) => c.name === name))
     .filter((c): c is ScopeCard => c !== undefined && on.has(c.module) && c.needs.every((module) => on.has(module)));
-  return n % 3 === 0 && playable.length > 0 ? [playable[Math.floor(n / 3) % playable.length].name] : [];
+  return n % every === at && playable.length > 0 ? [playable[Math.floor(n / every) % playable.length].name] : [];
 }
 
 /**
@@ -80,7 +83,7 @@ export function dealFor(n: number, modules: ReadonlySet<string>, prelude: boolea
   const rest = (first: Array<CardName>, window: Array<CardName>, count: number) => [...first, ...window.filter((name) => !first.includes(name))].slice(0, count);
   return {
     projects: rest(projectFirst, dealWindow(SCOPE_CARDS.projects, n, 5, on), 5),
-    corporations: dealWindow(SCOPE_CARDS.corporations, n, 1, on),
+    corporations: rest(ledgerCard(LEDGER_CARDS.corporations, SCOPE_CARDS.corporations, n, on, 6, 1), dealWindow(SCOPE_CARDS.corporations, n, 1, on), 1),
     preludes: prelude ? rest(preludeFirst, dealWindow(SCOPE_CARDS.preludes, n, 2, on), 2) : [],
   };
 }

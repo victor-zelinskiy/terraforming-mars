@@ -2310,7 +2310,11 @@ const baseFootCommands = computed((): Array<ConsoleCommand> => {
   }
   // The COMMIT speaks the decision's character (`tonedCommit`): a loss is ACCEPTED in the danger ink, a gain is
   // COLLECTED in the claimable glow — never one «Подтвердить» for both (the Philares → hazard chain).
-  const confirm = tonedCommit({control: 'secondary' as GlyphControl, label: confirmLabel.value, enabled: confirmReady.value});
+  // …and it NEVER LEAVES THE BAR (`priority: 0` — kept like A and B, `consoleCommandModel.commandKeeps`): X here is the
+  // surface's own answer on another glyph, in every mode. At its default rank a narrow bar dropped it first — the
+  // bottle's Philares on the handheld profile: «Распределение ресурсов · A Добавить сюда · B Свернуть», one unit placed
+  // and no way on the screen to say «done»; the door answered three times in one game.
+  const confirm = tonedCommit({control: 'secondary' as GlyphControl, label: confirmLabel.value, enabled: confirmReady.value, priority: 0});
   const defer = {control: 'back' as GlyphControl, label: nested.value !== undefined && !nestedIsDirect.value ? 'Back' : props.deferLabel};
   // The select → confirm contract (A picks, X commits) every arm-then-confirm
   // kind shares — a generic OrOptions / player / resource pick.

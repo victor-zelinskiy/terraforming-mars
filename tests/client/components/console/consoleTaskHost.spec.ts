@@ -100,6 +100,18 @@ describe('ConsoleTaskHost', () => {
     expect(wrapper.emitted('submit')).to.have.length(1);
   });
 
+  it('the COMMIT never leaves the bar — a one-unit distribution keeps «X» beside A and B (the bottle\'s Philares, the handheld bar)', async () => {
+    const gain = {type: 'resources', title: 'Gain 1 standard resource', buttonLabel: 'Confirm', promptId: 9, count: 1} as unknown as PlayerInputModel;
+    const wrapper = mountHost(gain, {kind: 'distribute', mode: 'resources'});
+    await nextTick();
+    const bar = panelCommands('taskHost') ?? [];
+    expect(bar.find((c) => c.control === 'confirm')?.label, 'one unit: A places it').to.eq('Add here');
+    const commit = bar.find((c) => c.control === 'secondary');
+    expect(commit, 'X is the layout\'s commit').to.not.eq(undefined);
+    expect(commit?.priority, 'kept like A and B — a narrow bar dropped it first').to.eq(0);
+    wrapper.unmount();
+  });
+
   it('B sets the question aside — `defer`, nothing answered', () => {
     const wrapper = mountHost(choice(4, [option('a'), option('b')]));
     stateOf(wrapper).handleIntent(B);

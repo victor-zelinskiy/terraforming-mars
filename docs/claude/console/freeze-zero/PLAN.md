@@ -3088,6 +3088,15 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   camp, and the rival takes its action now and then (`RIVAL_ACTIONS`). Declared with their reasons: the DOM focus
   engine's refusal shake (a page-level scope — the curtain; a game stands on console-owned scopes) and a claim's host
   re-entered inside its 1.5 s grace (a park keeps the scope; the machine's explorer and the monkey walk it).
+- **THE INPUT-TYPE AXIS' LAST GAP, `resources` — AND THE COMMIT IT FOUND OFF THE BAR.** No whole game of a pass asked
+  a free split of standard resources (CI's 48 games: «19 of 20 — never: resources»). Philares asks one every time a tile
+  lands next to its own, so it is dealt one game in six (`LEDGER_CARDS.corporations`). Its first two bottle games
+  answered nothing: «Получить 1 стандартный ресурс» on the handheld bar read «Распределение ресурсов · A Добавить сюда ·
+  B Свернуть» — the layout's commit (X) at its default rank had dropped off the narrow bar, the pilot placed the unit
+  and took it back until the door answered, three times in one game. The task host's X IS its answer on another glyph
+  in every mode: it is kept like A and B now (`priority: 0` at its one definition — `consoleTaskHost.spec`, RED without,
+  GREEN with), and the bottle's pilot lays a distribution out as the browser's does. Replayed: games 7 and 13 to the
+  final scoring, three `resources` answered on the screen, no door.
 - **A UNIT SPEC THAT SLEPT THE MOTION's SUM** (`consoleCarryoverPicker.spec`, the full client suite on a loaded laptop:
   `expected 'list' to equal 'album'`): fixed sleeps of 650 / 1500 / 3200 ms read the stage half-way. It waits for the
   STATE now (the stage, the picker's own `stageMoving`, the sheet's phase) under a ceiling that only says «never came».
