@@ -189,6 +189,9 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
 
   /** THE PASS, AS A PLAYER MAKES IT: the board home, the basic wheel (LT), its ↓ slot, the confirm. */
   const sees = (selector: string): boolean => (globalThis as unknown as {window: {document: {querySelector(q: string): unknown}}}).window.document.querySelector(selector) !== null;
+  /** A command the bar shows GREY (its glyph's label, «RT») — the commit still to come. */
+  const barGreys = (glyph: string): boolean => [...(globalThis as unknown as {window: {document: {querySelectorAll(q: string): Iterable<{textContent: string | null}>}}})
+    .window.document.querySelectorAll('.con-cmdbar__cmd--disabled .gp-glyph')].some((el) => (el.textContent ?? '').trim() === glyph);
   /**
    * THE BOARD HOME — every level between it and the pilot is left the way a player leaves it: B where the bar offers B
    * (a workspace, a look, a wheel), Y where the bar closes only by Y (the information screen's top). The home is the
@@ -347,6 +350,19 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       const key: BottleKey = taken ? (nextLit ? (g() < 0.6 ? 'Period' : move) : (g() < 0.2 ? 'Enter' : move)) :
         /^(Select|Choose|Pick)$/.test(a) ? (startTrimmed ? move : 'Enter') : nextLit ? 'Period' : a !== '' ? 'Enter' : move;
       startTrimmed = taken && key === 'Enter';
+      await press(key, pause());
+      continue;
+    }
+    // A PICK OF CARDS THAT COMMITS BY RT (the browser pilot's rule — CI's bottle on `1c0976df77`, game 521: «Корпоративные
+    // архивы», keep two of seven, the commit standing GREY until exactly two were taken; the thumb toggled cards on and
+    // off until the door answered). Once the question has stood a third of its budget: the lit commit is pressed, an
+    // untaken card under the cursor taken, a taken one walked past — a player reading the grey RT as the commit to come.
+    const offeredNow = bottle.offered();
+    const aNow = offeredNow.find((o) => o.key === 'Enter')?.label ?? '';
+    if (asked.type === 'card' && !standing.menu && standing.presses >= Math.floor(standing.budget / 3) &&
+        !sees('dialog.con-zoom[open]') && !sees('.con-quick') && (offeredNow.some((o) => o.key === 'Period') || barGreys('RT')) && aNow !== '') {
+      const key: BottleKey = offeredNow.some((o) => o.key === 'Period') ? 'Period' :
+        !/^(Unpick|Deselect|Unselect)/.test(aNow) ? 'Enter' : (['ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowLeft'] as const)[standing.presses % 4];
       await press(key, pause());
       continue;
     }

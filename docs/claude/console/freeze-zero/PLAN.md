@@ -2972,6 +2972,12 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   Beginner Corporation pays nothing for its cards: no pay press, so the delivery that lifts the bought cards off the
   purchase row never ran, and the fallback for «the hold's press went by another road» (`deliverHeldRole`) delivered
   them with no source. The fallback now lifts them off the row as well — read before the render that unmounts it.
+- **OPEN (the box's game 2921 on `ebe945d353`, a Turmoil Redux + Ares table) — THE FINALE's NEXT PICK DID NOT RISE.**
+  After a final greenery landed, the prompt came back (`or[finalGreeneryPrompt]` #133) and the context stood with no
+  board pick out (only «RT Завершить свою партию» — a hold), the last thing in flight the sitting's results
+  (`parliament-sitting:results`): the leak detector, the screen shadow («expected task»), the foreground watchdog and
+  the arbiter (`unserved`, ten seconds) all named it before B and the plate's way back restored the pick. A replay of
+  the seed took another road; not fixed blind — watched in the lanes and CI.
 - **Two pilot gaps.** CI's game 497 on `1c0976df77` — a whole table STUCK ten minutes: the harness's second human was
   asked the Venus track bonus (`GainResources` — six dials, the SUM exactly N) and answered every dial at its minimum;
   the seeder now puts N on the first. CI's bottle on `ea409111c3`, games 2 and 18 — the door answered the sitting's
