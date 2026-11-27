@@ -3124,6 +3124,20 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   chain plays beside the decision» is the design's own step — the reaction director's wait ends in silence there, never
   «on its ceiling». ③ Game 561: an opening dropped from the park WITH its own step standing on it (solo Colonies' «Убрать
   плитку» inside the start) ends with the opening like the bare one — not news when nothing of it is owed.
+- **STAGE 6 — WHERE IT STANDS (the hand-over, 2026-11-27 night; the owner: this session goes to CI's bugs, the program
+  continues in another).** *Coverage:* the autopilot's ledger at ZERO debt over 223 passes (`tests/client/bottle/
+  autopilotUnwalked.json` — flows 252 of 274 opened, frames 13 of 13, every key never walked declared with its reason);
+  measured by `node scripts/kernel-walked.mjs <passes…> --ledger=autopilot` over the box's lanes, CI's browser and bottle
+  shards and the scenario runs (kept in `tm-fz-tools/scen-acc/run-*` — a run on the same snapshot overwrites its
+  `test-results`). Input types: 19 of 20 in the browser — `resources` walked in the bottle by the Philares deal (one game
+  in six), the browser's pass still to say it. *Zero:* CI's autopilot on `4d74b4f9a0` — the browser 48 of 48 to the final
+  scoring, 0 defects, gate pass; the bottle's one episode (game 558) cured at its roots (`9b18aa2259`); every door of
+  that run and every planned line of the browser cured (`4c867dbc20`, `12b236a9e9`, `ccf32b108d`) and replayed without a
+  door on the box and in the bottle. *Open:* the confirming CI pass on the head (the cures of the doors and planned lines
+  are proven by replays, not yet by a whole pass); the bottle's INFO tier (jsdom has no layout: `start-flight:no-source`,
+  `summary-tiles-unmeasured`, a handful of motion ceilings on its manual clock) — counted, never sent, still not zero; the
+  exit's own numbers — 100 whole games per map set, the 8-hour soak — not re-measured since step 7; game 43 (the sitting
+  aside for the board) watched, never reproduced.
 - **THE DOORS OF THE LAST RUN, READ (CI on `4d74b4f9a0`).** The bottle's 538: the research buy's RT «Купить N» (and the
   keep-2 pick's «Подтвердить») dropped off the handheld bar at its default rank, before «X Осмотреть» — the workspace's
   own commit now kept like A and B (`priority: 0`, `consoleDraftFlow.spec` RED without, GREEN with; the draft family on
