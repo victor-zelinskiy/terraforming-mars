@@ -98,8 +98,10 @@ export const SCENARIO_TARGETS: Readonly<Record<AutopilotScenario, ReadonlyArray<
     CardName.MINORITY_REPRESENTATION, CardName.NATIONALIST_MOVEMENT, CardName.PARTY_SANCTIONS, CardName.POLITICAL_DONATION,
     CardName.BANNED_DELEGATE_REDUX, CardName.RECRUITMENT_REDUX, CardName.RED_LAWYERS, CardName.MARTIAN_CENSUS,
   ],
-  'scenario-colonies': [CardName.NOVA_CITY, CardName.COLONY_SPONSORS, CardName.FRINGE_COLONY, CardName.EXCLUSIVE_COLONY, CardName.HABITAT_SCIENCE],
-  'scenario-board': [CardName.BUTTERFLY_EFFECT, CardName.ECOLOGICAL_EXPERIMENT, CardName.ASTRA_MECHANICA, CardName.MARS_NOMADS],
+  'scenario-colonies': [CardName.NOVA_CITY, CardName.COLONY_SPONSORS, CardName.FRINGE_COLONY, CardName.EXCLUSIVE_COLONY, CardName.HABITAT_SCIENCE,
+    CardName.WATER_HAULING],
+  // (Ecological Experiment first: the Scientists rule only until the first sitting.)
+  'scenario-board': [CardName.ECOLOGICAL_EXPERIMENT, CardName.ASTRA_MECHANICA, CardName.BUTTERFLY_EFFECT, CardName.MARS_NOMADS],
   'scenario-opening': [CardName.COLONY_SPONSORS],
   'scenario-banner': [CardName.AQUIFER_STANDARD_PROJECT, CardName.ASTEROID_STANDARD_PROJECT, CardName.GREENERY_STANDARD_PROJECT, CardName.MARTIAN_CENSUS],
 };

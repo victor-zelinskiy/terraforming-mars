@@ -37,6 +37,9 @@
    {
     "id": "04",
     "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
     "bonus": [
      1,
      1
@@ -54,6 +57,9 @@
    {
     "id": "06",
     "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
     "bonus": [
      3
     ],
@@ -63,6 +69,9 @@
    {
     "id": "07",
     "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
     "bonus": [],
     "x": 8,
     "y": 0
@@ -108,6 +117,9 @@
    {
     "id": "13",
     "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
     "bonus": [
      3,
      3
@@ -632,7 +644,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1795780477375,
+ "createdTimeMs": 1795785162993,
  "currentSeed": 833362444915,
  "deferredActions": [],
  "donePlayers": [],
@@ -642,7 +654,7 @@
  "fundedAwards": [],
  "gagarinBase": [],
  "stJosephCathedrals": [],
- "gameAge": 10,
+ "gameAge": 21,
  "gameLog": [
   {
    "message": "First player this generation is ${0}",
@@ -652,7 +664,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1795780477375
+   "timestamp": 1795785162993
   },
   {
    "message": "Good luck ${0}!",
@@ -662,7 +674,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1795780477376,
+   "timestamp": 1795785162993,
    "playerId": "p-player1-id"
   },
   {
@@ -673,7 +685,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1795780477376,
+   "timestamp": 1795785162993,
    "playerId": "p-player2-id"
   },
   {
@@ -684,7 +696,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1795780477376,
+   "timestamp": 1795785162993,
    "type": 1
   },
   {
@@ -699,7 +711,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1795780477376,
+   "timestamp": 1795785162993,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -717,7 +729,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1795780477376,
+   "timestamp": 1795785162993,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -734,7 +746,7 @@
      "value": "ThorGate"
     }
    ],
-   "timestamp": 1795780477376,
+   "timestamp": 1795785162993,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -756,7 +768,7 @@
      "value": "energy"
     }
    ],
-   "timestamp": 1795780477376,
+   "timestamp": 1795785162993,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -773,9 +785,237 @@
      "value": "2"
     }
    ],
-   "timestamp": 1795780477376,
+   "timestamp": 1795785162993,
    "correlationId": 2,
    "parentId": 2,
+   "role": "detail"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "04"
+    }
+   ],
+   "timestamp": 1795785162995
+  },
+  {
+   "message": "${0} gained ${1} ${2}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "steel"
+    }
+   ],
+   "timestamp": 1795785162995,
+   "role": "detail"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "06"
+    }
+   ],
+   "timestamp": 1795785162995
+  },
+  {
+   "message": "${0} ${1} ${2} card(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "drew"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1795785162995,
+   "role": "detail"
+  },
+  {
+   "message": "${0} drew ${1}",
+   "data": [
+    {
+     "type": 0,
+     "value": "You"
+    },
+    {
+     "type": 14,
+     "value": [
+      "Magnetic Field Generators"
+     ]
+    }
+   ],
+   "timestamp": 1795785162995,
+   "playerId": "p-player2-id",
+   "role": "detail"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "07"
+    }
+   ],
+   "timestamp": 1795785162995
+  },
+  {
+   "message": "${0} gained ${1} ${2} from ${3} ocean(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1795785162995,
+   "role": "detail"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "13"
+    }
+   ],
+   "timestamp": 1795785162995
+  },
+  {
+   "message": "${0} ${1} ${2} card(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "drew"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1795785162995,
+   "role": "detail"
+  },
+  {
+   "message": "${0} drew ${1}",
+   "data": [
+    {
+     "type": 0,
+     "value": "You"
+    },
+    {
+     "type": 14,
+     "value": [
+      "GMO Contract",
+      "Power Grid"
+     ]
+    }
+   ],
+   "timestamp": 1795785162995,
+   "playerId": "p-player2-id",
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} from ${3} ocean(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1795785162995,
    "role": "detail"
   }
  ],
@@ -898,9 +1138,254 @@
    },
    "player": "red",
    "parentId": 2
+  },
+  {
+   "id": 6,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 6,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "04",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 7,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "steel": 2
+    },
+    "snapshot": {
+     "resource": "steel",
+     "scope": "stock",
+     "before": 0,
+     "after": 2
+    }
+   },
+   "correlationId": 7,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 8,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 8,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 9,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 9,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "06",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 10,
+   "generation": 1,
+   "phase": "action",
+   "type": "cards-drawn",
+   "impact": {
+    "cardsDrawn": 1
+   },
+   "correlationId": 10,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red",
+   "tags": [
+    "revealed"
+   ]
+  },
+  {
+   "id": 11,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 11,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 12,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 12,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "07",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 13,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 40,
+     "after": 42
+    }
+   },
+   "correlationId": 13,
+   "visibility": "analytics",
+   "source": {
+    "kind": "oceanBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 14,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 14,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 15,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 15,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "13",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 16,
+   "generation": 1,
+   "phase": "action",
+   "type": "cards-drawn",
+   "impact": {
+    "cardsDrawn": 2
+   },
+   "correlationId": 16,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red",
+   "tags": [
+    "revealed"
+   ]
+  },
+  {
+   "id": 17,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 42,
+     "after": 44
+    }
+   },
+   "correlationId": 17,
+   "visibility": "analytics",
+   "source": {
+    "kind": "oceanBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 18,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 18,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
   }
  ],
- "eventSeq": 5,
+ "eventSeq": 18,
  "gameOptions": {
   "altVenusBoard": false,
   "aresExtension": false,
@@ -991,8 +1476,8 @@
   "Builder",
   "Planner"
  ],
- "name": "Dense Oxygen Stream",
- "oxygenLevel": 6,
+ "name": "Cold Gravity Surge",
+ "oxygenLevel": 10,
  "passedPlayers": [],
  "phase": "action",
  "players": [
@@ -1104,10 +1589,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1795780477376,
+    "startedAt": 1795785162993,
     "running": true,
     "enabled": true,
-    "lastStoppedAt": 1795780477376
+    "lastStoppedAt": 1795785162993
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1132,13 +1617,13 @@
    "id": "p-player2-id",
    "pickedCorporationCard": "ThorGate",
    "initialCardSelectionDone": true,
-   "terraformRating": 20,
-   "hasIncreasedTerraformRatingThisGeneration": false,
+   "terraformRating": 24,
+   "hasIncreasedTerraformRatingThisGeneration": true,
    "terraformRatingFromCards": 0,
    "terraformRatingSources": [],
-   "megaCredits": 40,
+   "megaCredits": 44,
    "megaCreditProduction": 0,
-   "steel": 0,
+   "steel": 2,
    "steelProduction": 0,
    "titanium": 0,
    "titaniumProduction": 0,
@@ -1154,7 +1639,7 @@
    "canUsePlantsAsMegaCredits": false,
    "canUseTitaniumAsMegacredits": false,
    "preservationProgram": false,
-   "trThisGeneration": 0,
+   "trThisGeneration": 4,
    "actionsTakenThisRound": 0,
    "availableActionsThisRound": 2,
    "bonusActions": 0,
@@ -1181,7 +1666,10 @@
    ],
    "cardsInHand": [
     "Micro-Mills",
-    "Dust Seals"
+    "Dust Seals",
+    "Magnetic Field Generators",
+    "GMO Contract",
+    "Power Grid"
    ],
    "pendingCardIntakes": [],
    "preludeCardsInHand": [],
@@ -1221,10 +1709,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1795780477376,
+    "startedAt": 1795785162993,
     "running": false,
     "enabled": true,
-    "lastStoppedAt": 1795780477376
+    "lastStoppedAt": 1795785162993
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],
@@ -1236,7 +1724,7 @@
    "draftHand": [],
    "autoPass": false,
    "globalParameterSteps": {
-    "oceans": 0,
+    "oceans": 4,
     "oxygen": 0,
     "temperature": 0,
     "venus": 0,
@@ -1595,10 +2083,7 @@
    "Mass Converter",
    "Fringe Colony",
    "Sub-zero Salt Fish",
-   "Decomposers",
-   "Power Grid",
-   "GMO Contract",
-   "Magnetic Field Generators"
+   "Decomposers"
   ],
   "discardPile": [
    "Lunar Beam",
@@ -1639,7 +2124,7 @@
   "venus"
  ],
  "scaleBonusClaims": [],
- "temperature": -12,
+ "temperature": -4,
  "tradeEmbargo": false,
  "underworldData": {
   "tokens": []

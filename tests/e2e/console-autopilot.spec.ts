@@ -311,6 +311,8 @@ type Wire = {
  * capped it (CI's autopilot, game 52). The table must reach its end for the walk to see the whole game.
  */
 const TERRAFORMING_SP: ReadonlyArray<string> = ['Asteroid:SP', 'Aquifer', 'Greenery', 'Air Scrapping'];
+/** The cards that are a TRADE's destination — a fleet dock in the trading grid (Turmoil Redux TR06 / TR26 / TR27). */
+const DOCK_CARDS: ReadonlyArray<string> = ['Water Hauling', 'UNMI Liner', 'Aurora Station'];
 
 /** The keys of the pad as the key bridge maps them — by the glyph the bar prints. */
 const GLYPH_KEY: Readonly<Record<string, string>> = {
@@ -330,6 +332,8 @@ type Screen = {
   prodLoss: boolean,
   /** The heat-spending composite stands on screen (`.con-heat`). */
   heat: boolean,
+  /** A FLEET DOCK stands in the trading grid (a card that is a trade's destination — Water Hauling), and whether the cursor is on one. */
+  dock: {focused: boolean} | undefined,
   /** A budget composite's coverage meter (`[data-prompt-meter]` — «ПОКРЫТО done / of»), when one stands. */
   meter: {done: number, of: number} | undefined,
   /** The card under the cursor of a pick is already TAKEN (the hand's «✓», a slot's band) — or the pick refuses it. */
@@ -377,15 +381,22 @@ const INTENTS: ReadonlyArray<{name: string, keys: ReadonlyArray<string>}> = [
  * (`dealt` — the deal, or a scenario's targets) to PLAY, the turn goes to the hand; when it offers one's ACTION, to
  * «Действия карт». Otherwise the rotation — `undefined`.
  */
-function dealtIntent(options: ReadonlyArray<{type: string, cards?: ReadonlyArray<{name: string, isDisabled?: boolean}>}> | undefined,
-  dealt: ReadonlyArray<string>, tableau: ReadonlyArray<string>): number | undefined {
+function dealtIntents(options: ReadonlyArray<{type: string, cards?: ReadonlyArray<{name: string, isDisabled?: boolean}>}> | undefined,
+  dealt: ReadonlyArray<string>, tableau: ReadonlyArray<string>): Array<number> {
   const offered = (type: string, played: boolean) => (options ?? []).filter((o) => o.type === type).flatMap((o) => o.cards ?? [])
     .some((c) => dealt.includes(c.name) && c.isDisabled !== true && (!played || tableau.includes(c.name)));
   const at = (name: string) => INTENTS.findIndex((i) => i.name === name);
   // (…and a STANDARD PROJECT of the list — a scenario's law that answers one, RX35's pick of the data card.)
   const project = (options ?? []).flatMap((o) => o.cards ?? []).some((c) => dealt.includes(c.name) && c.isDisabled !== true && SP_ROTATION.includes(c.name));
+  // (…and a FLEET DOCK of the list in play — the trade goes to the grid, where the dock stands last.)
+  const dock = dealt.some((name) => DOCK_CARDS.includes(name) && tableau.includes(name));
   // (A card's ACTION is a PLAYED card's — the menu's other card pick, «sell patents», lists the hand.)
-  return offered('projectCard', false) ? at('hand') : offered('card', true) ? at('card-actions') : project ? at('standard-projects') : undefined;
+  // (A project before an action: a law that answers a project stands until the next sitting — RX35 in force at the
+  // banner's table was over before the rotation reached the grid.)
+  return [
+    ...(offered('projectCard', false) ? [at('hand')] : []), ...(project ? [at('standard-projects')] : []),
+    ...(offered('card', true) ? [at('card-actions')] : []), ...(dock ? [at('trading')] : []),
+  ];
 }
 
 async function look(page: Page): Promise<Screen> {
@@ -420,6 +431,8 @@ async function look(page: Page): Promise<Screen> {
         document.querySelector('.con-played:not(.con-played--hero):not(.con-played--embedded)') !== null ? 'played' as const : '' as const,
       prodLoss: document.querySelector('.con-prodloss') !== null,
       heat: document.querySelector('.con-heat') !== null,
+      dock: document.querySelector('.con-colonies__dockslot') === null ? undefined :
+        {focused: document.querySelector('.con-colonies__dockslot--focused') !== null},
       hand: (() => {
         const slots = [...document.querySelectorAll('.con-hand__slot')];
         if (slots.length === 0 || !slots.some((s) => s.classList.contains('con-hand__slot--playable') || s.classList.contains('con-hand__slot--unplayable') ||
@@ -893,10 +906,14 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     handTarget: string | undefined,
     /** The card action this visit of the grid takes (see «THE ACTION A TURN TAKES»). */
     actionTarget: string | undefined,
+    /** Presses this visit of the trading grid has walked toward a fleet dock (see «THE DOCK A TRADE GOES TO»). */
+    dockSteps: number,
     /** The variant this question's composer takes, and whether it was taken (see «THE VARIANT A TURN CHOOSES»). */
     variantTarget: number | undefined, variantChosen: boolean} | undefined;
   /** The standard projects' visits of the game so far — the projects' rotation (`SP_ROTATION`). */
   let stdpVisits = 0;
+  /** The turns the game's own cards chose the intent of (`dealtIntents` — its roads in turn). */
+  let ownTurns = 0;
   /** The start's last press gave a card back (see «THE START SCENE»). */
   let startTrimmed = false;
   let stdpSteps = 0;
@@ -1011,13 +1028,15 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       // scenario of Lotus Innovations played its rail's scene nowhere.)
       const opening = wf.startGamePrompt !== undefined;
       const intentful = PILOT >= 2 && (bonus || (menu && !opening && g() < 0.75));
-      const ownCards = intentful ? dealtIntent(wf.options, dealt, (model.thisPlayer?.tableau ?? []).map((c) => c.name)) : undefined;
+      // (…each in turn when the game's cards ask several roads — the hand, an action, the dock.)
+      const own = intentful ? dealtIntents(wf.options, dealt, (model.thisPlayer?.tableau ?? []).map((c) => c.name)) : [];
+      const ownCards = own.length === 0 ? undefined : own[ownTurns++ % own.length];
       const intentAt = ownCards ?? menus++ % INTENTS.length;
       const intent = intentful ? [...INTENTS[intentAt].keys] : [];
       // (…and the start's own menu is never passed at once: its first action is what the opening is for.)
       const budget = bonus ? 60 : opening ? 30 : menu ? (g() < (intentful ? 0.05 : 0.18) ? 0 : (intentful ? 9 : 4) + Math.floor(g() * 23)) : 45;
       standing = {promptId: wf.promptId, type: wf.type, menu, bonus, presses: 0, budget, byApi: false, intent: budget > 0 ? intent : [], intentful: intentful && budget > 0, still: 0, lastStood: '', heldAway: 0, collapsed: false,
-        shape: questionShape(wf, menu), stdpTarget: undefined, handTarget: undefined, actionTarget: undefined,
+        shape: questionShape(wf, menu), stdpTarget: undefined, handTarget: undefined, actionTarget: undefined, dockSteps: 0,
         variantTarget: undefined, variantChosen: false};
       if (standing.intent.length > 0) {
         log.push(`[INTENT ${INTENTS[intentAt].name}${ownCards !== undefined ? ' — the game\'s own card' : ''}]`);
@@ -1218,6 +1237,22 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       await press(key, pause());
       continue;
     }
+    // THE DOCK A TRADE GOES TO (stage 6 — the autopilot's ledger: the fleet dock's scene, `scene:fleet-dock-scene`, never
+    // opened — on the trading grid the thumb pressed the colony under the cursor, and the docks stand LAST in its reading
+    // order). On a visit of the grid with a dock of the game's own list standing (`dealt` — Water Hauling's table), the
+    // cursor walks on to the dock (→, the grid's one slot index) and A trades there; bounded, once a visit.
+    if (PILOT >= 3 && (standing.menu || standing.bonus) && seen.dock !== undefined && seen.look === '' && !seen.zoom &&
+        /^colonies:browse/.test(seen.frames[seen.frames.length - 1] ?? '') && dealt.some((name) => DOCK_CARDS.includes(name)) && standing.dockSteps < 14) {
+      standing.dockSteps++;
+      if (standing.dockSteps === 1) {
+        log.push('[DOCK]');
+      }
+      await press(seen.dock.focused ? 'Enter' : 'ArrowRight', pause());
+      if (seen.dock.focused) {
+        standing.dockSteps = 14;
+      }
+      continue;
+    }
     // THE PROJECT A TURN GOES TO (stage 6, total coverage — the box's 84 games never opened a colony's build: no
     // `scene:colony-city`, no `colony-roster`, no track's raise — a thumb in the standard projects' grid pressed
     // whatever row stood under it). On a visit of the grid the pilot goes to ONE project, in rotation over the ones
@@ -1261,7 +1296,8 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       const playable = album.cards.filter((c) => c.playable).map((c) => c.name);
       if (standing.handTarget === undefined || (standing.handTarget !== '' && !playable.includes(standing.handTarget))) {
         handSteps = 0;
-        const wanted = playable.filter((name) => dealt.includes(name));
+        // (…in the order of the game's own list — a scenario's card whose window closes first stands first.)
+        const wanted = playable.filter((name) => dealt.includes(name)).sort((x, y) => dealt.indexOf(x) - dealt.indexOf(y));
         standing.handTarget = wanted[0] ?? (playable.length === 0 ? '' : playable[Math.floor(g() * playable.length)]);
         if (standing.handTarget !== '') {
           log.push(`[HAND ${standing.handTarget}]`);

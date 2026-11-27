@@ -35,6 +35,7 @@ import {Request} from '../../../../src/server/Request';
 import {Response} from '../../../../src/server/Response';
 import {testGame} from '../../../TestGame';
 import {SeededRandom} from '../../../../src/common/utils/Random';
+import {Payment} from '../../../../src/common/inputs/Payment';
 import {Server} from '../../../../src/server/models/ServerModel';
 import {TestPlayer} from '../../../TestPlayer';
 import {fuzzConfig} from '../../../fuzz/engineFuzz';
@@ -380,6 +381,49 @@ export async function seatAnswersRandomly(playerId: string, seed: number, passCh
   }
   const plain = await otherSeatMoves(playerId);
   return plain === undefined ? undefined : {did: `${plain.did} (plain)`, tries: 13, answer: plain.answer};
+}
+
+/** The standard projects that TERRAFORM (the browser harness's rival — `console-autopilot.spec.ts` · TERRAFORMING_SP). */
+const TERRAFORMING_SP: ReadonlyArray<string> = ['Asteroid:SP', 'Aquifer', 'Greenery', 'Air Scrapping'];
+
+/**
+ * A SEAT THAT CAN TERRAFORM MOSTLY DOES (the browser harness's rival, ported — the bottle's two-seat scenario tables ran
+ * thirty to fifty generations: the other seat answered its menu at random and seldom raised a parameter, and one page
+ * ran out of memory at generation 53). On the seat's action menu a standard project that terraforms and is not futile
+ * is bought with its M€, the projects in an order of the seed's; the follow-up (the cell) is the random answerer's.
+ * Returns the project bought, or undefined when none was offered or each was refused.
+ */
+export async function seatTerraforms(playerId: string, seed: number): Promise<string | undefined> {
+  const rng = new SeededRandom(seed);
+  const player = [...loader.games.values()].flatMap((game) => game.players).find((candidate) => candidate.id === playerId);
+  const input = player?.getWaitingFor();
+  if (player === undefined || input === undefined) {
+    return undefined;
+  }
+  const model = Server.getWaitingFor(player, input);
+  if (model.type !== 'or') {
+    return undefined;
+  }
+  const options = model.options ?? [];
+  type Offered = {name: string, isDisabled?: boolean, calculatedCost?: number, standardProjectPreview?: {futile?: unknown}};
+  const terraforms = (c: Offered): boolean => TERRAFORMING_SP.includes(c.name) && c.isDisabled !== true && c.standardProjectPreview?.futile === undefined;
+  const index = options.findIndex((o) => o.type === 'projectCard' && ((o.cards ?? []) as Array<Offered>).some(terraforms));
+  if (index < 0) {
+    return undefined;
+  }
+  const projects = ((options[index].cards ?? []) as Array<Offered>).filter(terraforms).sort(() => rng.next() - 0.5);
+  for (const project of projects) {
+    const cost = project.calculatedCost ?? 0;
+    if (player.megaCredits < cost) {
+      continue;
+    }
+    const payment = {...Payment.EMPTY, megaCredits: cost};
+    const answer = await answerAs(playerId, {type: 'or', index, response: {type: 'projectCard', card: project.name, payment}} as InputResponse);
+    if (answer.status === 200) {
+      return project.name;
+    }
+  }
+  return undefined;
 }
 
 /**

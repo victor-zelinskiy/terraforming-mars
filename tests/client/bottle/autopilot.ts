@@ -190,6 +190,12 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
     for (const seat of others) {
       // (A seat may be asked again by its own answer — a card's follow-up; a few in a row, then the viewer's turn to look.)
       for (let i = 0; i < 6 && server.seatTruth(seat).waitingFor !== undefined; i++) {
+        // (A SEAT THAT CAN TERRAFORM MOSTLY DOES — `seatTerraforms`: the two-seat scenario tables ran fifty generations.)
+        if (seatRng() < 0.7 && await server.seatTerraforms(seat, seatRng()) !== undefined) {
+          result.seatMoves++;
+          await bottle.clock.drain();
+          continue;
+        }
         const moved = await server.seatAnswersRandomly(seat, seatRng());
         if (moved === undefined) {
           break;
@@ -402,7 +408,8 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       const top = bottle.frames()[bottle.frames().length - 1] ?? '';
       const hand = album();
       if (/^hand:browse/.test(top) && hand !== undefined && hand.focused >= 0) {
-        const playable = hand.cards.filter((c) => c.playable && targets.has(c.name)).map((c) => c.name);
+        const order = [...targets];
+        const playable = hand.cards.filter((c) => c.playable && targets.has(c.name)).map((c) => c.name).sort((x, y) => order.indexOf(x) - order.indexOf(y));
         if (standing.handTarget === undefined || (standing.handTarget !== '' && !playable.includes(standing.handTarget))) {
           standing.handTarget = playable[0] ?? '';
           standing.handSteps = 0;

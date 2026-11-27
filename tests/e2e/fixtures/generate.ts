@@ -15991,13 +15991,17 @@ function oneTagCardFor(trackTags: ReadonlyArray<Tag>, avoid: ReadonlyArray<CardN
 //    would be dealt again later in the game); the dry run proves the plays of the walk, the rally, the sanctions and
 //    the donation. Played TO ITS END (`console-autopilot.spec.ts` — SCENARIO). ──
 /**
- * A SCENARIO's MARS STANDS HALFWAY (−12 °C, 6 % oxygen — setters, never a rules replay): the table is FOR its cards, and
- * a game from 0 % ran fifty generations in the bottle (two seats that seldom terraform) until its page ran out of
- * memory. Halfway, it ends in the time a whole game of the pilot takes.
+ * A SCENARIO's MARS STANDS TWO THIRDS OF THE WAY (−4 °C, 10 % oxygen, four oceans of red's — setters and the test
+ * helper's own ocean, never a rules replay): the table is FOR its cards, and a game from 0 % ran fifty generations in the
+ * bottle (two seats that seldom terraform) until its page ran out of memory; from halfway, still forty. About fifteen
+ * steps are left — the game ends in the time a whole game of the pilot takes.
  */
-function halfwayMars(game: IGame): void {
-  setTemperature(game, -12);
-  setOxygenLevel(game, 6);
+function halfwayMars(game: IGame, red: TestPlayer): void {
+  setTemperature(game, -4);
+  setOxygenLevel(game, 10);
+  for (let i = 0; i < 4; i++) {
+    addOcean(red);
+  }
 }
 
 parliamentFixture('scenario-parliament', {
@@ -16034,7 +16038,7 @@ parliamentFixture('scenario-parliament', {
     const census = own(CardName.MARTIAN_CENSUS);
     census.resourceCount = 3;
     p1.playedCards.push(census, own(CardName.EDEN_ALLIANCE));
-    halfwayMars(game);
+    halfwayMars(game, p2);
   },
   expect: ({game, parliament, p1}) => {
     const playable = (name: CardName) => {
@@ -16096,7 +16100,7 @@ parliamentFixture('scenario-colonies', {
     for (const name of [CardName.NOVA_CITY, CardName.COLONY_SPONSORS, CardName.FRINGE_COLONY, CardName.EXCLUSIVE_COLONY]) {
       p1.cardsInHand.push(own(name));
     }
-    halfwayMars(game);
+    halfwayMars(game, p2);
   },
   expect: ({game, parliament, p1}) => {
     const playable = (name: CardName) => {
@@ -16183,7 +16187,7 @@ for (const opening of ['scenario-opening', 'scenario-banner'] as const) {
     stopAt: 'vote',
     megacredits: [80, 40],
     options: {customCorporationsList: [corp, REDUX_TABLE_CORPORATIONS[1]]},
-    arrange: ({game, p1, parliament}) => {
+    arrange: ({game, p1, p2, parliament}) => {
       const own = (name: CardName): IProjectCard => {
         moveToDeckTop(game, name);
         return game.projectDeck.drawPile.pop() as IProjectCard;
@@ -16203,7 +16207,7 @@ for (const opening of ['scenario-opening', 'scenario-banner'] as const) {
         census.resourceCount = 2;
         p1.playedCards.push(census);
       }
-      halfwayMars(game);
+      halfwayMars(game, p2);
     },
     expect: ({game, parliament, p1}) => {
       const owed = p1.pendingInitialActions.map((c) => c.name);

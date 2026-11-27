@@ -3016,8 +3016,9 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   the start's own screen (`uiOpening` for every scenario): `scenario-opening` (Lotus Innovations' rail; Colony Sponsors
   beside blue's colony on Luna; Tharsis Alliance) and `scenario-banner` (Septem Tribus:redux's banner cube; the Reds'
   Diverted Research ENACTED — RX35's pick of the data card on a Greenery / Aquifer / Asteroid; Martian Census). Every
-  card is the game's own copy (off the deck); Mars stands halfway (`halfwayMars` — from 0 % a two-seat table ran fifty
-  generations in the bottle and its page ran out of memory). Seven scenarios, one game in eight (`n % 8 === 3`, never a
+  card is the game's own copy (off the deck); Mars stands two thirds of the way (`halfwayMars` — −4 °C, 10 %, four
+  oceans: from 0 % a two-seat table ran fifty generations in the bottle and its page ran out of memory, from halfway
+  forty), and the bottle's other seat terraforms when it can, as the browser harness's rival does (`seatTerraforms`). Seven scenarios, one game in eight (`n % 8 === 3`, never a
   campaign's `n % 8 === 5`).
   The pilots go TO those cards: the browser's turn intent takes the game's own card first (`dealtIntent` — a card of
   `dealt` offered to play → the hand, a played one's action → «Действия карт»; the rotation otherwise), and the bottle's
@@ -3028,11 +3029,30 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   SCREEN for the first time (the pilot's rule «LB / RB a step, ↓, X Применить» — CI's browser on `1c0976df77` had given
   it to the door twice). The autopilot's own axis is held by its own ledger now (`kernel-walked.mjs
   --ledger=autopilot` → `tests/client/bottle/autopilotUnwalked.json`): over the box's lanes and the scenario games on
-  disk, flows 238 of 274, frames 13 of 13, machine moves 39 of 66 — of what stays unwalked 38 keys are declared with
-  their reason (a failure path, a test switch, a playground, a pointer's), 25 are the stage's debt, each named in the
-  ledger (the rival's nomads, Early Colonization's raise, the scale swing, the campaign's map, …). (A pass of the same
-  snapshot replaces the one before it: the scenario games of one run were measured and are not on disk — they come
-  back with CI's passes.)
+  disk, flows 244 of 274, frames 13 of 13, machine moves 39 of 66 — of what stays unwalked 47 keys are declared with
+  their reason (a failure path, a test switch, a playground, a pointer's, the campaign's interlude), 10 are the stage's
+  debt, each named in the ledger. (A pass of the same snapshot replaces the one before it: keys one run walked and the
+  next did not come back with CI's passes.)
+- **OPEN (the box, `scenario-opening`, game 43 on `55b63c5204` + the pilots' work) — A SITTING ASIDE FOR THE BOARD THAT
+  DID NOT COME BACK.** Water Export asked the first player «Снятие океана»; after the removal the sitting's close gate
+  («The Mars Parliament of generation N adjourns») stood with the board home showing neither its plate nor an A — the
+  owner model `parliament held scene:yielded-to-board`, the pilot waiting thirty seconds until the door answered. Not
+  reproduced on demand: the Water Export spec with the wheels opened right after the removal (the player's own B then
+  collapses the returned sitting — `Вернуться к заседанию` stands: right), with the rival closing its sitting and
+  moving into the next generation's research (the sitting comes back), and two replays of the game with the resume path
+  instrumented (`[diag-yield]` — the request, the quiet's end, the resume) — all green. Watched in CI and the lanes.
+- **THE AUTOPILOT's LEDGER, READ (2026-11-27).** The surfaces no whole game opens were read one by one: the card catalogue
+  (`/cards`), the campaign's interlude (its map, the carryover picker and its album), the teleport's missing target, a
+  window's resize — declared with their reason; the submit's `presenting → failed` / `sending → silent` and the claim's
+  `awaiting → held` are failure paths. What stays the debt is reachable by a table or a pilot's rule: MarsBot's attack
+  with two equal targets (`surface:bot-attack`), B on the loading curtain (`surface:gamepad-focus-ring`), a declined
+  rematch between two humans (`surface:rematch-layer`), a claim re-homed after its host left (`orphaned → bound`),
+  Early Colonization's raise, a rival's nomads, Astra Mechanica's return, RX35's pick.
+- **THE PILOTS' ROADS TO THE GAME's CARDS, widened.** The browser's own intents rotate over every road the game's cards
+  ask (`dealtIntents` — the hand, an action, a project of the list, the TRADE when a fleet dock of the list is in play),
+  the album's target goes by the order of the list (a card whose window closes first stands first — Ecological
+  Experiment while the Scientists rule), and on the trading grid the cursor walks on to the dock, standing last in its
+  reading order, and trades there (`DOCK_CARDS`, «THE DOCK A TRADE GOES TO»).
 - **A COMMIT NEVER LEAVES THE BAR (the bottle's scenario of the colonies, 2026-11-27).** Habitat Science's ledger paid
   Pluto's «draw 1, then discard 1» inside «Действия карт»; on the bottle's narrow bar the pick stood as «A Выбрать /
   Снять · B Свернуть» — its commit RT (`priority: 0`, «drops after every hint, never before one») dropped all the same

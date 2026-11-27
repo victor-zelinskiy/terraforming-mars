@@ -632,7 +632,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1795780477404,
+ "createdTimeMs": 1795785163022,
  "currentSeed": 833362444915,
  "deferredActions": [],
  "donePlayers": [],
@@ -642,7 +642,7 @@
  "fundedAwards": [],
  "gagarinBase": [],
  "stJosephCathedrals": [],
- "gameAge": 9,
+ "gameAge": 14,
  "gameLog": [
   {
    "message": "First player this generation is ${0}",
@@ -652,7 +652,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1795780477404
+   "timestamp": 1795785163022
   },
   {
    "message": "Good luck ${0}!",
@@ -662,7 +662,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1795780477405,
+   "timestamp": 1795785163022,
    "playerId": "p-player1-id"
   },
   {
@@ -673,7 +673,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1795780477405,
+   "timestamp": 1795785163022,
    "playerId": "p-player2-id"
   },
   {
@@ -684,7 +684,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1795780477405,
+   "timestamp": 1795785163022,
    "type": 1
   },
   {
@@ -699,7 +699,7 @@
      "value": "Septem Tribus:redux"
     }
    ],
-   "timestamp": 1795780477405,
+   "timestamp": 1795785163023,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -717,7 +717,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1795780477405,
+   "timestamp": 1795785163023,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -734,7 +734,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1795780477405,
+   "timestamp": 1795785163023,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -752,10 +752,147 @@
      "value": "2"
     }
    ],
-   "timestamp": 1795780477405,
+   "timestamp": 1795785163023,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
+  },
+  {
+   "message": "${0}: ${1} replaces ${2} ${3} tile(s) with ${4} data",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 16,
+     "value": "RDX_REDS_DIVERTED_RESEARCH"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 9,
+     "value": 1
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1795785163024,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0}: ${1} replaces ${2} ${3} tile(s) with ${4} data",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 16,
+     "value": "RDX_REDS_DIVERTED_RESEARCH"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 9,
+     "value": 1
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1795785163024,
+   "correlationId": 6,
+   "parentId": 6,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0}: ${1} replaces ${2} ${3} tile(s) with ${4} data",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 16,
+     "value": "RDX_REDS_DIVERTED_RESEARCH"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 9,
+     "value": 1
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1795785163024,
+   "correlationId": 7,
+   "parentId": 7,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0}: ${1} replaces ${2} ${3} tile(s) with ${4} data",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 16,
+     "value": "RDX_REDS_DIVERTED_RESEARCH"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 9,
+     "value": 1
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1795785163024,
+   "correlationId": 8,
+   "parentId": 8,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} has no card that can hold data — ${1} data from ${2} are lost",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "4"
+    },
+    {
+     "type": 16,
+     "value": "RDX_REDS_DIVERTED_RESEARCH"
+    }
+   ],
+   "timestamp": 1795785163024,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "effect-result"
   }
  ],
  "gameEvents": [
@@ -848,9 +985,115 @@
    },
    "player": "red",
    "parentId": 2
+  },
+  {
+   "id": 5,
+   "generation": 1,
+   "phase": "action",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_REDS_DIVERTED_RESEARCH",
+    "owner": "red"
+   },
+   "player": "red",
+   "trigger": "terraforming-diverted",
+   "tags": [
+    "passive-effect"
+   ]
+  },
+  {
+   "id": 6,
+   "generation": 1,
+   "phase": "action",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 6,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_REDS_DIVERTED_RESEARCH",
+    "owner": "red"
+   },
+   "player": "red",
+   "trigger": "terraforming-diverted",
+   "tags": [
+    "passive-effect"
+   ]
+  },
+  {
+   "id": 7,
+   "generation": 1,
+   "phase": "action",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 7,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_REDS_DIVERTED_RESEARCH",
+    "owner": "red"
+   },
+   "player": "red",
+   "trigger": "terraforming-diverted",
+   "tags": [
+    "passive-effect"
+   ]
+  },
+  {
+   "id": 8,
+   "generation": 1,
+   "phase": "action",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 8,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_REDS_DIVERTED_RESEARCH",
+    "owner": "red"
+   },
+   "player": "red",
+   "trigger": "terraforming-diverted",
+   "tags": [
+    "passive-effect"
+   ]
+  },
+  {
+   "id": 9,
+   "generation": 1,
+   "phase": "action",
+   "type": "effect-skipped",
+   "impact": {
+    "skipped": {
+     "label": "Data diverted from terraforming",
+     "reason": "No card can hold the diverted data",
+     "effect": {
+      "direction": "gain",
+      "icon": "data",
+      "amount": 4,
+      "note": "to a card"
+     }
+    }
+   },
+   "correlationId": 5,
+   "visibility": "journal",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_REDS_DIVERTED_RESEARCH",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 5
   }
  ],
- "eventSeq": 4,
+ "eventSeq": 9,
  "gameOptions": {
   "altVenusBoard": false,
   "aresExtension": false,
@@ -941,8 +1184,8 @@
   "Builder",
   "Planner"
  ],
- "name": "Residual Pressure Current",
- "oxygenLevel": 6,
+ "name": "Orbital Hydrogen Field",
+ "oxygenLevel": 10,
  "passedPlayers": [],
  "phase": "action",
  "players": [
@@ -1045,10 +1288,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1795780477405,
+    "startedAt": 1795785163023,
     "running": true,
     "enabled": true,
-    "lastStoppedAt": 1795780477405
+    "lastStoppedAt": 1795785163023
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1165,10 +1408,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1795780477405,
+    "startedAt": 1795785163023,
     "running": false,
     "enabled": true,
-    "lastStoppedAt": 1795780477405
+    "lastStoppedAt": 1795785163023
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],
@@ -1591,7 +1834,7 @@
   "venus"
  ],
  "scaleBonusClaims": [],
- "temperature": -12,
+ "temperature": -4,
  "tradeEmbargo": false,
  "underworldData": {
   "tokens": []
