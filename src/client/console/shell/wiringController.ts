@@ -74,7 +74,7 @@ import {planetFocusState, captureGlobalParams, isPlanetFocusEngaged} from '@/cli
 import {deckDrawHolds} from '@/client/console/deckDraw/consoleDeckDraw';
 import {patentSaleState} from '@/client/console/patentSale/consolePatentSale';
 import {cardReactionPending, hurryCardReactions} from '@/client/console/cardReaction/cardReactionDirector';
-import {registerBoardShownDespiteStack} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {registerBoardCoveredByLook, registerBoardShownDespiteStack} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {isColonyBuildActive} from '@/client/console/colonyBuild/consoleColonyBuild';
 import {consoleState, closeConsoleLayers, registerConsoleIntentHandler} from '@/client/console/consoleRouter';
 import {cardDeltaAdvanceCard, clearCardDeltaAdvance} from '@/client/console/hydroFlow/deltaAdvanceEntry';
@@ -111,6 +111,7 @@ import type {JournalController} from '@/client/console/shell/journalController';
 import type {MandatoryController} from '@/client/console/shell/mandatoryController';
 import type {MaController} from '@/client/console/shell/maController';
 import type {PlayedController} from '@/client/console/shell/playedController';
+import type {InfoController} from '@/client/console/shell/infoController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
 import type {StartController} from '@/client/console/shell/startController';
 import type {SeatController} from '@/client/console/shell/seatController';
@@ -205,6 +206,8 @@ export type WiringPort = {
   /** WRITTEN here. */ pendingClientPick: UnwrapRef<PlayCardController['pendingClientPick']>,
   placementActive: UnwrapRef<PlacementController['placementActive']>,
   playedHeroHolds: UnwrapRef<PlayedController['playedHeroHolds']>,
+  playedTableVisible: UnwrapRef<PlayedController['playedTableVisible']>,
+  infoWorkspaceUp: UnwrapRef<InfoController['infoWorkspaceUp']>,
   readonly playerView: PlayerViewModel,
   promptOwnedByClaim: UnwrapRef<MandatoryController['promptOwnedByClaim']>,
   promptServedWhereIStand: UnwrapRef<MandatoryController['promptServedWhereIStand']>,
@@ -729,6 +732,9 @@ export function createWiringController(shell: WiringPort) {
     // THE START YIELDS ITS SCENE, NOT ITS FRAME (the reliability iteration): while it does, the board is on screen.
     registerBoardShownDespiteStack(() => shell.startSceneMounted && !shell.startSceneVisible &&
       workspaceStackState.frames.length === 1 && workspaceStackState.frames[0].kind === 'start');
+    // …AND A SCREEN OF THE PLAYER's OWN THAT IS NO FRAME covers it — the «РАЗЫГРАНО» table, the information screen
+    // (the bottle's game 438: the sitting's world beat read the board in plain view under the table).
+    registerBoardCoveredByLook(() => shell.playedTableVisible || shell.infoWorkspaceUp);
     // THE START DIRECTOR's reader — how many states it has judged and the one it judges right now.
     (window as unknown as {__conStartShadow?: () => unknown}).__conStartShadow = () => ({
       judged: startShadowLog.judged, now: shell.startShadowNow,
@@ -1407,6 +1413,7 @@ ${ownerEdge.facts}`;
     delete (window as unknown as {__conWaitGraph?: unknown}).__conWaitGraph;
     delete (window as unknown as {__conScreenControl?: unknown}).__conScreenControl;
     registerBoardShownDespiteStack(undefined);
+    registerBoardCoveredByLook(undefined);
     setConsoleTaskHandoffPending(false);
     registerColonyTrackMoveHost(undefined);
     registerColonyRosterHost(undefined);

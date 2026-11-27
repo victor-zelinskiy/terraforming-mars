@@ -2817,6 +2817,14 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   refused it. Two reactions to one collect; the door's answer is now the cube's (`colonyBonusCollected`). Reproduced
   (`console-screen-shadow-rows` colonyBonus — «the collect was sent once»: red, three refused lines; green), a caller
   trace on the box naming the second sender.
+- **The bottle's `wait-graph/ceiling/parliament-world:story-quiet` (4f01936956's game 438) — TWO COPIES OF «IS THE
+  BOARD COVERED».** A sitting's world beat waited for the board's story (a held temperature) «in plain view for 11 s»
+  and ended on its ceiling: the player had opened the «РАЗЫГРАНО» table with X. The shell's watchability counted it a
+  cover (`workspaceScreenUp` — the table, the information screen) and so never drained; the beat's own reading
+  (`consoleRemotePlacement.boardCoverTerms`) knew only the stack's frames and called the board free. The shell now
+  answers that reading too (`registerBoardCoveredByLook` — a screen of the player's own that is no frame is the
+  `workspace` term, the player's time): replayed in the bottle, the class is gone. A temporary caller trace named the
+  cover (`watchCover: workspace`, `played: true`).
 - **CI's autopilot on `4f01936956` (45929203307), game 418 — A GAME DEAD FOR ITS PAGE (`GET api/player` 404 in
   generation 7).** The worker server's log (the box replayed the seed and failed the same way): `unable to find player
   … Error: Can't find space with id c80` — from `AuroraStation.canPlay` in the seat's playable cards. TR27 Aurora

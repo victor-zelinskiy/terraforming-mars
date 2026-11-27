@@ -195,6 +195,19 @@ export function registerBoardShownDespiteStack(probe: (() => boolean) | undefine
   boardShownDespiteStack = probe;
 }
 
+let boardCoveredByLook: (() => boolean) | undefined;
+
+/**
+ * …AND A SCREEN OF THE PLAYER's OWN THAT IS NO FRAME covers it (the bottle's autopilot on `4f01936956`, game 438 —
+ * `wait-graph/ceiling/parliament-world:story-quiet`, «in plain view for 11 s»): the «РАЗЫГРАНО» table the player opened
+ * with X, or the information screen, covers the board exactly as the shell's own watchability says (`workspaceScreenUp`)
+ * — yet no frame stands for it. The sitting's world beat read a board in plain view, waited out its ceiling for a story
+ * the drain would not tell under that table, and said a defect over the player's own look. The shell answers it.
+ */
+export function registerBoardCoveredByLook(probe: (() => boolean) | undefined): void {
+  boardCoveredByLook = probe;
+}
+
 /** …and once it IS back, the flight lets the screen settle first: the
  *  workspace's own leave is still dissolving over the board it just vacated,
  *  and a tile landing under it is the same invisible flight one beat later. */
@@ -1708,7 +1721,7 @@ export function boardCovered(): boolean {
  */
 export function boardCoverTerms(): Array<string> {
   const terms: Array<string> = [];
-  if (workspaceStackActive() && boardShownDespiteStack?.() !== true) {
+  if ((workspaceStackActive() && boardShownDespiteStack?.() !== true) || boardCoveredByLook?.() === true) {
     terms.push('workspace');
   }
   if (playedHeroHolding()) {
