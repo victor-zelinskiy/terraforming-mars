@@ -104,9 +104,31 @@ function harness(opts: {packaged?: boolean, dsn?: string, env?: Record<string, s
     },
   });
   made.hub = hub;
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 25));
+  // THE HUB's WORK IS FIRE-AND-FORGET PROMISES (a send builds its envelope over file reads and the fake host's awaits):
+  // a settle is QUIET, never a fixed span — 25 ms of a loaded CI runner once ended before the send had pushed its
+  // delivery (#51: «expected undefined to equal 'sent'»). It waits its 25 ms, then until nothing the host records has
+  // moved for three looks in a row (bounded: three seconds).
+  const settle = async () => {
+    const mark = () => `${sent.length}|${pushes.length}|${logs.length}|${timers.length}`;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    const deadline = Date.now() + 3_000;
+    let last = mark();
+    for (let still = 0; still < 3 && Date.now() < deadline;) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const now = mark();
+      still = now === last ? still + 1 : 0;
+      last = now;
+    }
+  };
+  /** Wait for a STATE the hub reaches on its own async road (bounded — three seconds), never for a span. */
+  const until = async (done: () => boolean) => {
+    const deadline = Date.now() + 3_000;
+    while (!done() && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+  };
   return {
-    hub, host, dataDir, sent, pushes, logs, net, timers, settle,
+    hub, host, dataDir, sent, pushes, logs, net, timers, settle, until,
     crashUpload: () => crashUpload,
     tick: (ms: number) => {
       clock += ms;
@@ -263,7 +285,7 @@ describe('diagnostics hub — a record never offered by design SAYS SO', () => {
       expect(told(planned.id)).to.deep.eq([{state: 'held', reason: 'policy'}]);
       expect(told('page-s9-perf')).to.deep.eq([{state: 'held', reason: 'policy'}]);
       h.hub.line({kind: 'entry', entry: entry({id: 'page-s9-err'}), change: 'new'});
-      await h.settle();
+      await h.until(() => told('page-s9-err').some((d) => d?.state === 'sent'));
       expect(told('page-s9-err')[0]?.state).to.eq('sent');
     } finally {
       h.cleanup();
