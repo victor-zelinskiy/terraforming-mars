@@ -12,6 +12,8 @@ import {IGame} from '../../../src/server/IGame';
 import {Loan} from '../../../src/server/cards/prelude/Loan';
 import {HugeAsteroid} from '../../../src/server/cards/prelude/HugeAsteroid';
 import {MetalRichAsteroid} from '../../../src/server/cards/prelude/MetalRichAsteroid';
+import {Phase} from '../../../src/common/Phase';
+import {CardName} from '../../../src/common/cards/CardName';
 
 describe('ValleyTrust', () => {
   let card: ValleyTrust;
@@ -48,6 +50,23 @@ describe('ValleyTrust', () => {
     selectCard.cb([loan]);
     expect(player.playedCards.get(loan.name)).deep.eq(loan);
     expect(game.preludeDeck.discardPile).to.have.members([hugeAsteroid, metalRichAsteroid]);
+  });
+
+  it('the first action is the START\'s only in generation 1 — later, its pick is the mid-game one (the box\'s game 2917)', () => {
+    [game, player] = testGame(2, {preludeExtension: true});
+    game.phase = Phase.ACTION;
+    const ask = () => {
+      game.preludeDeck.drawPile.push(new Loan(), new HugeAsteroid(), new MetalRichAsteroid());
+      game.events.beginAction(player, {kind: 'corporation', card: CardName.VALLEY_TRUST, owner: player.color}, {category: 'corporation-action'});
+      const selectCard = cast(card.initialAction(player), SelectCard<IPreludeCard>);
+      game.events.endScope();
+      return selectCard;
+    };
+    expect(ask().startGamePrompt?.kind, 'generation 1: the opening').eq('preludeSelection');
+    game.generation = 3;
+    const late = ask();
+    expect(late.startGamePrompt, 'a later generation: never the start\'s marker').is.undefined;
+    expect(late.deckPickPrompt, 'the mid-game pick').is.not.undefined;
   });
 
   it('Card works even without prelude expansion enabled', () => {

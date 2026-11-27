@@ -45,7 +45,12 @@ export class PreludesExpansion {
     if (player.game.phase !== Phase.ACTION || PreludesExpansion.startChainDepth > 0) {
       return true;
     }
-    return player.game.events?.currentRoot()?.category === 'corporation-action';
+    // …and the first action is the START's only in the opening's generation: a corporation that takes it LATER (a
+    // seat that passed over it in generation 1, a campaign's) acts in the middle of the game, and its pick is the
+    // mid-game one. Marked as the start's, the console had no surface for it past the opening (the start scene is the
+    // first generation's — `corpFirstActionInStartFlow`): the box's autopilot on `ebe945d353`, game 2917, Valley Trust's
+    // «draw 3 preludes» in a later generation — a stranded question the door answered.
+    return player.game.events?.currentRoot()?.category === 'corporation-action' && player.game.generation === 1;
   }
 
   /**
