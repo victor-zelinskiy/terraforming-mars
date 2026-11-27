@@ -1,5 +1,5 @@
 import {test, expect, APIRequestContext} from './consoleTest';
-import {bootFixture, fetchPlayerModel, press} from './consoleStart';
+import {bootFixture, fetchPlayerModel, press, reloadConsole} from './consoleStart';
 
 /**
  * THE FINALE UNDER A LAW THAT REPLACES THE GREENERY (RX35 Diverted Research) — a guard of the finale's road, written
@@ -24,7 +24,7 @@ test('the diverted finale answers nothing by itself — the screen stands, the p
   // so nothing may have been converted. Read at rest, twice, a beat of the finale's own apart.
   await expect.poll(() => bar(page), {timeout: 30_000, message: 'the finale stands on the screen'}).toMatch(/Разместить озеленение|Потратить растения|Завершить свою партию/);
   expect(await plantsOf(request, id), 'no conversion the player did not press').toBe(16);
-  await page.reload();
+  await reloadConsole(page);
   await expect.poll(() => bar(page), {timeout: 30_000, message: 'the finale stands after a reload'}).toMatch(/Разместить озеленение|Потратить растения|Завершить свою партию/);
   expect(await plantsOf(request, id), 'a reload converts nothing either').toBe(16);
 });
