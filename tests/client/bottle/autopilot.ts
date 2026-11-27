@@ -187,7 +187,7 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
 
   // The question the viewer stands on (the server's number), how it has been pressed at, and who answered it.
   let standing: {promptId: number | undefined, type: string, menu: boolean, presses: number, budget: number, byApi: boolean, waited: number,
-    handVisits: number, handTarget?: string, handSteps: number} | undefined;
+    handVisits: number, handTarget?: string, handSteps: number, startTargetTries: number} | undefined;
   const targets = new Set(options.targets ?? []);
   let quietSince = bottle.clock.now();
   let lastAge = -1;
@@ -342,7 +342,7 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       // question's.)
       const budget = asked.menu ? (g() < passAtOnce ? 0 : menuMin + Math.floor(g() * (menuMax - menuMin + 1))) :
         asked.type === 'initialCards' ? questionBudget * 4 : questionBudget;
-      standing = {promptId: asked.promptId, type: asked.type, menu: asked.menu, presses: 0, budget, byApi: false, waited: 0, handVisits: 0, handSteps: 0};
+      standing = {promptId: asked.promptId, type: asked.type, menu: asked.menu, presses: 0, budget, byApi: false, waited: 0, handVisits: 0, handSteps: 0, startTargetTries: 0};
     }
     if (standing.presses >= standing.budget) {
       if (standing.menu) {
@@ -408,6 +408,24 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
     // the door every time, `by the door: initialCards 1`): a card under the cursor not yet taken is taken, a taken one
     // passed by or the step done (RT, lit), a lone verb pressed (the summary's launch, «Skip»); never LT nor B.
     if (asked.type === 'initialCards' && /^start:/.test(bottle.frames()[bottle.frames().length - 1] ?? '')) {
+      // THE CARDS THE GAME IS FOR ARE BOUGHT FIRST (stage 6, the cards axis — the `missing` deal: the projects step's RT
+      // is lit at zero cards, and the walk below took one card, advanced, and the dealt cards never reached the hand:
+      // one card played in twenty-four generations). On the projects step, a target not yet taken is walked to and taken
+      // — the walk below goes on once every target stands taken (or the purse refuses the next).
+      const doc = (globalThis as unknown as {window: {document: {querySelector(q: string): {getAttribute(a: string): string | null} | null,
+        querySelectorAll(q: string): Iterable<{getAttribute(a: string): string | null, classList: {contains(c: string): boolean}}>}}}).window.document;
+      const focusedSlot = doc.querySelector('.con-start .con-cards__slot--focused[data-step-slot^="projects|"]')?.getAttribute('data-step-slot') ?? '';
+      if (focusedSlot !== '' && targets.size > 0) {
+        const slots = [...doc.querySelectorAll('.con-start .con-cards__slot[data-step-slot^="projects|"]')]
+          .map((el) => ({name: (el.getAttribute('data-step-slot') ?? '').slice('projects|'.length), picked: el.classList.contains('con-cards__slot--picked')}));
+        const owed = slots.filter((s) => targets.has(s.name) && !s.picked);
+        const here = slots.find((s) => `projects|${s.name}` === focusedSlot);
+        if (owed.length > 0 && standing.startTargetTries < 40) {
+          standing.startTargetTries++;
+          await press(here !== undefined && targets.has(here.name) && !here.picked ? 'Enter' : 'ArrowRight', pause());
+          continue;
+        }
+      }
       const offered = bottle.offered();
       const label = (key: BottleKey): string => offered.find((o) => o.key === key)?.label ?? '';
       const nextLit = offered.some((o) => o.key === 'Period');

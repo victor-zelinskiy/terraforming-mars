@@ -932,6 +932,8 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     heldAway: number,
     /** How many times a prelude's «Разыграть без эффекта» confirm stood before the pilot (see «A PRELUDE PLAYED WITHOUT ITS EFFECT»). */
     noEffect?: number,
+    /** Presses spent walking the start's projects step to the dealt cards (bounded — «THE CARDS THE GAME IS FOR»). */
+    startTargetTries: number,
     /** The question was COLLAPSED once past its commit (see «THE INTERRUPTION») — once a question is enough. */
     collapsed: boolean,
     /** Its shape (`questionShape`) — summed when it is answered. */
@@ -1071,7 +1073,7 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       const intent = intentful ? [...INTENTS[intentAt].keys] : [];
       // (…and the start's own menu is never passed at once: its first action is what the opening is for.)
       const budget = bonus ? 60 : opening ? 30 : menu ? (g() < (intentful ? 0.05 : 0.18) ? 0 : (intentful ? 9 : 4) + Math.floor(g() * 23)) : 45;
-      standing = {promptId: wf.promptId, type: wf.type, menu, bonus, presses: 0, budget, byApi: false, intent: budget > 0 ? intent : [], intentful: intentful && budget > 0, still: 0, lastStood: '', heldAway: 0, collapsed: false,
+      standing = {promptId: wf.promptId, type: wf.type, menu, bonus, presses: 0, budget, byApi: false, intent: budget > 0 ? intent : [], intentful: intentful && budget > 0, still: 0, lastStood: '', heldAway: 0, collapsed: false, startTargetTries: 0,
         shape: questionShape(wf, menu), stdpTarget: undefined, handTarget: undefined, actionTarget: undefined, dockSteps: 0,
         variantTarget: undefined, variantChosen: false};
       if (standing.intent.length > 0) {
@@ -1257,6 +1259,21 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     // a player takes one card or a few; a lone verb on the bar (the summary's launch, «Пропустить») is pressed. Never
     // LT (the step before) nor B: an opening goes forward.
     if (PILOT >= 3 && wf.type === 'initialCards' && /^start:/.test(seen.frames[seen.frames.length - 1] ?? '') && seen.look === '' && !seen.zoom) {
+      // THE CARDS THE GAME IS FOR ARE BOUGHT FIRST (the bottle's rule, stage 6 — the cards axis): on the projects step a
+      // dealt card not yet taken is walked to and taken before the step's RT (lit at zero cards) moves on.
+      if (dealt.length > 0 && standing.startTargetTries < 40) {
+        const step = await page.evaluate((names) => {
+          const slots = [...document.querySelectorAll('.con-start .con-cards__slot[data-step-slot^="projects|"]')];
+          const owed = slots.filter((el) => names.includes((el.getAttribute('data-step-slot') ?? '').slice(9)) && !el.classList.contains('con-cards__slot--picked'));
+          const here = document.querySelector('.con-start .con-cards__slot--focused[data-step-slot^="projects|"]');
+          return {owed: owed.length, onOwed: here !== null && owed.includes(here)};
+        }, [...dealt]);
+        if (step.owed > 0) {
+          standing.startTargetTries++;
+          await press(step.onOwed ? 'Enter' : 'ArrowRight', pause());
+          continue;
+        }
+      }
       const nextLit = seen.offered.some((o) => o.key === 'Period');
       // (…a taken card with the step's RT not lit — a buy over the purse, a pick over its count: one card given back now
       // and then, as a player trims the pile.)
