@@ -94,7 +94,7 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
 import {useConsoleViewport} from '@/client/console/composables/useConsoleViewport';
 import {commandWidthRem, contextWidthRem, handDockBayRem} from '@/client/console/consoleHandDock';
-import {ConsoleCommand, defaultDropPriority, planCommandRun} from '@/client/console/consoleCommandModel';
+import {commandKeeps, ConsoleCommand, defaultDropPriority, planCommandRun} from '@/client/console/consoleCommandModel';
 import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {holdConfirmState} from '@/client/console/consoleHoldConfirm';
 import {LabelFont, labelFontOf, measureTextPx} from '@/client/console/consoleTextMeasure';
@@ -186,7 +186,7 @@ const runPlan = computed((): {kept: ReadonlyArray<number>, splitIndex: number} =
         commandWidthRem(text, opts) * wScale :
         commandWidthRem('', {...opts, labelRem: 0}) * wScale + measured;
     })(),
-    keep: c.control === 'confirm' || c.control === 'back',
+    keep: commandKeeps(c),
     dropPriority: c.priority ?? defaultDropPriority(c.control),
   }));
   const plan = planCommandRun(entries, zoneLeft, halfRem);

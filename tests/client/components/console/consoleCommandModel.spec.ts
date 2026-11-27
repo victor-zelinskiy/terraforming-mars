@@ -1,5 +1,6 @@
 import {expect} from 'chai';
-import {planCommandRun, defaultDropPriority, CommandFitEntry} from '@/client/console/consoleCommandModel';
+import {planCommandRun, defaultDropPriority, CommandFitEntry, commandKeeps, ConsoleCommand} from '@/client/console/consoleCommandModel';
+import {multiPickConfirmCommand} from '@/client/components/console/consoleHandSelectModel';
 
 function entry(width: number, keep = false, dropPriority = 2): CommandFitEntry {
   return {width, keep, dropPriority};
@@ -28,6 +29,22 @@ describe('consoleCommandModel', () => {
     const run = [entry(4, false, 2), entry(9, false, 2), entry(5, true, 0)];
     const plan = planCommandRun(run, 4, 6); // budget 10 < 18
     expect(plan.dropped).to.deep.eq([1]);
+  });
+
+  it('a narrow bar keeps a multi pick\'s COMMIT — A, B and the RT whose priority is zero never drop (CI\'s bottle, Pluto\'s discard in «Действия карт»)', () => {
+    const cmds: Array<ConsoleCommand> = [
+      {control: 'confirm', label: 'Select / Deselect'},
+      {control: 'stickR', label: 'Select all', priority: 1},
+      {control: 'triggerR', ...multiPickConfirmCommand('Discard', {min: 1, max: 1}, 0)},
+      {control: 'secondary', label: 'Inspect', priority: 3},
+      {control: 'stickL', label: 'Source', priority: 1},
+      {control: 'back', label: 'Minimize'},
+    ];
+    const entries = cmds.map((c) => ({width: 8, keep: commandKeeps(c), dropPriority: c.priority ?? defaultDropPriority(c.control)}));
+    // Room for two commands and a half: every hint goes, the commit stays beside A and B.
+    const kept = planCommandRun(entries, 10, 10).kept.map((i) => cmds[i].control);
+    expect(kept).to.deep.eq(['confirm', 'triggerR', 'back']);
+    expect(commandKeeps({control: 'triggerR', priority: 1}), 'a hint on RT still drops').to.eq(false);
   });
 
   it('renders all keeps even when they alone overflow (CSS is the last resort)', () => {

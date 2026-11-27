@@ -147,6 +147,18 @@ export function planCommandRun(
 }
 
 /**
+ * NEVER DROPPED: A and B — and a command whose priority is ZERO, the surface's own COMMIT on another glyph (a multi
+ * pick's RT «Сбросить», a deck pick's «Разыграть сейчас», a distribution's LB / RB, an explorer's «Закрыть»): a verb
+ * with no other home. It used to drop LAST — but drop: on a narrow bar (CI's bottle, 2026-11-27: Pluto's «draw 1,
+ * then discard 1» inside «Действия карт», the bar «A Выбрать / Снять · B Свернуть» and no RT at all) the pick
+ * could not be committed from the screen it stood on. When only kept commands remain and they still overflow, the
+ * CSS clip is the last resort (a clipped label beats a commit that is not there).
+ */
+export function commandKeeps(c: {control: string, priority?: number}): boolean {
+  return c.control === 'confirm' || c.control === 'back' || c.priority === 0;
+}
+
+/**
  * Default drop priority by glyph control: the primary face verbs never
  * drop; X-verbs go last among the droppable; chords and global/stick
  * hints (re-discoverable from the board home / visible on-screen) go
