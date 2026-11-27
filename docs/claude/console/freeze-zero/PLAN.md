@@ -2766,7 +2766,16 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   (`finalGreeneryCommitting`) for an answer that never came. Reproduced deterministically
   (`console-final-greenery.spec` — a 503 on the first submit: red without the fix, the STALL), fixed by a press unwind
   (`task-space-commit`, place 145): a refused or lost nested-space commit puts the pick back out on the same question —
-  the board re-enters its placement, the finale its pick (green twice; the placement/finale family green).
+  the board re-enters its placement, the finale its pick (green twice; the placement/finale family green). The same run, the
+  whole picture (48 browser games on the axes for the first time: 16 storms, 10 slow, the opening through the screen,
+  campaigns; 180 cards played; 18 of 23 input types; E2E 45911873302 GREEN): the finale's 503 stall twice (303, 333 —
+  fixed above); the start's held delivery once more (339, `unsettled: handDeliveryState.held` — fixed in
+  `372536d24d`); one STUCK — the HARNESS's (323, three humans: the second seat refused on «Place 2 floaters on your
+  cards», `Expecting 2 resources distributed, got 0` — `answerPrompt` now answers a card-resource distribution with the
+  whole amount on the first holder); doors of the pilot (a stepping layout with no RT — the meter rule steps by RB/LB
+  now). Open: `start-shadow/cure/yield/step/firstaction` + a dead-end (333, a campaign's mission whose first action
+  outlived a generation), `wait-graph/ceiling/start-bonus:visible-source` IN A BROWSER (317, Head Start's played face
+  unseen for its bonus gain — the bottle's blind row had said «not there in a browser»).
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read

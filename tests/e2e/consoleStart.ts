@@ -2696,6 +2696,14 @@ export function answerPrompt(prompt: WirePrompt, plan: SeedPlan): WireResponse {
         }
       }
     }
+    // A CARD-RESOURCE DISTRIBUTION («Place N floaters on your cards» — `cardResourceDistributionPrompt`, every holder's dial
+    // 0…N, the SUM exactly N): the whole N on the first holder. Each dial at its minimum placed nothing, and the
+    // autopilot's second seat stood on it — the table waiting for it ten minutes (CI's game 323, STUCK: «Expecting 2
+    // resources distributed, got 0»).
+    const distribute = (prompt as {cardResourceDistributionPrompt?: {amount?: number}}).cardResourceDistributionPrompt?.amount;
+    if (distribute !== undefined && (prompt.options ?? []).length > 0) {
+      return {type: 'and', responses: (prompt.options ?? []).map((_, i) => ({type: 'amount', amount: i === 0 ? distribute : 0}))};
+    }
     return {type: 'and', responses: (prompt.options ?? []).map((o) => answerPrompt(o, plan))};
   }
   case 'space': {

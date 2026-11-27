@@ -1230,11 +1230,15 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       // 2 heat, the rest was 1, RT poured nothing and the pilot walked RT / ↓ until the door answered; the cover is
       // heat 2 + a floater, a unit taken OFF one lane first. Short of it, the pilot pours (RT), adds (RB), takes back
       // (LB) or moves on (↓) — a player trying the lanes; over it, takes back.)
+      // (…and a layout with no RT that steps by LB / RB — «Распределение ресурсов», CI's game on `6593366912`: four
+      // doors, A and ↓ pressed where a unit is added by RB.)
       const roll = g();
+      const steps = seen.offered.some((o) => o.key === 'KeyE') || seen.greyed.includes('KeyE');
       const key = seen.offered.some((o) => o.key === 'KeyX') ? 'KeyX' :
-        !dial ? (roll < 0.5 ? 'Enter' : 'ArrowDown') :
-          seen.meter.done > seen.meter.of ? (roll < 0.7 ? 'KeyQ' : 'ArrowDown') :
-            roll < 0.4 ? 'Period' : roll < 0.6 ? 'KeyE' : roll < 0.85 ? 'ArrowDown' : 'KeyQ';
+        !dial && steps ? (seen.meter.done > seen.meter.of ? (roll < 0.7 ? 'KeyQ' : 'ArrowDown') : roll < 0.6 ? 'KeyE' : roll < 0.9 ? 'ArrowDown' : 'KeyQ') :
+          !dial ? (roll < 0.5 ? 'Enter' : 'ArrowDown') :
+            seen.meter.done > seen.meter.of ? (roll < 0.7 ? 'KeyQ' : 'ArrowDown') :
+              roll < 0.4 ? 'Period' : roll < 0.6 ? 'KeyE' : roll < 0.85 ? 'ArrowDown' : 'KeyQ';
       await press(key, pause());
       continue;
     }
