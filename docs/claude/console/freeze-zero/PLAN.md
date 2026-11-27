@@ -2800,6 +2800,23 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
     kept the start's commands (the frame standing, serving nothing — a journal over a SERVING start is closed at once,
     so a press-made replay cannot reach that state without a race). The bar's journal branches stand where the pad's
     do, above the band.
+- **The box's lanes on `00d2ef2a4e`'s code (2026-11-27), first find — `workspace-outcome/host-gone/card-actions`**
+  (game 2624): Board of Directors' verdict «Разыграть» on Old Mining Colony — the prelude builds a colony, then
+  discards. The colony is asked in the play's own answer, and the moment the foreground fell quiet the shell's
+  `openShellTaskSurface` CLOSED THE LAYERS before routing the colony: «ДЕЙСТВИЯ КАРТ» (whose chain claim stood on top)
+  was popped, the colonies found no host and opened as a root of their own, the claim outlived its host. A colony asked
+  of the flow whose claim stands on top opens INSIDE it (`card-actions › colonies`, committed — the same push the
+  colonies' own door makes). Reproduced deterministically (`console-board-of-directors` K4 — fixture
+  `board-of-directors-colony`: red, `colonies` alone on the stack, with the pilot's ↑ / LB and without them; green
+  with the fix). A per-frame stack witness and a temporary caller trace on the box named the road; a conclusion hold
+  tried first changed nothing and was not kept.
+- **`transport/refused-busy/sending` (info; CI's game 330, the box's 2624) — ONE COLLECT, TWO SUBMITS.** A on the
+  plate «Забрать карту» of a colony owner bonus another seat's trade paid: the door (`openColonyBonusCollect`) stood
+  the colony's stage up and answered the cube — and the stage it stood up was exactly what the NEXT cube's auto-collect
+  waits for (its colony, an empty table), so the auto-collect answered the same cube a frame later and the transport
+  refused it. Two reactions to one collect; the door's answer is now the cube's (`colonyBonusCollected`). Reproduced
+  (`console-screen-shadow-rows` colonyBonus — «the collect was sent once»: red, three refused lines; green), a caller
+  trace on the box naming the second sender.
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read

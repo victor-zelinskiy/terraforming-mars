@@ -1388,6 +1388,15 @@ export function createRouterController(shell: RouterPort) {
       shell.openLawLivePlayStep();
       return;
     }
+    // …and so is a COLONY asked of the flow whose claim stands on top (the box's autopilot on `59f2042`, game 2624 —
+    // Board of Directors' verdict playing Old Mining Colony; `console-board-of-directors` K4): the step opens INSIDE
+    // that workspace (`openColoniesForPrompt` pushes it where the flow stands). Closing the layers first popped the very
+    // host the colonies were to nest in — they opened as a root of their own and the action's claim outlived its host.
+    const stepHost = workspaceHostForStep();
+    if (task.kind === 'colony' && stepHost !== undefined && workspaceOutcomeState.host === stepHost) {
+      shell.openColoniesForPrompt();
+      return;
+    }
     closeConsoleLayers();
     if (task.kind === 'awardFunding') {
       // THE FIRST ACTION'S OWN FUNDING STAGE. Raised while the START

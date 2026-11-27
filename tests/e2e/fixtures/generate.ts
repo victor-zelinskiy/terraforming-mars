@@ -14175,14 +14175,17 @@ type BoardOfDirectorsVariant = {
   empty?: boolean,
   /** The dry run's expected `max` (undefined = the action is blocked). */
   max?: 0 | 1,
+  /** A Colonies table, and blue keeps this many cards in hand (the played prelude's colony and its discard). */
+  colonies?: {hand: number},
 };
 function boardOfDirectorsFixture(name: string, v: BoardOfDirectorsVariant): void {
   const [game, p1, p2] = testGame(2, {
     skipInitialCardSelection: false, venusNextExtension: true, prelude2Expansion: true,
+    ...(v.colonies !== undefined ? {coloniesExtension: true} : {}),
     customCorporationsList: v.helion === true ? [CardName.HELION, CardName.THORGATE] : [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1,
   });
   answerStartFlow(game, [p1, p2]);
-  game.projectDeck.discardPile.push(...p1.cardsInHand.splice(0));
+  game.projectDeck.discardPile.push(...p1.cardsInHand.splice(v.colonies?.hand ?? 0));
   const board = newPrelude(CardName.BOARD_OF_DIRECTORS)!;
   board.resourceCount = v.directors ?? 4;
   p1.playedCards.push(board);
@@ -14231,6 +14234,10 @@ boardOfDirectorsFixture('board-of-directors-variant', {top: CardName.ATMOSPHERIC
 // #169 (CI's autopilot, game 260 — `console-leak-detector/batch-overlap`): a prelude whose own effect DRAWS (Soil
 // Bacteria: two microbe cards) played off the verdict — the reveal of what it drew must not stand beside the verdict.
 boardOfDirectorsFixture('board-of-directors-draw', {top: CardName.SOIL_BACTERIA, megacredits: 40, max: 1});
+// …and a prelude whose own effect BUILDS A COLONY, then discards (Old Mining Colony — the box's autopilot on `59f2042`,
+// game 2624: `workspace-outcome/host-gone/card-actions` — the colony step opened as a root of its own, the action's
+// workspace closed under its claim). A Colonies table, two cards in blue's hand for the discard.
+boardOfDirectorsFixture('board-of-directors-colony', {top: CardName.OLD_MINING_COLONY, megacredits: 40, max: 1, colonies: {hand: 2}});
 // …and the same road AT A MARSBOT TABLE, the verdict the seat's SECOND action — CI's game 260 was vs MarsBot: the bot's
 // turn follows the play, its staged turn holding the view while the prelude's drawn cards are shown.
 {

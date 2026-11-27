@@ -472,6 +472,46 @@ test.describe(`P45 Board of Directors · the verdict after the reveal · ${PRESE
 test.describe(`P45 Board of Directors · what a played prelude draws · deck`, () => {
   test.use({viewport: {width: 1280, height: 720}});
 
+  /*
+   * K4 — the box's autopilot on `59f2042`, game 2624 (`workspace-outcome/host-gone/card-actions`): «РАЗЫГРАТЬ» on Old
+   * Mining Colony — the played prelude BUILDS A COLONY, then discards. The colony is the action's next stage: it opens
+   * INSIDE «ДЕЙСТВИЯ КАРТ» (the stack `card-actions › colonies`), never as a root of its own that closes the workspace
+   * under its claim («the claim … outlived its host»). The pilot's road: ↑ and LB on the «Разыграно» beat.
+   */
+  test("K4: «РАЗЫГРАТЬ» on Old Mining Colony — the colony stands inside the action's workspace and is built there; its claim never outlives its host", async ({page, request}) => {
+    test.setTimeout(300_000);
+    const orphaned: Array<string> = [];
+    page.on('console', (m) => {
+      if (m.text().includes('outlived its host')) {
+        orphaned.push(m.text());
+      }
+    });
+    const id = await bootFixture(page, request, 'board-of-directors-colony', {query: PRESET.query});
+    await settle(page);
+    const posts = watchPosts(page);
+    await openSetup(page);
+    await drawToVerdict(page, posts);
+    await expect(page.locator(`${PICK} [data-deckpick-slot="Old Mining Colony"]`), 'Old Mining Colony drawn').toHaveCount(1);
+    await focusRow(page, 'play');
+    await commitOnce(page, posts, posts.length, 'the play');
+    // The pilot's road: ↑ and LB on the «Разыграно» beat.
+    await press(page, 'ArrowUp', 400);
+    await press(page, 'KeyQ', 400);
+    await expect.poll(async () => (await wireOf(request, id)).waitingFor?.type, {timeout: 30_000, message: 'the server asks the colony'}).toBe('colony');
+    const stack = () => page.evaluate(() => {
+      const d = (window as unknown as {__conColonyDiag?: () => {stack: Array<{kind: string}>}}).__conColonyDiag?.();
+      return (d?.stack ?? []).map((f) => f.kind).join('>');
+    });
+    await expect.poll(stack, {timeout: 30_000, message: "the colony step stands INSIDE the action's workspace"}).toBe('card-actions>colonies');
+    // A builds it there — on the first pickable tile the step landed the cursor on.
+    for (let i = 0; i < 6 && (await wireOf(request, id)).waitingFor?.type === 'colony'; i++) {
+      await press(page, 'Enter', 900);
+    }
+    await expect.poll(async () => (await wireOf(request, id)).waitingFor?.type, {timeout: 30_000, message: 'the colony is built'}).not.toBe('colony');
+    await settle(page, {timeoutMs: 40_000});
+    expect(orphaned, "the action's claim never outlived its host").toEqual([]);
+  });
+
   test('K2: the drawn cards after the verdict has left — B pressed through the beat of the play, at a quick pace', async ({page, request}) => {
     test.setTimeout(300_000);
     const id = await bootFixture(page, request, 'board-of-directors-draw', {query: '&consoleProfile=handheld'});

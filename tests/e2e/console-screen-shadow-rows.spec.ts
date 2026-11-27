@@ -48,6 +48,14 @@ test.describe('the screen director — the rows the first map never judged', () 
 
   test('colonyBonus — another seat\'s trade pays the viewer: held by the announce with nothing under it, the door its answer', async ({page, request}) => {
     test.setTimeout(240_000);
+    // ONE COLLECT, ONE SUBMIT (CI's autopilot, game 330 — `transport/refused-busy/sending`): the door answered the cube
+    // and the auto-collect of the stage it stood up answered it again; the transport refused the second.
+    const refused: Array<string> = [];
+    page.on('console', (m) => {
+      if (m.text().includes('[transport] submit refused')) {
+        refused.push(m.text());
+      }
+    });
     const {seats} = await bootFixtureSeats(page, request, 'miranda-remote-bonus', {query: QUERY});
     await tradeAs(request, seats[1], 'Miranda');
 
@@ -66,6 +74,7 @@ test.describe('the screen director — the rows the first map never judged', () 
       return model.waitingFor?.colonyBonusPrompt === undefined;
     }, {timeout: 30_000, message: 'opening the announce answered the collect'}).toBeTruthy();
     await expect(page.locator('.con-colonies'), 'the colonies present the payout').toBeVisible({timeout: 30_000});
+    expect(refused, 'the collect was sent once — never a second submit the transport refuses').toEqual([]);
 
     const r = await readout(page);
     console.log('[rows] colonyBonus readout', JSON.stringify(r));

@@ -762,7 +762,7 @@ export function createColonyController(shell: ColonyPort) {
         currentRevealEvent() !== undefined) {
       return '';
     }
-    return `${collect.colonyName}#${collect.index}/${collect.total}`;
+    return colonyBonusCollectKey(collect);
   });
 
   /** The colony this resolution belongs to ('' when nothing is owed). */
@@ -1364,7 +1364,17 @@ export function createColonyController(shell: ColonyPort) {
    */
   function openColonyBonusCollect(meta: ColonyBonusCollectMeta): void {
     enterColonyBonusStage(meta.colonyName, meta.trader);
+    // ONE COLLECT, ONE SUBMIT (CI's autopilot, games 330 and the box's 2624 — `transport/refused-busy/sending`): the
+    // stage this door stands up is exactly what the next cube's auto-collect waits for (its colony, an empty table),
+    // so the auto-collect answered the SAME cube a frame later and the transport refused it. The door's answer is the
+    // cube's: the auto-collect reads it as collected.
+    colonyBonusCollected.value = colonyBonusCollectKey(meta);
     shell.submit({type: 'option'});
+  }
+
+  /** One cube of a payout — the auto-collect's key and the door's (`openColonyBonusCollect`). */
+  function colonyBonusCollectKey(collect: ColonyBonusCollectMeta): string {
+    return `${collect.colonyName}#${collect.index}/${collect.total}`;
   }
 
   function openColonyBonusDiscard(meta: ColonyBonusDiscardMeta): void {
