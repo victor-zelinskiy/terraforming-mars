@@ -1490,6 +1490,13 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       await press(key, pause());
       continue;
     }
+    // A SPREAD OVER CARDS (the bottle's rule — CI's bottle on `4d74b4f9a0`, game 538: «Разместите 4 флоатера на своих
+    // картах», a resolution's effect, «LB/RB Раздача −1 / +1 · A Сохранить», A grey until all are placed): what is left
+    // onto the focused card (RT «Остаток сюда»), +1 where it fits, the next card — and A once it is lit.
+    if (PILOT >= 3 && /Раздача\s*−1\s*\/\s*\+1/.test(seen.bar) && seen.look === '' && !seen.zoom && !seen.quick) {
+      await press(seen.offered.some((o) => o.key === 'Enter') ? 'Enter' : (['Period', 'KeyE', 'ArrowDown'] as const)[standing.presses % 3], pause());
+      continue;
+    }
     // THE DISTRIBUTION OF RESOURCES (pilot 3): a unit onto the focused row (RB where the layout steps by LB/RB, A where A
     // adds), the next row, another — and the take.
     if (PILOT >= 3 && wf.type === 'resources' && seen.bar.startsWith('Распределение ресурсов') && seen.look === '' && !seen.zoom) {

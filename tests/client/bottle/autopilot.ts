@@ -486,6 +486,15 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       await press(key, pause());
       continue;
     }
+    // A SPREAD OVER CARDS (CI's bottle on `4d74b4f9a0`, game 538 replayed — «Place 4 floaters on your cards», a
+    // resolution's effect inside the sitting: «LB/RB Distribute −1 / +1 · A Save», A grey until the four are placed, and
+    // the thumb pressed A and the bumpers at random until the door answered): what is left onto the focused card (RT
+    // «Rest here» — the narrow bar drops its hint, never its key), +1 where it fits, the next card — and A once it is lit.
+    if (/Distribute\s*−1\s*\/\s*\+1/.test(bottle.bar()) && !sees('dialog.con-zoom[open]') && !sees('.con-quick')) {
+      const key: BottleKey = offeredNow.some((o) => o.key === 'Enter') ? 'Enter' : (['Period', 'KeyE', 'ArrowDown'] as const)[standing.presses % 3];
+      await press(key, pause());
+      continue;
+    }
     // THE LAYOUT OF A LOSS (the browser pilot's rule — CI's bottle on `4d74b4f9a0`: the door on «Board · A −1 · X Accept
     // the loss · B Minimize»): a unit off the focused row, another, the next row, and «Accept the loss».
     if (asked.type === 'productionToLose' && sees('.con-prodloss') && !sees('dialog.con-zoom[open]') && !sees('.con-quick')) {
