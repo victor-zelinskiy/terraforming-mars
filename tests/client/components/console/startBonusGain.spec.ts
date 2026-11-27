@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {flushPromises} from '@vue/test-utils';
 import {
-  armBonusGainClaim, awaitVisibleBonusGainSource, bonusGainDestinationSelectors, bonusGainRewardState, bonusGainSourceSelectors, bonusGainSpec,
+  armBonusGainClaim, awaitVisibleBonusGainSource, bonusGainDestinationSelectors, bonusGainRewardState, bonusGainSourceSelectors, bonusGainSpec, bonusGainWaveAway,
   consumeBonusGainReward, detectBonusGainAutoResolve, noteBonusGainRows, noteBonusGainStageEntering, pendingBonusGainRows,
   resetBonusGainReward, seedBonusGainRewardHold,
 } from '@/client/console/startBonusGain';
@@ -327,5 +327,24 @@ describe('startBonusGain · the waits count from their event', () => {
     expect(heldStock('steel'), 'the panel still holds the gain for its token').to.eq(2);
     clock.advance(1_100);
     expect(bonusGainRewardState.owed, 'no surface flew it — the backstop lets go').to.eq(undefined);
+  });
+});
+
+/*
+ * CI's autopilot on `59f2042`, game 317: «Фора»'s window closed while the player stood in their HAND over the opening —
+ * the wave was due on a scene under the hand's overlay and ran out its ceiling over a screen the player had chosen.
+ */
+describe("startBonusGain — the scene is the player's screen (bonusGainWaveAway)", () => {
+  it('the start on top, not yielded: the wave may fly', () => {
+    expect(bonusGainWaveAway(false, 'start')).to.eq(undefined);
+    expect(bonusGainWaveAway(false, undefined), 'no frame at all (a bare mount)').to.eq(undefined);
+  });
+
+  it("a frame over the start — the hand the player walked to: not the scene's screen, said by name", () => {
+    expect(bonusGainWaveAway(false, 'hand')).to.contain('hand');
+  });
+
+  it('a yielded scene: not its screen either', () => {
+    expect(bonusGainWaveAway(true, 'start')).to.contain('yielded');
   });
 });

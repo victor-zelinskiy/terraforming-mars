@@ -34,7 +34,8 @@ export const PASSED_THIS_GENERATION = 'You have passed this generation';
 
 /** The viewer is among the seats that passed this generation — the server's own list (`GameModel.passedPlayers`). */
 export function viewerHasPassed(view: PlayerViewModel): boolean {
-  return view.game.passedPlayers.includes(view.thisPlayer.color);
+  // (Read tolerantly: a view assembled by hand — a spec's, a probe's — may not state the list at all; none = nobody passed.)
+  return (view.game.passedPlayers ?? []).includes(view.thisPlayer?.color);
 }
 
 /**

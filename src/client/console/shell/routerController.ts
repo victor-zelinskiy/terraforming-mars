@@ -24,7 +24,7 @@ import {buildEffectDecision, declineModelOf, EffectDecisionAction, EffectDecisio
 import type {DeclineModel} from '@/client/console/optionalChoice';
 import {decisionPromptStamp, effectDecisionState, markDecisionPickAnswered, resetDecisionFocus} from '@/client/console/effectDecision/effectDecisionState';
 import {enterWorkspace, FrameAnchor, frameServing, goBoardHome, hostCarriesPlayersLook, pushWorkspaceFrame, pushWouldNestInItself, questionSetAside, setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, stackYieldedToBoard, workspaceFrameHost, WorkspaceFrameKind, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameSubject, workspaceHostForStep, workspaceStackAwaitsZone, workspaceStackState, workspaceStackTop, yieldedStackCards, yieldedStackServes} from '@/client/console/consoleWorkspaceStack';
-import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
+import {isCommitted, isReversible} from '@/client/console/consoleWorkspaceFlow';
 import {cardDiscardTransaction} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {colonyBonusCollectOf, colonyBonusDiscardOf} from '@/client/console/colonyTrade/colonyResolution';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
@@ -1111,12 +1111,15 @@ export function createRouterController(shell: RouterPort) {
    * (Its `lateral` is wider than the shadow's: a SHEET the player opened over a live placement — the awards, read
    * before choosing a cell — takes the pad exactly as a section does; and a screen they walked to over the OPENING
    * (`hostCarriesPlayersLook`): the start waits for the player, the pad is their screen's.)
+   * (…and the look is any REVERSIBLE phase of it, `configure` too — CI's autopilot on `6593366`, game 325: a final
+   * greenery's cell pending, the player walked into the Parliament and set up «Отправить делегата»; the pad gave the
+   * sitting, as it must, and the law said «board» — `pad-MISS:section:parliament`, #111 · #110.)
    */
   function questionFactsNow(yielded?: boolean): QuestionFacts {
     const question = questionNow.value;
     const top = workspaceStackTop();
     const lateral = top === undefined ? '' :
-      shell.placementActive && top.phase === 'browse' && (consoleState.section !== 'board' || consoleState.sheet !== undefined) ? top.kind :
+      shell.placementActive && isReversible(top.phase) && (consoleState.section !== 'board' || consoleState.sheet !== undefined) ? top.kind :
         shell.startSceneMounted && top.kind !== 'start' && hostCarriesPlayersLook('start') ? top.kind : '';
     return {
       task: question.task, client: question.client, ...questionFacts(), ...(question.client ? {claimHeld: taskHeldForWorkspace.value} : {}), lateral,

@@ -932,6 +932,27 @@ plutoSettlementsTable('pluto-settlements-empty-hand', {cubes: 2, track: 3, forei
   write('first-action-owed-late', game);
 }
 
+// ── first-action-owed-opening: THE SAME MENU AT THE OPENING — generation 1, Inventrix's «draw 3 cards» owed, the
+//    server's menu «the first action | pass» (CI's autopilot on `6593366`, game 333: the pilot passed over it by the
+//    wheel, and the opening stood on into generation 2 — the draft over the start's frame). ──
+{
+  const {game, player} = soloActionPhase({customCorporationsList: [CardName.INVENTRIX], startingCorporations: 1});
+  const corp = player.playedCards.corporations()[0];
+  if (corp === undefined || corp.initialAction === undefined) {
+    throw new Error(`the first-action-owed-opening fixture expected a corporation with a first action — got ${corp?.name}`);
+  }
+  player.megaCredits = 40;
+  player.pendingInitialActions = [corp];
+  player.popWaitingFor();
+  player.takeAction();
+  runAllActions(game);
+  const menu = player.getWaitingFor();
+  if (game.generation !== 1 || !(menu instanceof OrOptions) || menu.options.length !== 2) {
+    throw new Error(`the first-action-owed-opening fixture expected generation 1 and the menu «first action | pass» — got generation ${game.generation}, ${menu?.constructor.name}`);
+  }
+  write('first-action-owed-opening', game);
+}
+
 // ── rail-reward-action: a solo action phase with TWO plain resource-paying
 //    blue actions in the tableau — Electro Catapult (spend 1 plant / 1 steel
 //    → +7 M€: a STOCK reward with a choice) and Space Mirrors (7 M€ → +1

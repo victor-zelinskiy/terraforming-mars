@@ -7,6 +7,7 @@ import type {UnwrapRef} from 'vue';
 import {ExposedOf} from '@/client/components/exposedOf';
 import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 import {installCursorArrivalInput} from '@/client/console/cursorArrivalInput';
+import {isReversible} from '@/client/console/consoleWorkspaceFlow';
 import {computed, nextTick, ref, watch} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {SpaceId} from '@/common/Types';
@@ -666,10 +667,11 @@ export function createWiringController(shell: WiringPort) {
   }
 
   /** THE SHELL IS MOUNTED — its wiring: the probes, suppliers, hooks and leases other modules read while it stands. */
-  /** THE PLAYER'S OWN WORKSPACE OVER A LIVE PLACEMENT — reversible (`browse`), so B is one press back to the cells. */
+  /** THE PLAYER'S OWN WORKSPACE OVER A LIVE PLACEMENT — reversible (`browse`, `configure`: back is the way to the cells;
+   *  the law reads the same — `routerController.questionFactsNow`, CI's game 325). */
   function lateralLook(): string {
-    return shell.placementActive && consoleState.section !== 'board' && workspaceStackTop()?.phase === 'browse' ?
-      workspaceStackTop()?.kind ?? '' : '';
+    const top = workspaceStackTop();
+    return shell.placementActive && consoleState.section !== 'board' && top !== undefined && isReversible(top.phase) ? top.kind : '';
   }
 
   /**

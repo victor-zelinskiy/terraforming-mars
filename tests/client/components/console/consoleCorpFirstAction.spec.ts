@@ -101,6 +101,15 @@ describe('corporation first action (console routing)', () => {
     expect(corpFirstActionInStartFlow(corpActionView({generation: 2}))).to.be.false;
   });
 
+  it('a seat that PASSED over its first action has left the opening — even in generation 1 (CI autopilot, game 333)', () => {
+    const passed = startFlowView();
+    (passed.game as unknown as {passedPlayers: Array<string>}).passedPlayers = ['red'];
+    expect(corpFirstActionInStartFlow(passed), "the first action is the next generation's menu now, never the opening's stage").to.be.false;
+    const other = startFlowView();
+    (other.game as unknown as {passedPlayers: Array<string>}).passedPlayers = ['blue'];
+    expect(corpFirstActionInStartFlow(other), "another seat's pass is not this one's").to.be.true;
+  });
+
   it('inside the start flow the GAME START WORKSPACE is the serving surface (never the modal)', () => {
     const view = startFlowView();
     document.body.innerHTML = '';

@@ -749,6 +749,48 @@ export function createCommandBarController(shell: CommandBarPort) {
       }
       return cmds;
     }
+    // THE JOURNAL OVER ANY BAND (the pad's own order — `padRouterController`: the journal's rungs stand above every
+    // band rung, the start's, the draft's, the deck pick's). Below them here, the bar kept the start's commands while
+    // the open journal took the press — CI's bottle on `6593366`, game 306: `bar-APART:start>journal` (#113).
+    if (shell.colonyInspectModel !== undefined) {
+      noteBarRung('journal');
+      // The read-only JOURNAL colony dossier: B closes, nothing else.
+      return [{control: 'back', label: 'Close'}];
+    }
+    if (shell.journalPanelVisible) {
+      noteBarRung('journal');
+      // The journal's whole grammar, honest to the panel's live mirrors
+      // (consoleJournalUi — the panel syncs, the bar never guesses).
+      // The «Показать» map-peek holds the referenced cells lit until the
+      // player presses — B restores the journal (matches the bot review).
+      if (consoleJournalUi.peekActive) {
+        return [{control: 'back', label: 'Back'}];
+      }
+      if (consoleJournalUi.inspectOpen) {
+        return [{control: 'back', label: 'Close'}];
+      }
+      if (consoleJournalUi.filterOpen) {
+        return [
+          {control: 'confirm', label: 'Select'},
+          {control: 'back', label: 'Close'},
+        ];
+      }
+      // The panel's own header carries the LB/RB mode tabs, LT/RT
+      // generation pager and R3 filter chip ON the controls they drive —
+      // the bar advertises only the focused ENTRY's verbs (§3.2: one
+      // place per hint; this is what ends the truncated 9-hint runs).
+      const cmds: Array<ConsoleCommand> = [
+        {control: 'confirm', label: consoleJournalUi.focusExpanded ? 'Collapse' : 'Details', enabled: consoleJournalUi.focusIsGroup},
+        // P29: X = «Осмотреть» — cards, standard projects/actions, hydro,
+        // map-only entries (never the too-narrow «Карта»).
+        {control: 'secondary', label: 'Inspect', enabled: consoleJournalUi.focusInspectable},
+      ];
+      if (consoleJournalUi.focusHasSpace) {
+        cmds.push({control: 'stickL', label: 'Show on map'});
+      }
+      cmds.push({control: 'back', label: 'Close'});
+      return cmds;
+    }
     // …but NOT while the workspace is hosting the play-from-hand step: the
     // player is browsing a real hand, so the bar must carry the HAND's
     // contract (A разыграть · X осмотреть · LB/RB фильтр · B назад), not the
@@ -1176,11 +1218,6 @@ export function createCommandBarController(shell: CommandBarPort) {
         {control: 'back', label: 'Back'},
       ];
     }
-    if (shell.colonyInspectModel !== undefined) {
-      noteBarRung('journal');
-      // The read-only JOURNAL colony dossier: B closes, nothing else.
-      return [{control: 'back', label: 'Close'}];
-    }
     if (consoleState.confirm !== undefined) {
       noteBarRung('confirm');
       // The R3 «Эффекты» LAYER owns the bar while it is open — the explorer's own contract, verbatim (PL-394).
@@ -1198,40 +1235,6 @@ export function createCommandBarController(shell: CommandBarPort) {
         ...(!pass && forecastLayerAvailable(shell.confirmForecast) ? [{control: 'stickR' as GlyphControl, label: 'Effects'}] : []),
         {control: 'back', label: 'Cancel'},
       ];
-    }
-    if (shell.journalPanelVisible) {
-      noteBarRung('journal');
-      // The journal's whole grammar, honest to the panel's live mirrors
-      // (consoleJournalUi — the panel syncs, the bar never guesses).
-      // The «Показать» map-peek holds the referenced cells lit until the
-      // player presses — B restores the journal (matches the bot review).
-      if (consoleJournalUi.peekActive) {
-        return [{control: 'back', label: 'Back'}];
-      }
-      if (consoleJournalUi.inspectOpen) {
-        return [{control: 'back', label: 'Close'}];
-      }
-      if (consoleJournalUi.filterOpen) {
-        return [
-          {control: 'confirm', label: 'Select'},
-          {control: 'back', label: 'Close'},
-        ];
-      }
-      // The panel's own header carries the LB/RB mode tabs, LT/RT
-      // generation pager and R3 filter chip ON the controls they drive —
-      // the bar advertises only the focused ENTRY's verbs (§3.2: one
-      // place per hint; this is what ends the truncated 9-hint runs).
-      const cmds: Array<ConsoleCommand> = [
-        {control: 'confirm', label: consoleJournalUi.focusExpanded ? 'Collapse' : 'Details', enabled: consoleJournalUi.focusIsGroup},
-        // P29: X = «Осмотреть» — cards, standard projects/actions, hydro,
-        // map-only entries (never the too-narrow «Карта»).
-        {control: 'secondary', label: 'Inspect', enabled: consoleJournalUi.focusInspectable},
-      ];
-      if (consoleJournalUi.focusHasSpace) {
-        cmds.push({control: 'stickL', label: 'Show on map'});
-      }
-      cmds.push({control: 'back', label: 'Close'});
-      return cmds;
     }
     if (shell.corpFirstActionOpen) {
       noteBarRung('corpFirst');

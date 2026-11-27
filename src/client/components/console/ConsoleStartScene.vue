@@ -1413,7 +1413,7 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction, ConsoleActionOverrides} from '@/client/console/composables/consoleActionModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {gateCursorUntilAnimationsEnd} from '@/client/console/cursorArrival';
-import {ConsoleTask, startPlacementOrderOf, startStepDiscardOf, taskFor} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, corpFirstActionInStartFlow, startPlacementOrderOf, startStepDiscardOf, taskFor} from '@/client/console/consoleTaskRouter';
 import {
   buildInitialCardsResponse, campaignWizardExtra, clearDockDrift, committedStartJourneyItems, consoleStartState, deploymentCrumb, deploymentJourneyItems,
   driftDockPile, ensureStartWizard, holdStartScene, initialCardsInputOf, initialCardsSignature,
@@ -1482,7 +1482,7 @@ import {FACE_DOWN_DEG, FACE_UP_DEG} from '@/client/console/cardFlight/card3dInne
 import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
 import {
   setWorkspaceFrameSlot, setWorkspaceFrameSubject, workspaceFrameHasNested, workspaceFrameHost,
-  workspaceFramePhase, workspaceFrameSubject, workspaceStackCrumb,
+  workspaceFramePhase, workspaceFrameSubject, workspaceStackCrumb, workspaceStackTop,
 } from '@/client/console/consoleWorkspaceStack';
 import {
   beginStartTransition, endStartTransition, resetStartTransition, setStartTransitionPhase,
@@ -1537,7 +1537,7 @@ import {heldCardCapsule} from '@/client/console/resourceTransfer/consoleResource
 import {centreEndOf, iconMatches} from '@/client/console/consoleActionCommitMotion';
 import {clearPanelRewardHold, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
-  armBonusGainClaim, awaitVisibleBonusGainSource, bonusGainDestinationSelectors, bonusGainRewardState, bonusGainSourceSelectors,
+  armBonusGainClaim, awaitVisibleBonusGainSource, bonusGainDestinationSelectors, bonusGainRewardState, bonusGainSourceSelectors, bonusGainWaveAway,
   consumeBonusGainReward, noteBonusGainStageEntering,
 } from '@/client/console/startBonusGain';
 import {noteStartBarsStood, startBarsStoodBeforeMount} from '@/client/console/startBarsStood';
@@ -3149,9 +3149,11 @@ const stagePanelUp = computed((): boolean => {
  *    transparent) shelf would put the origin somewhere the player cannot
  *    see, which is exactly the thing this beat exists to prevent.
  */
+/** The scene is somebody else's screen just now — a frame over the start, a yield (`bonusGainWaveAway`). */
+const bonusGainAway = computed((): string | undefined => bonusGainWaveAway(props.yielded === true, workspaceStackTop()?.kind));
 const bonusGainWaveDue = computed((): boolean => {
   const reward = bonusGainRewardState.owed;
-  if (reward === undefined || mode.value !== 'ceremony' || !ceremonyRevealed.value || props.yielded) {
+  if (reward === undefined || mode.value !== 'ceremony' || !ceremonyRevealed.value || bonusGainAway.value !== undefined) {
     return false;
   }
   return reward.point !== undefined || !playedDockReleased.value;
@@ -3260,7 +3262,9 @@ const bonusActionBarState = computed((): 'off' | 'waiting' | 'ready' => {
 /** The corporation still owes its mandatory first action (see
  *  startFirstAction.ts — domain ledger / live marked prompt). */
 const firstActionOwedNow = computed((): boolean => {
-  return firstActionOwed(props.playerView);
+  // (…as the OPENING's: a first action the seat passed over is the next generation's menu, never this stage —
+  // CI's autopilot, game 333: the deployment stood unsettled on it into generation 2, `corpFirstActionInStartFlow`.)
+  return corpFirstActionInStartFlow(props.playerView) && firstActionOwed(props.playerView);
 });
 /**
  * THE FLOW KNOWS ITS OWN SHAPE FROM THE FIRST FRAME — does the chosen
@@ -9913,8 +9917,19 @@ function runBonusGainWave(): void {
   // shows degrades exactly as before. The panel keeps holding the gains meanwhile.
   const scene = root.value as Node | null;
   // …and for the rail rows the chips land on: the same law holds the landing (both ends, one budget).
-  void awaitVisibleBonusGainSource(bonusGainSourceSelectors(reward.source), undefined, () => scene?.isConnected === true,
-    bonusGainDestinationSelectors(reward.specs)).then(fly);
+  // …and while the scene STAYS the player's screen: a frame over the start, a yield, ends the wait — the gain ticks
+  // with its chip, never a token out of a card under somebody else's screen (`bonusGainWaveAway`).
+  void awaitVisibleBonusGainSource(bonusGainSourceSelectors(reward.source), undefined,
+    () => scene?.isConnected === true && bonusGainAway.value === undefined,
+    bonusGainDestinationSelectors(reward.specs)).then((seen) => {
+    const away = bonusGainAway.value;
+    if (!seen && away !== undefined && scene?.isConnected === true) {
+      noteTransferTrail('bonus-gain:away', {why: away});
+      clearPanelRewardHold();
+      return;
+    }
+    fly();
+  });
 }
 /**
  * A on the standing briefing — THE HAND-OFF.

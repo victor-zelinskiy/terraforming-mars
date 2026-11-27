@@ -269,6 +269,25 @@ export function consumeBonusGainReward(): BonusGainReward | undefined {
   return taken;
 }
 
+/**
+ * THE SCENE IS NOT THE PLAYER's SCREEN JUST NOW — why, or `undefined` when it is (PURE). CI's autopilot on `59f2042`,
+ * game 317 — a campaign's «Фора» (Head Start) whose window closed while the player had walked to their HAND over the
+ * opening: the scene was mounted and not yielded, so the wave was due; its ends (the card on «РАЗЫГРАНО», the rail rows)
+ * stood under the hand's overlay, and the wait ran out its 4 s ceiling over a screen the player had chosen —
+ * `wait-graph/ceiling/start-bonus:visible-source`, «4/5 ends unseen». A frame standing ABOVE the start (an overlay the
+ * player opened, a step it hosts) or a yielded scene is somebody else's screen: the wave is not due there, and a wave
+ * already waiting lets the gain go as a tick (the hold's own backstop does the same) — never a token out of a covered card.
+ */
+export function bonusGainWaveAway(yielded: boolean, topFrameKind: string | undefined): string | undefined {
+  if (yielded) {
+    return 'the start scene yielded its screen';
+  }
+  if (topFrameKind !== undefined && topFrameKind !== 'start') {
+    return `the player's ${topFrameKind} stands over the opening`;
+  }
+  return undefined;
+}
+
 /** Full reset (game switch, an abort, test cleanup). */
 export function resetBonusGainReward(): void {
   clearSafety();

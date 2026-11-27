@@ -754,11 +754,14 @@ export function createStartController(shell: StartPort) {
    */
   const openingOverByServer = computed((): boolean => {
     const view = shell.playerView;
+    // THE GENERATION, OR THE SEAT's PASS, FIRST (CI's autopilot, game 333): a first action the seat passed over stays
+    // on its ledger into every later generation — read before them, «owed» kept the opening alive for the rest of the
+    // game (the draft over the start's frame, the director's cure by level). The opening is generation 1, unpassed.
+    if (view.game.generation > 1 || !corpFirstActionInStartFlow(view)) {
+      return true;
+    }
     if (firstActionOwed(view) || bonusActionOwed(view) || startPlacementOrderOf(view) !== undefined) {
       return false;
-    }
-    if (view.game.generation > 1) {
-      return true;
     }
     const wf = view.waitingFor;
     const title = wf?.title;
@@ -852,7 +855,8 @@ export function createStartController(shell: StartPort) {
     }
     // The deployment's cards are through and the one thing left is the
     // corporation's first action, waiting for the player's turn — say so.
-    if (firstActionOwed(shell.playerView) && shell.playerView.waitingFor === undefined) {
+    // (…owed AS THE OPENING's: a seat that passed over it is not waiting for its turn to take it — `corpFirstActionInStartFlow`.)
+    if (corpFirstActionInStartFlow(shell.playerView) && firstActionOwed(shell.playerView) && shell.playerView.waitingFor === undefined) {
       return startDeferredSummary('awaiting-first-action');
     }
     return startDeferredSummary('in-progress');

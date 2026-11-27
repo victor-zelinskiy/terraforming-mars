@@ -67,4 +67,47 @@ test.describe('a first action still owed — and the pass over it', () => {
     await expect(page.locator('.con-confirm')).toHaveCount(0);
     await expect(page.locator('.con-quick')).toHaveCount(0);
   });
+
+  /*
+   * …AND AT THE OPENING (CI's autopilot on `6593366`, game 333 — the fixture `first-action-owed-opening`: generation 1,
+   * Inventrix's «draw 3 cards» owed). The pass over it is the seat's to give there too, and it ENDS the seat's opening:
+   * the first action is the next generation's menu from then on, never the start's last stage. What the pass used to
+   * leave behind: a start that stood on into generation 2 — the draft opened OVER its frame and the start director
+   * cured it by level. «Done» is the server's word (the generation moves on); the page is read by state.
+   */
+  test('at the opening: the pass over the first action ends the opening — the next generation has no start under it', async ({page, request}) => {
+    test.setTimeout(180_000);
+    const viewer = await bootFixture(page, request, 'first-action-owed-opening', {landing: 'prompt'});
+    const asked = await wire(request, viewer);
+    expect(asked.game.generation, 'the opening').toBe(1);
+    expect(asked.waitingFor?.startGamePrompt?.kind, 'the server asks the first action').toBe('corporationInitialAction');
+    expect(asked.waitingFor?.options?.length, 'the first action — or the pass').toBe(2);
+    await expect(page.locator('.con-start'), 'the start serves its last stage').toHaveCount(1, {timeout: 60_000});
+
+    // THE PASS: B folds the start to the board, LT opens the basic actions — until the pass is offered.
+    let offered = false;
+    for (let tries = 0; tries < 4 && !offered; tries++) {
+      await press(page, 'Escape', 900);
+      offered = await pressUntil(page, 'Comma', async () => await page.locator(PASS).count() > 0, {tries: 2, settleMs: 900});
+    }
+    expect(offered, 'the basic actions offer the pass over the owed first action').toBe(true);
+    await expect(page.locator(PASS), 'the pass is offered').not.toHaveClass(/con-quick__slot--disabled/, {timeout: 15_000});
+    expect(await pressUntil(page, 'ArrowDown', async () => await page.locator('.con-confirm').count() > 0, {tries: 3, settleMs: 900}), '↓ asks to confirm the pass').toBe(true);
+    for (let tries = 0; tries < 3 && (await wire(request, viewer)).game.generation === 1 && await page.locator('.con-confirm').count() > 0; tries++) {
+      await press(page, 'Enter', 1200);
+    }
+    await expect.poll(async () => (await wire(request, viewer)).game.generation, {timeout: 30_000, message: 'the server took the pass: the generation moved on'})
+      .toBe(2);
+
+    // THE OPENING IS OVER for this seat: no start stands under the next generation — neither on the stack nor PARKED
+    // (a parked start is a way back the bar offers: in game 333 the pilot took it, and the start served nothing).
+    await settle(page, {timeoutMs: 60_000});
+    const startStands = () => page.evaluate(() => {
+      const d = (window as unknown as {__conColonyDiag?: () => {stack: Array<{kind: string}>, parked: Array<string>}}).__conColonyDiag?.();
+      return d === undefined ? 'no diag' : [...d.stack.map((f) => `live:${f.kind}`), ...d.parked.map((k) => `parked:${k}`)].filter((k) => k.endsWith(':start')).join(' ');
+    });
+    await expect.poll(startStands, {timeout: 30_000, message: 'no start frame, live or parked, under the next generation'}).toBe('');
+    await expect(page.locator('.con-start'), 'no start scene on screen').toHaveCount(0);
+    expect((await wire(request, viewer)).thisPlayer.tableau.some((c) => c.name === 'Inventrix'), "the corporation is still the seat's").toBe(true);
+  });
 });

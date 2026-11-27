@@ -19,6 +19,7 @@ import {OrOptionsModel, PlayerInputModel} from '@/common/models/PlayerInputModel
 import {Phase} from '@/common/Phase';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {viewerHasPassed} from '@/client/console/offTurnReason';
 import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {inputTitleText} from '@/client/console/turnIntents';
@@ -603,13 +604,22 @@ export function taskMinimizable(kind: TaskKind): boolean {
  * play and every prelude as taken actions (`Player.incrementActionsTaken`
  * fires inside their own runWhenEmpty), so the counter is already past zero
  * when the first-action prompt stands. A first-action prompt in a LATER
- * generation can only be a mid-game acquisition chain (a merger picking up
- * a corp that still owes its opening move) — that one keeps the dedicated
- * modal: resurrecting the start workspace mid-game would be a lie about
- * where the player is.
+ * generation is a mid-game acquisition chain (a merger picking up a corp
+ * that still owes its opening move) or a first action the seat PASSED over
+ * (below) — those keep the dedicated modal: resurrecting the start
+ * workspace mid-game would be a lie about where the player is.
+ *
+ * …AND A SEAT THAT PASSED HAS LEFT THE OPENING (CI's autopilot on `6593366`,
+ * game 333 — Inventrix, the pilot's pass by the wheel over «draw 3 cards»):
+ * the server's menu is «the first action | pass» for as long as it is owed,
+ * so a pass in generation 1 leaves the ledger standing — and every rule that
+ * read «generation 1 + owed» kept the opening alive through the rest of the
+ * generation and into the next: the draft opened OVER the start's frame and
+ * the start director cured it by level. Past the pass the first action is
+ * the next generation's menu, never the opening's last stage.
  */
 export function corpFirstActionInStartFlow(view: PlayerViewModel): boolean {
-  return view.game.generation === 1;
+  return view.game.generation === 1 && !viewerHasPassed(view);
 }
 
 /**

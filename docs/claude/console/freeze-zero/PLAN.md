@@ -2776,6 +2776,30 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   now). Open: `start-shadow/cure/yield/step/firstaction` + a dead-end (333, a campaign's mission whose first action
   outlived a generation), `wait-graph/ceiling/start-bonus:visible-source` IN A BROWSER (317, Head Start's played face
   unseen for its bonus gain — the bottle's blind row had said «not there in a browser»).
+- **The two OPEN finds of 45911869971, read and cured (2026-11-27).**
+  - `start-shadow/cure/yield/step/firstaction` (333) was not a campaign's — it was a PASS: Inventrix's «draw 3 cards»
+    owed, the pilot passed over it by the wheel in generation 1 (the server's menu is «the first action | pass» for as
+    long as it is owed), and the ledger stood. Every rule that read «generation 1 + owed» kept the opening alive past
+    the pass — `openingOverByServer` asked the ledger BEFORE the generation, so the parked start's anchor never died:
+    in generation 2 the bar offered the way back, the pilot took it, the draft opened OVER the start and the director
+    cured it by level. A seat that passed has left the opening (`corpFirstActionInStartFlow` — generation 1, unpassed;
+    the generation and the pass are read first; the scene's own stage and the «awaiting first action» summary read the
+    same rule). Reproduced (`console-first-action-pass.spec` — fixture `first-action-owed-opening`: red without the
+    fix, `parked:start` in generation 2; green with it). The 333's dead-end was 303's finale 503 (fixed in `6d2068b2bb`).
+  - `wait-graph/ceiling/start-bonus:visible-source` (317) was not the machine's speed — at its ceiling the player stood
+    in their HAND (`hand:configure`), opened over the opening while Head Start's window closed: the scene was mounted
+    and not yielded, so the wave was due, and its ends stood under the hand's overlay for the whole 4 s. A frame over
+    the start or a yield is somebody else's screen (`bonusGainWaveAway`): the wave is not due there, and a wave already
+    waiting lets the gain go as a tick (the hold's own backstop does the same) — never a token out of a covered card.
+  - The one-owner law's MISS (#110 · #111, game 325 — Turmoil Redux, the finale): a final greenery's cell pending, the
+    player walked into the Parliament and set up «Отправить делегата»; the pad gave the sitting (as it must) and the
+    law said «board» — its «look over a live placement» took the `browse` phase only. A look is any REVERSIBLE phase
+    (`isReversible` — `configure` too), in the law and in the screen shadow alike.
+  - `bar-APART:start>journal` (#113, the bottle's game 306): the journal opened over the opening took every press — its
+    rungs stand above every band rung in the pad's ladder — while the bar's chain had the journal BELOW the band and
+    kept the start's commands (the frame standing, serving nothing — a journal over a SERVING start is closed at once,
+    so a press-made replay cannot reach that state without a race). The bar's journal branches stand where the pad's
+    do, above the band.
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read
