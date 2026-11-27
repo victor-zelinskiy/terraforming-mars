@@ -497,6 +497,8 @@ import {
   WorkspaceOutcomeScope,
 } from '@/client/console/consoleWorkspaceOutcome';
 import {DeltaRewardDraft, deltaRewardClaimPlan} from '@/client/console/hydroFlow/deltaRewardEntry';
+import {onPressUnanswered} from '@/client/console/transport/pressUnwind';
+import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {armColonyBonusPayout, COLONY_LEDGER_STAGE, colonyBonusPayoutOf, payoutDiscardDue, payoutRowsOf, payoutUntaken} from '@/client/console/colonyLedger/colonyBonusPayout';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import ConsoleActionComposer, {ComposerOutcome} from '@/client/components/console/ConsoleActionComposer.vue';
@@ -675,6 +677,17 @@ const composerExecuting = ref(false);
  * standing, so the tail honestly returns to the setup.
  */
 const sentPromptId = ref<number | undefined>(undefined);
+// …and A PRESS NO ANSWER IS COMING FOR (the network lost it — `pressUnwind`, the same rule as the awaiting hand-off:
+// an answer that arrived unreadable still resolves the stage) takes its SENT mark with it: the composer's own rollback
+// gave the setup back, and the truth fetched next decides — the same question standing (the request never arrived:
+// the setup, to try again), or the action spent (the move was made — `composerCardWithdrawn` concludes it). Kept, the
+// moved prompt read as «sent, the server moved on» — a «Выполнение» beat nobody would ever end (the box's game 2907,
+// a storm game: the arbiter tore it down at ten seconds).
+onPressUnanswered(props.repeat ? 'card-actions-sent:repeat' : 'card-actions-sent', () => {
+  if (outcomeFlow.value === undefined) {
+    sentPromptId.value = undefined;
+  }
+}, 214);
 /** The tile briefly shaken on an unavailable A press. */
 const shakeKey = ref('');
 /** The slot the player just DESCENDED into (the commit pulse rides it
@@ -1305,6 +1318,48 @@ const workspacePhase = computed((): WorkspacePhase => {
     terminal: revealVerdictUp.value,
     finishing: false,
   });
+});
+/**
+ * THE ACTION LEFT THE SERVER's LIST WHILE IT WAS BEING SET UP — availability is the server's word (invariant 2). The
+ * box's autopilot on `1bfeff8d9a`, game 2907 (a storm game): «Астероидный пояс»'s action was sent, the network lost the
+ * ANSWER of a move the server made, the press unwound to the setup — and the composer stood confirmable over an action
+ * the server no longer offered (used this generation): every «Подтвердить» sent the same batch, fourteen 400s of «Card
+ * Main Belt Asteroids not found». Before the commit, a composer whose card the live menu no longer lists folds back,
+ * the reason said. (A party's / a law's action reads its own bridge — `politicalBatchOf`.)
+ */
+const composerCardWithdrawn = computed((): boolean => {
+  const comp = composer.value;
+  if (comp === undefined || comp.party !== undefined || comp.resolution !== undefined || props.repeat || workspacePhase.value !== 'configure') {
+    return false;
+  }
+  return !composerCardOffered(comp.cardName);
+});
+/**
+ * Does the live action menu offer this card's action? An action menu WITHOUT the «action of a played card» option
+ * offers none (the spent action was the table's last); no menu standing at all — nothing is asked here.
+ */
+function composerCardOffered(cardName: CardName): boolean {
+  const wf = props.playerView.waitingFor;
+  const perform = findPerformActionCard(wf);
+  if (perform === undefined) {
+    const title = wf?.title;
+    return !(wf?.type === 'or' && isActionMenuTitle(typeof title === 'string' ? title : title?.message));
+  }
+  return perform.model.cards.some((c) => c.name === cardName && c.isDisabled !== true);
+}
+watch(() => composerCardWithdrawn.value, (gone: boolean) => {
+  if (!gone) {
+    return;
+  }
+  // (…SPENT BY THIS VERY PRESS — the answer lost, the move made: the truth lists the card among this generation's
+  // actions. The flow is FINISHED, and a finished flow leaves — never a «no longer offered» over the result it made.)
+  const card = composer.value?.cardName;
+  if (card !== undefined && props.playerView.thisPlayer.actionsThisGeneration.includes(card)) {
+    concludeFlow();
+    return;
+  }
+  emit('blocked', 'This option is no longer offered');
+  closeComposer();
 });
 /**
  * THE CRUMB'S ROOT IS THE FLOW'S ROOT. Opened from the Parliament (Turmoil
@@ -2046,6 +2101,13 @@ function onComposerConfirm(payload: {branchIndex: number, branchFor?: PreselectA
   if (perform === undefined) {
     // The prompt moved on while composing — nothing is submitted.
     console.warn('Activate action: SelectCard not found in waitingFor tree');
+    closeComposer();
+    return;
+  }
+  // …and an action the live menu no longer offers is never sent (`composerCardWithdrawn` — the reason said, the
+  // composer folded): the server would refuse the batch, and the same press would refuse it again.
+  if (!composerCardOffered(comp.cardName)) {
+    emit('blocked', 'This option is no longer offered');
     closeComposer();
     return;
   }
