@@ -1,41 +1,11 @@
 [
  {
-  "name": "Artificial Photosynthesis",
-  "module": "base",
-  "family": "project"
- },
- {
-  "name": "Beam From A Thorium Asteroid",
-  "module": "base",
-  "family": "project"
- },
- {
-  "name": "Capital",
-  "module": "base",
-  "family": "project"
- },
- {
-  "name": "Colonizer Training Camp",
-  "module": "base",
-  "family": "project"
- },
- {
-  "name": "Domed Crater",
-  "module": "base",
-  "family": "project"
- },
- {
   "name": "Energy Saving",
   "module": "base",
   "family": "project"
  },
  {
   "name": "Fusion Power",
-  "module": "base",
-  "family": "project"
- },
- {
-  "name": "Grass",
   "module": "base",
   "family": "project"
  },
@@ -270,11 +240,6 @@
   "family": "project"
  },
  {
-  "name": "Gyropolis",
-  "module": "venus",
-  "family": "project"
- },
- {
   "name": "Solarnet",
   "module": "venus",
   "family": "project"
@@ -370,11 +335,6 @@
   "family": "project"
  },
  {
-  "name": "Supplier",
-  "module": "prelude",
-  "family": "prelude"
- },
- {
   "name": "Ishtar Expedition",
   "module": "prelude2",
   "family": "project"
@@ -450,11 +410,6 @@
   "family": "project"
  },
  {
-  "name": "Venus Shuttles",
-  "module": "prelude2",
-  "family": "project"
- },
- {
   "name": "Venus Trade Hub",
   "module": "prelude2",
   "family": "project"
@@ -463,16 +418,6 @@
   "name": "WG Project",
   "module": "prelude2",
   "family": "project"
- },
- {
-  "name": "Atmospheric Enhancers",
-  "module": "prelude2",
-  "family": "prelude"
- },
- {
-  "name": "EcoTec",
-  "module": "prelude2",
-  "family": "corporation"
  },
  {
   "name": "Diaspora Movement",
@@ -521,11 +466,6 @@
  },
  {
   "name": "Desperate Measures",
-  "module": "ares",
-  "family": "project"
- },
- {
-  "name": "Ecological Survey",
   "module": "ares",
   "family": "project"
  },

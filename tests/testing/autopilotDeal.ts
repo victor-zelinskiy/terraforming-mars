@@ -97,10 +97,14 @@ export function dealFor(n: number, modules: ReadonlySet<string>, prelude: boolea
   if (source === 'unplayed') {
     // (The unplayed first, the scope's window behind them: a table whose modules hold none of a family still gets a deal.)
     const fill = (first: Array<CardName>, window: Array<CardName>, count: number) => [...first, ...window.filter((name) => !first.includes(name))].slice(0, count);
+    // (…and the window is taken over the cards THIS table can play: scanned over the whole list, a table without the
+    // modules at the window's place wrapped to the same base cards game after game — the bottle's games 15, 16 and 26
+    // dealt one set of five.)
+    const playable = (list: ReadonlyArray<ScopeCard>) => list.filter((card) => on.has(card.module) && card.needs.every((module) => on.has(module)));
     return {
-      projects: fill(dealWindow(UNPLAYED_CARDS.projects, n, 5, on), dealWindow(SCOPE_CARDS.projects, n, 5, on), 5),
-      corporations: fill(dealWindow(UNPLAYED_CARDS.corporations, n, 1, on), dealWindow(SCOPE_CARDS.corporations, n, 1, on), 1),
-      preludes: prelude ? fill(dealWindow(UNPLAYED_CARDS.preludes, n, 2, on), dealWindow(SCOPE_CARDS.preludes, n, 2, on), 2) : [],
+      projects: fill(dealWindow(playable(UNPLAYED_CARDS.projects), n, 5, on), dealWindow(SCOPE_CARDS.projects, n, 5, on), 5),
+      corporations: fill(dealWindow(playable(UNPLAYED_CARDS.corporations), n, 1, on), dealWindow(SCOPE_CARDS.corporations, n, 1, on), 1),
+      preludes: prelude ? fill(dealWindow(playable(UNPLAYED_CARDS.preludes), n, 2, on), dealWindow(SCOPE_CARDS.preludes, n, 2, on), 2) : [],
     };
   }
   const projectFirst = ledgerCard(LEDGER_CARDS.projects, SCOPE_CARDS.projects, n, on);
