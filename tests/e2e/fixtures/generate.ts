@@ -52,6 +52,7 @@ import {Trees} from '../../../src/server/cards/base/Trees';
 import {Fish} from '../../../src/server/cards/base/Fish';
 import {IGame} from '../../../src/server/IGame';
 import {IProjectCard} from '../../../src/server/cards/IProjectCard';
+import type {IPreludeCard} from '../../../src/server/cards/prelude/IPreludeCard';
 import {SelectInitialCards} from '../../../src/server/inputs/SelectInitialCards';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE} from '../../../src/common/constants';
 import {toName} from '../../../src/common/utils/utils';
@@ -1443,15 +1444,20 @@ finaleRichFixture('finale-rich-2p', 2);
   p1.steel = 2;
   p1.megaCredits = 50;
   p1.drawCard(3);
+  // …and Corporate Espionage in hand (`deltaEspionage` — another seat pushed back, the owner's own step), through the
+  // factory: a new top-level card import would move the order the decks are composed in for every later fixture.
+  const espionage = newProjectCard(CardName.CORPORATE_ESPIONAGE) as IProjectCard;
+  p1.cardsInHand.push(espionage);
   p2.megaCredits = 40;
   runAllActions(game);
-  if (game.activePlayer.id !== p1.id || !dutch.canAct(p1) || !floodgates.canAct() ||
+  if (game.activePlayer.id !== p1.id || !dutch.canAct(p1) || !floodgates.canAct() || !p1.canPlay(espionage) ||
       !buildBlockadeProjection(p1, floodgates).targets.some((target) => target.legal)) {
     throw new Error(`scenario-delta: expected blue on the move with Dutch Mountains and a legal Floodgates blockade — active=${game.activePlayer.color} ` +
-      `dutch=${dutch.canAct(p1)} floodgates=${floodgates.canAct()}`);
+      `dutch=${dutch.canAct(p1)} floodgates=${floodgates.canAct()} espionage=${p1.canPlay(espionage)}`);
   }
   write('scenario-delta', game);
 }
+
 
 // ── hydro-terminal-2p: the owner's freeze of 2026-10-31 — the SAME terminal landing («К дальнему» onto the 5 VP
 //    finish slot) as the turn's SECOND action in a TWO-HUMAN game: the answer PASSES THE MOVE to red, so the viewer's
@@ -15943,4 +15949,33 @@ function oneTagCardFor(trackTags: ReadonlyArray<Tag>, avoid: ReadonlyArray<CardN
     throw new Error(`${name}: expected the action phase at +12 °C / 17 % / 30 % / 10 oceans — got phase=${game.phase} oceans=${game.board.getOceanSpaces().length}`);
   }
   write(name, game);
+}
+
+// ── scenario-choices: THE AUTOPILOT's SECOND SCENARIO — the choices of the scope no dealt game had answered on the
+//    screen in a pass (the input-type bar on CI 45929203307): `resource` (Applied Science's action: a science off the
+//    card → ONE standard resource of the player's choosing), `amount` (Energy Market's action: M€ for energy, «how
+//    much»; Insulation: heat production into M€ production, «how much»). A 2p Promo table, blue on the move:
+//    Applied Science with 3 science and Energy Market in play, Insulation in hand, heat production 2. The dry run proves
+//    the two actions offered and the play possible. ──
+{
+  const [game, p1, p2] = testGame(2, {skipInitialCardSelection: false, promoCardsOption: true});
+  answerStartFlow(game, [p1, p2]);
+  // (Through the factories, never a new top-level import: a card module imported at the top moves the order the decks
+  // are composed in, and every fixture after it is dealt otherwise — the whole file's seeded deals shifted.)
+  const science = newPrelude(CardName.APPLIED_SCIENCE) as IPreludeCard & IActionCard;
+  science.resourceCount = 3;
+  const market = newProjectCard(CardName.ENERGY_MARKET) as IProjectCard & IActionCard;
+  p1.playedCards.push(science, market);
+  const insulation = new Insulation();
+  p1.cardsInHand.push(insulation);
+  p1.production.override({...p1.production.asUnits(), heat: 2});
+  p1.megaCredits = 50;
+  p1.energy = 3;
+  p2.megaCredits = 40;
+  runAllActions(game);
+  if (game.activePlayer.id !== p1.id || !science.canAct(p1) || !market.canAct(p1) || !p1.canPlay(insulation)) {
+    throw new Error(`scenario-choices: expected blue on the move with both actions and Insulation playable — active=${game.activePlayer.color} ` +
+      `science=${science.canAct(p1)} market=${market.canAct(p1)} insulation=${p1.canPlay(insulation)}`);
+  }
+  write('scenario-choices', game);
 }

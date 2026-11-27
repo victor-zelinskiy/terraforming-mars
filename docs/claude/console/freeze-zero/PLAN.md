@@ -2817,6 +2817,13 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   refused it. Two reactions to one collect; the door's answer is now the cube's (`colonyBonusCollected`). Reproduced
   (`console-screen-shadow-rows` colonyBonus — «the collect was sent once»: red, three refused lines; green), a caller
   trace on the box naming the second sender.
+- **THE SECOND SCENARIO (2026-11-27) — the rest of the input-type bar's gaps.** The CI pass on `4f01936956` left
+  `amount`, `resource` and `deltaEspionage` unanswered on the screen in 48 games. `scenario-delta` gained Corporate
+  Espionage in hand; `scenario-choices` (a 2p Promo table: Applied Science with science and Energy Market in play,
+  Insulation in hand, heat production 2) stands on the other two; the rotation alternates them. Read on the box, two
+  games of each: `resource` ×2, `amount` ×4 / ×10, `deltaEspionage` ×1, `deltaBlockade` ×1 / ×2 — and no record. (A
+  GOTCHA of the generator: a new top-level card IMPORT moved the order the decks are composed in and every later
+  fixture was dealt otherwise — the cards come through the factories, `newProjectCard` / `newPrelude`.)
 - **`transfer/painted-under/div.con-alert__*` (the box's lanes on `fa37325692`, game 2805 — a storm game).** The
   system alert («Ошибка сети», z 12 900 over the flight layer, its backdrop the whole frame) rose over tokens in flight
   and they were named painted under it. The alert is a scene that takes the screen like the viewer and the system
