@@ -11179,9 +11179,12 @@ watch(() => firstActionEntryDue.value, (due: boolean) => {
  * barrier's release — re-ask after a tick and a frame.
  */
 watch(() => firstActionLeaveDue.value, (due: boolean) => {
-  if (!due) {
-    return;
+  if (due) {
+    confirmFirstActionLeave();
   }
+});
+/** The leave, confirmed off the flush (the watcher above — and the MOUNT, for a stage already due when it comes back). */
+function confirmFirstActionLeave(): void {
   const token = ++firstActionLeaveToken.value;
   void nextTick(() => {
     const confirm = () => {
@@ -11197,7 +11200,7 @@ watch(() => firstActionLeaveDue.value, (due: boolean) => {
       confirm();
     }
   });
-});
+}
 /**
  * A SECOND owed corporation (Merger) — the server re-raised the prompt
  * after the first action's chain resolved: re-stand the stage (the flow
@@ -11559,6 +11562,13 @@ onMounted(() => {
       void enterFirstActionStage();
     } else if (bonusActionEntryDue.value) {
       void enterBonusActionStage();
+    } else if (firstActionLeaveDue.value) {
+      // …and THE STAGE's LEAVE, due before the scene came back (CI's bottle on `1c0976df77`'s code, game 491 — the
+      // scenario's first action collapsed mid-`performing`, its chain ended while parked, the restore re-seated the
+      // corporation and the stage stood `performing` with nothing to wait for: the deployment never settled, a deaf
+      // screen under the game's menu for ten seconds until the arbiter parked the phase root). Its watcher reads an
+      // edge, and `true → true` is none.
+      confirmFirstActionLeave();
     } else if (deploymentSettled.value) {
       void runSceneRelease();
     }

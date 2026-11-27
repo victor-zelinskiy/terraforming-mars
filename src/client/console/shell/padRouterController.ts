@@ -449,7 +449,22 @@ export function createPadRouterController(shell: PadRouterPort) {
    * which rung took it, against who the ONE function says serves; stats only). Everything else goes straight in.
    */
   function handleIntent(intent: GamepadIntent): boolean {
-    return intent.kind === 'press' ? measurePadPress(() => routeIntent(intent)) : routeIntent(intent);
+    if (intent.kind !== 'press') {
+      return routeIntent(intent);
+    }
+    const taken = measurePadPress(() => routeIntent(intent));
+    // «СРАБАТЫВАНИЕ КАРТЫ» (iteration 3, the owner's 2026-10-27): a PRESS while the table's reactions play HURRIES
+    // them — a pace, never a cut: every face still rises, every token still flies, the read beats shorten; a second
+    // press completes them at once. The press itself goes to whatever owns it — a reaction never holds input — and
+    // it is the owner the player SAW: the hurry runs AFTER the press is routed. Run first, a second press completed the
+    // reactions synchronously, the table's answer let the held question in, the start yielded to the board — and the
+    // same B went to the board under a bar that showed the start's commands (CI's bottle on `1c0976df77`, game 491 and
+    // `1578c8f4fd`'s 455 — `bar-APART:start>section:board`, #113; the press entered the ladder with the start owning
+    // the pad and reached the band with the board's).
+    if (cardReactionPending()) {
+      hurryCardReactions('press');
+    }
+    return taken;
   }
 
   function routeIntent(intent: GamepadIntent): boolean {
@@ -457,12 +472,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // the shell compares `action`, never raw button names (undefined for
     // nav/scroll/release and the screen-specific STICKS, which stay raw).
     const action = consoleActionOf(intent);
-    // «СРАБАТЫВАНИЕ КАРТЫ» (iteration 3, the owner's 2026-10-27): a PRESS while the table's reactions play HURRIES
-    // them — a pace, never a cut: every face still rises, every token still flies, the read beats shorten; a second
-    // press completes them at once. The press itself goes on to whatever owns it — a reaction never holds input.
-    if (intent.kind === 'press' && cardReactionPending()) {
-      hurryCardReactions('press');
-    }
+    // (A press HURRIES the table's reactions once it is routed — `handleIntent`.)
     // NOTIFICATION X-HOLD lifecycle (consoleNotifHold): the release edge of a
     // tracked hold is resolved FIRST — ahead of every swallowing gate — so a
     // let-go can never be eaten by a scene/alert branch and leave the timer
