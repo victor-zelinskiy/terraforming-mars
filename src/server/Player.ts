@@ -331,6 +331,14 @@ export class Player implements IPlayer {
   /** The LAW's armed waiver (RX36 Live Experiments) — see `IPlayer.armedLawWaiver`. */
   public armedLawWaiver: ResolutionId | undefined = undefined;
   public pendingInitialActions: Array<ICorporationCard> = [];
+  /**
+   * THE START's DEFERRED CARD PAYMENT IS STILL OWED (`playCorporationCard`'s `deferCardPayment`): set when the «pay for
+   * the cards you bought» beat is queued behind the corporation's own effects, cleared by the payment itself. The
+   * client's pre-payment window reads it — between the corporation's play and the bill, the server may ask other
+   * things first (a solo table's colony pick), and the bought cards stay withheld until they are PAID. Transient by
+   * design (never serialized): a reloaded game reads the live prompt alone, as before.
+   */
+  public cardPaymentOwed: {megacredits: number, cards: number} | undefined = undefined;
 
   // Cards
   public dealtCorporationCards: Array<ICorporationCard> = [];
@@ -2080,6 +2088,7 @@ export class Player implements IPlayer {
       // the hand payment, so the bill arrives once the WHOLE starting capital
       // it was budgeted against has assembled (a poor base corporation could
       // otherwise be asked to pay a hand the merged funds were meant to cover).
+      this.cardPaymentOwed = {megacredits: megacreditsPaid, cards: cardsBought};
       this.defer(() => this.payForBoughtCardsInput(cardsBought, megacreditsPaid, payForBoughtCards), options?.cardPaymentPriority);
     } else {
       payForBoughtCards();
@@ -2124,6 +2133,7 @@ export class Player implements IPlayer {
       'Pay')
       .markStartGamePrompt({kind: 'corporationPay', payment: {megacredits, cards}})
       .andThen(() => {
+        this.cardPaymentOwed = undefined;
         pay();
         return undefined;
       });

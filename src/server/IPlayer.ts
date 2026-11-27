@@ -356,6 +356,8 @@ export interface IPlayer {
    */
   armedLawWaiver: ResolutionId | undefined;
   pendingInitialActions: Array<ICorporationCard>;
+  /** The start's deferred card payment, still owed (transient — see `Player.cardPaymentOwed`). */
+  cardPaymentOwed: {megacredits: number, cards: number} | undefined;
 
   // Cards
   dealtCorporationCards: Array<ICorporationCard>;

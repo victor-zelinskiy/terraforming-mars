@@ -1326,8 +1326,12 @@ describe('Game', () => {
       testPlayer.process({type: 'card', cards: [corpName.get(testPlayer)!]});
       runAllActions(game);
       expect(testPlayer.getWaitingFor()?.startGamePrompt?.kind).eq('corporationPay');
+      // THE LEDGER of the deferred bill — what the client's pre-payment window reads while another question may stand
+      // between the play and the bill (a solo table's colony pick): set at the play, cleared by the payment.
+      expect(testPlayer.cardPaymentOwed?.cards, 'the bill is owed').eq(testPlayer.dealtProjectCards.length);
       testPlayer.process({type: 'option'});
       runAllActions(game);
+      expect(testPlayer.cardPaymentOwed, 'paid').is.undefined;
     }
 
     for (const testPlayer of [player, player2]) {

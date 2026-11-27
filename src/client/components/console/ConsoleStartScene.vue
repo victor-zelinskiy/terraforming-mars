@@ -4866,7 +4866,13 @@ const ceremonyBoughtNames = computed((): ReadonlyArray<CardName> => {
 const prePaymentStage = computed((): boolean => {
   return corpPlayPrompt.value !== undefined || bonusPrompt.value !== undefined ||
     corpMergePrompt.value !== undefined || mergeFeeStands.value ||
-    campaignAdditionalUnplayed.value.length > 0 || corpPayCost.value !== undefined;
+    campaignAdditionalUnplayed.value.length > 0 || corpPayCost.value !== undefined ||
+    // …AND WHILE THE SERVER's LEDGER SAYS THE BILL IS STILL OWED (`cardPaymentOwed`): the payment is queued BEHIND the
+    // corporation's own effects, so another question can stand between the play and the bill — a solo table's colony
+    // pick (the box's autopilot on `1c0976df77`, game 2679 and five more: read by the live prompt alone, the window
+    // closed on the colony, the bought cards were delivered into the hand UNPAID and with no place to lift from —
+    // `hand-intake:no-source` — and the purchase row vanished until the bill came).
+    (mode.value === 'ceremony' && props.playerView.cardPaymentOwed !== undefined);
 });
 /** The bought projects standing in the QUEUE's purchase row — from the
  *  first deployment frame until the payment resolves them into the hand

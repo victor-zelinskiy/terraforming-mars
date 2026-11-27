@@ -290,6 +290,13 @@ export interface PlayerViewModel extends ViewModel {
   // the start-of-game corp action is still outstanding. Drives the Start Game
   // Flow modal's corp area + its final "begin the game" gate.
   pendingInitialActions: ReadonlyArray<CardName>;
+  /**
+   * Self-only: the start's bought cards are NOT PAID yet — the deferred «Оплатить» beat stands queued behind the
+   * corporation's own effects (a solo table's colony pick comes first). The start's pre-payment window reads it, so
+   * the bought cards stay withheld from the hand until the bill is paid. Absent = nothing owed (or a reloaded game —
+   * the live prompt alone then).
+   */
+  cardPaymentOwed?: {megacredits: number, cards: number};
   thisPlayer: PublicPlayerModel;
   waitingFor: PlayerInputModel | undefined;
   // Self-only, transient: a STAGED placement whose pre-picked cell is PARKED

@@ -300,6 +300,7 @@ export class Server {
         undefined,
       preludeCardsInHand: cardsToModel(player, player.preludeCardsInHand),
       pendingInitialActions: player.pendingInitialActions.map((c) => c.name),
+      ...(player.cardPaymentOwed !== undefined ? {cardPaymentOwed: {...player.cardPaymentOwed}} : {}),
       thisPlayer: thisPlayer,
       waitingFor: this.getWaitingFor(player, player.getWaitingFor()),
       // A staged cell parked behind an interloper prompt (deferredInputBatch)

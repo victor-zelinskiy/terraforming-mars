@@ -2880,6 +2880,54 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   18 of 20 — the gaps are Delta Project's `deltaStageReward` and `deltaBlockade`; out of the bar, each named with its
   reason: `delegate` (only the classic Banned Delegate — Redux replaces it), `globalEvent` (only Community's Executive
   Order), `policy` (no server input sends it), `claimedUndergroundToken` (Underworld only).
+- **The bottle's `screen-shadow/finding/misserved/colonies/card-actions` (CI's autopilot on `1578c8f4fd`, game 445) —
+  A QUESTION SET ASIDE, PUSHED INTO A SIDE SCREEN.** The opening's colony pick stood behind the deal's reveal; the
+  player folded the start to the board and opened «Действия карт»; the colony door opened on the admission's rising
+  edge and pushed the pick INTO that browse (it hosts «always») — a step of a workspace that owed it nothing, with no
+  zone to render in. The door asks the set-aside mark now, as the Parliament's does; the way back is the question's
+  own (the board-home card, then the stranded heal the instant the mark clears). The bottle replay of seed 445: red
+  before, the colony answered on the screen after. Found by a temporary caller trace in `openColoniesForPrompt`.
+- **The box's lanes on `d79bdbd45a`, game 2821 — «ФОРА» PLAYED LAST, THE START NEVER LEFT.** Two roots in one game.
+  (1) THE PILOT: the three targeted rules (the card a turn plays, the project, the action) read `standing.menu`, and a
+  bonus action's menu is `standing.bonus` — the pilot thumbed the hand it had opened («A Разыграть» lit over a playable
+  Virus) until the door played it. They read both now. (2) THE PRODUCT: the window closed on the board, the start came
+  back to finish the preparation with nothing left to settle, and its release ran from an `immediate` watcher — at
+  SETUP, with no root: `runSceneRelease` returned marking nothing, `true → true` fired no edge, and the start stood on
+  its lifetime hold under the game's menu until the director's level door released it. The mount asks the release
+  itself now, as it asks the two entry stages. Reproduced (`console-bonus-action-handoff` — «a return with nothing left
+  to settle»: the start walked THROUGH THE SCREEN, since only the wizard's commit sets the lifetime hold — a page opened
+  onto a seeded window never brings the start back; red on the old build with the field's very line, `START STRANDED
+  … cure «release» by level — expected «game», on screen «none»`; green on the fix).
+- **THE OPENING's MEASURE READ A HALF-APPLIED FLUSH.** `opening-disagree` stood at 35 + 27 over the box's two lanes on
+  `1c0976df77`, most of them a few milliseconds long — `card:corporationPlay · queue>wizard` ×15, every one «agree» a
+  moment later. Both judges of the opening (`startShadowSig`, `startStrandedNow`) are the shell's PRE-flush watchers and
+  read the scene's answer through its mirror (`consoleStartState.serves`), which the scene's own pre-flush watcher
+  writes — a CHILD's, so it runs after the shell's in the same flush: the server's new question was judged beside the
+  scene's old answer. The judges run `post` now — on the frame the player will see.
+- **«no computable preview for Productive Outpost» (the box's game 2805) — A PAYOUT OF NOTHING, UNSAID.** With not one
+  colony on the table «gain all your colony bonuses» has nothing to pay, and the play sheet had nothing to state but its
+  fallback (a line of the log in a clear game). The shared payout preview (`allColonyBonusesEffects` — Habitat Science
+  reads it too) names the empty payout as a skipped effect: «Колоний нет», under «Все ваши бонусы колоний».
+- **The bottle's `by the door: initialCards` (CI's game 445 — a handheld 1024 px bar) — THE STEP's WAY FORWARD WENT
+  FIRST.** The projects step's five hints did not fit the bar; the fit plan drops whole low-priority hints, and
+  «След. шаг» tied «Пред. шаг» (one control family, one width) and went first, being written later. The step stood
+  with A, X, LT and B and no word of how to go on — the pilot toggled cards until the door bought them (a first reading
+  blamed the purse; the debug replay showed RT absent at 0 cards too). The step's commit outranks the way back and the
+  look now (`priority` 0 — only A and B, always kept, above it).
+- **The planned `start-stage/folded/performing` · `workspace-anchor/dropped/start/parked` on `1c0976df77` (the box's
+  game 2679) — B OVER A PERFORMED STAGE.** PolderTECH's first action: both tiles placed, the server already on the
+  game's menu, the stage still `performing` while its chain presented on the way to the leave — B 1.5 s after the
+  last confirm parked the start, its scene unmounted and the server's word folded the stage. A stage performed with
+  nothing of it asked any more is the stage's own beat: B's `none` (`startFirstAction.firstActionBeatInFlight` — ONE
+  predicate for the scene's B and the stack's collapse, with the rise, the wire and the return). A performing stage
+  whose follow-up IS asked still collapses — the decision stays live.
+- **`net-ended/hand-intake:no-source` (info; the box's lanes, six games — solo Colonies tables) — CARDS IN THE HAND
+  BEFORE THEY WERE PAID.** The «pay for the cards you bought» beat is queued BEHIND the corporation's own effects, so
+  the table's colony pick stands between the play and the bill; the start's pre-payment window read the live prompt
+  alone, closed on the colony, delivered the bought cards into the hand unpaid (with no place to lift from) and lost
+  the purchase row until the bill came. The server keeps the bill's ledger (`Player.cardPaymentOwed` — set at the
+  deferral, cleared by the payment, transient) and sends it to its own seat (`PlayerViewModel.cardPaymentOwed`); the
+  window reads it.
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read
