@@ -24,7 +24,8 @@ import {reactive} from 'vue';
 import type {GlyphControl} from '@/client/gamepad/glyphSets';
 
 /** A structural subset of the command bar's `ConsoleCommand`. */
-export type DraftCommand = {control: GlyphControl, label: string, labelParams?: ReadonlyArray<string>, enabled?: boolean, highlight?: boolean};
+/** (`priority: 0` — the bar's fit KEEPS it like A and B: a commit of the workspace on another glyph, `consoleCommandModel.commandKeeps`.) */
+export type DraftCommand = {control: GlyphControl, label: string, labelParams?: ReadonlyArray<string>, enabled?: boolean, highlight?: boolean, priority?: number};
 
 /** The workspace facts the command contract is derived from (pure — testable). */
 export type DraftCommandState = {
@@ -68,7 +69,10 @@ export function draftCommands(s: DraftCommandState): Array<DraftCommand> {
       hints.push({control: 'secondary', label: 'Inspect'});
     }
     if (!s.singlePick) {
-      hints.push({control: 'triggerR', label: 'Confirm', enabled: s.setValid});
+      // (THE COMMIT NEVER LEAVES THE BAR — CI's bottle on `4d74b4f9a0`, game 538: on the handheld bar the RT of the
+      // research buy dropped at its default rank, before «X Осмотреть», and the thumb selected and deselected cards
+      // until the door answered. The pick's and the buy's RT are the workspace's own answer: kept like A and B.)
+      hints.push({control: 'triggerR', label: 'Confirm', enabled: s.setValid, priority: 0});
     }
     if (s.hasCollected) {
       hints.push({control: 'triggerL', label: 'Drafted'});
@@ -97,6 +101,7 @@ export function draftCommands(s: DraftCommandState): Array<DraftCommand> {
       labelParams: [String(s.buyCount)],
       enabled: s.setValid,
       highlight: s.setValid && !s.buyingNothing,
+      priority: 0,
     });
     hints.push({control: 'back', label: 'Minimize'});
     return hints;

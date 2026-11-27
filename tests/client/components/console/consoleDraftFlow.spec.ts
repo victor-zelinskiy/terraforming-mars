@@ -13,6 +13,7 @@ import {
 } from '@/client/console/draft/consoleDraftFlow';
 import type {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {draftCommands} from '@/client/console/draft/consoleDraftUi';
+import {commandKeeps, defaultDropPriority, planCommandRun} from '@/client/console/consoleCommandModel';
 import {phaseWorkspaceConcluding} from '@/client/console/draft/phaseWorkspaceConcluding';
 import {pushWorkspaceFrame, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 
@@ -462,6 +463,19 @@ describe('consoleDraftUi — the command contract', () => {
     expect(some.find((c) => c.control === 'confirm')?.label).eq('Deselect');
     const rt2 = some.find((c) => c.control === 'triggerR');
     expect([rt2?.label, rt2?.labelParams, rt2?.highlight]).deep.eq(['Buy ${0}', ['2'], true]);
+  });
+
+  it('the RT of the buy and of the pick NEVER LEAVES A NARROW BAR — kept like A and B (the bottle on CI, game 538, the handheld bar)', () => {
+    const buy = draftCommands({...BASE, zone: 'buy', singlePick: false, setValid: true, focusedPicked: true, buyCount: 2});
+    const pick = draftCommands({...BASE, zone: 'pick', singlePick: false, setValid: true});
+    for (const cmds of [buy, pick]) {
+      const rt = cmds.find((c) => c.control === 'triggerR');
+      expect(commandKeeps({control: rt!.control, priority: rt!.priority}), 'the commit is kept by the fit').eq(true);
+      // Room for two and a half commands: the hints go, the commit stays beside A and B.
+      const entries = cmds.map((c) => ({width: 8, keep: commandKeeps({control: c.control, priority: c.priority}),
+        dropPriority: c.priority ?? defaultDropPriority(c.control)}));
+      expect(planCommandRun(entries, 10, 10).kept.map((i) => cmds[i].control)).to.include('triggerR');
+    }
   });
 
   it('the inspect sub-stage is read-only: X and Back, nothing else', () => {

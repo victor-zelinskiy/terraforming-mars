@@ -3124,6 +3124,14 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   chain plays beside the decision» is the design's own step — the reaction director's wait ends in silence there, never
   «on its ceiling». ③ Game 561: an opening dropped from the park WITH its own step standing on it (solo Colonies' «Убрать
   плитку» inside the start) ends with the opening like the bare one — not news when nothing of it is owed.
+- **THE DOORS OF THE LAST RUN, READ (CI on `4d74b4f9a0`).** The bottle's 538: the research buy's RT «Купить N» (and the
+  keep-2 pick's «Подтвердить») dropped off the handheld bar at its default rank, before «X Осмотреть» — the workspace's
+  own commit now kept like A and B (`priority: 0`, `consoleDraftFlow.spec` RED without, GREEN with; the draft family on
+  the box 26/26). The bottle's pilot read a card as taken off A's label, which a multi pick never changes («Select /
+  Deselect») — it reads the slot now, as the browser's does; and it closes its own looks (the information screen by Y)
+  and lays a production loss out. The browser's 582: «A Разыграть без эффекта» is a HOLD (the safe default — a prelude
+  is never burnt by a tap), and the pilot tapped it fourteen times: a command drawn with the hold's ring is held now.
+  Replayed: the bottle's 556, 563, 572 without a door; the box's 546, 561, 570, 581 without a door or a line.
 - **THE AUTOPILOT's LEDGER AT ZERO (stage 6, 2026-11-27 evening).** Over 223 passes (the box's lanes, CI's browser and
   bottle, the scenario runs): flows 252 of 274 opened, frames 13 of 13, every key never walked declared with its reason —
   the debt 0. The last keys walked by the new roads: Early Colonization's raise, Astra Mechanica's return, the remote

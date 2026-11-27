@@ -869,7 +869,20 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     if (where !== undefined) {
       where.stood = stood;
     }
-    await page.keyboard.press(key);
+    // A HOLD IS HELD (CI's autopilot on `4d74b4f9a0`, game 582 — the door on «A Разыграть без эффекта»: a prelude whose
+    // effect cannot happen commits by a HOLD, the safe default, and the pilot's fourteen taps never completed it). The
+    // bar draws a hold's ring around its glyph (`.con-cmdbar__hold`): a player keeps that button down until the ring
+    // closes — the pilot too, for the ring's time and a margin (`HOLD_CONFIRM_MS`, 700 ms at the standard pace).
+    const holds = await page.evaluate((glyphs) => [...document.querySelectorAll('.con-cmdbar__cmd:not(.con-cmdbar__cmd--disabled) .con-cmdbar__hold .gp-glyph')]
+      .map((glyph) => glyphs[(glyph.textContent ?? '').trim()]).filter((k): k is string => k !== undefined), GLYPH_KEY).catch(() => [] as Array<string>);
+    if (holds.includes(key)) {
+      log.push('[HOLD]');
+      await page.keyboard.down(key);
+      await cinematicBeat(page, 1_400, 'a hold — a player keeps the button down until its ring closes');
+      await page.keyboard.up(key);
+    } else {
+      await page.keyboard.press(key);
+    }
     lastKey = key;
     played.presses++;
     await cinematicBeat(page, pauseMs, 'the rhythm of the pilot — a player pauses between presses, by design');

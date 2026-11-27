@@ -106,6 +106,15 @@ function pilotPick(bottle: ConsoleBottle, g: () => number, last: BottleKey | und
   if (sees('dialog.con-zoom[open]')) {
     return toTheQuestion || g() < 0.5 ? 'Escape' : ARROWS[Math.floor(g() * ARROWS.length)];
   }
+  // …AND EVERY OTHER LOOK OF THE PLAYER's OWN (the browser pilot's rule — CI's bottle on `4d74b4f9a0`: the door over
+  // «Information · X Inspect · B Back · Y Close» standing on the draft, B only walking back inside the screen): the
+  // information screen closes by Y, the journal and the «Played» table by B. Answering, at once; wandering, now and then.
+  if (sees('.con-info') && (toTheQuestion || g() < 0.35)) {
+    return 'KeyY';
+  }
+  if ((sees('.con-journal') || sees('.con-played:not(.con-played--hero):not(.con-played--embedded)')) && (toTheQuestion || g() < 0.35)) {
+    return 'Escape';
+  }
   // (…the board home, never a STANDALONE question's own host: with no frame it looked like home, and A — which on a
   // distribution only adds a unit — was pressed to the end of the budget while its commit stood on X: bottle game 1188,
   // three questions answered by the door. On a host the weighted pick below carries the flow on, X included.)
@@ -467,9 +476,20 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
     const rtCommits = offeredNow.some((o) => o.key === 'Period' && !/^Actions/.test(o.label));
     if (asked.type === 'card' && !standing.menu && standing.presses >= Math.floor(standing.budget / 3) && bottle.frames().length > 0 &&
         !sees('dialog.con-zoom[open]') && !sees('.con-quick') && (rtCommits || barGreys('RT')) && aNow !== '') {
+      // (…the card under the cursor READ as a player reads it — its slot taken (the hand's «✓», a slot's band) or refused —
+      // never off A's label: a multi pick's A reads «Select / Deselect» whatever stands under it, and the thumb took one
+      // card on and off until the door answered (the Reds' «discard 2», CI's bottle on `4d74b4f9a0`, game 538).)
+      const focusTaken = sees('.con-hand__slot--selected.con-hand__slot--select-picked, .con-hand__slot--selected.con-hand__slot--select-disabled, ' +
+        '.con-cards__slot--focused.con-cards__slot--picked');
       const key: BottleKey = rtCommits ? 'Period' :
-        !/^(Unpick|Deselect|Unselect)/.test(aNow) ? 'Enter' : (['ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowLeft'] as const)[standing.presses % 4];
+        !focusTaken && !/^(Unpick|Deselect|Unselect)/.test(aNow) ? 'Enter' : (['ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowLeft'] as const)[standing.presses % 4];
       await press(key, pause());
+      continue;
+    }
+    // THE LAYOUT OF A LOSS (the browser pilot's rule — CI's bottle on `4d74b4f9a0`: the door on «Board · A −1 · X Accept
+    // the loss · B Minimize»): a unit off the focused row, another, the next row, and «Accept the loss».
+    if (asked.type === 'productionToLose' && sees('.con-prodloss') && !sees('dialog.con-zoom[open]') && !sees('.con-quick')) {
+      await press((['Enter', 'Enter', 'ArrowDown', 'KeyX'] as const)[standing.presses % 4], pause());
       continue;
     }
     // THE DISTRIBUTION OF RESOURCES (the browser pilot's rule — the bottle's Philares, games 7 and 13: «Gain 1 standard
