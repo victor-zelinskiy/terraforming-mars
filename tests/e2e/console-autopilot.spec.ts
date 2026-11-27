@@ -1197,7 +1197,7 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     // `scene:colony-city`, no `colony-roster`, no track's raise — a thumb in the standard projects' grid pressed
     // whatever row stood under it). On a visit of the grid the pilot goes to ONE project, in rotation over the ones
     // the grid lights (`SP_ROTATION` first — the projects that open a flow of their own), and presses it.
-    if (PILOT >= 3 && standing.menu && seen.stdp !== undefined && seen.look === '' && !seen.zoom && seen.stdp.focused >= 0) {
+    if (PILOT >= 3 && (standing.menu || standing.bonus) && seen.stdp !== undefined && seen.look === '' && !seen.zoom && seen.stdp.focused >= 0) {
       const grid = seen.stdp;
       if (standing.stdpTarget === undefined || (standing.stdpTarget !== '' && !grid.cards.some((c) => c.name === standing?.stdpTarget && c.go))) {
         stdpSteps = 0;
@@ -1225,7 +1225,10 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     // THE CARD A TURN PLAYS (stage 6, total coverage — the cards axis: a card dealt is a card to PLAY). On a visit of the
     // hand's album the pilot goes to ONE playable card — the deal's first (`dealt`, the scope's rotation), else one in
     // turn — walks the cursor to it by where it stands (a row, then along it) and presses A.
-    if (PILOT >= 3 && standing.menu && seen.hand !== undefined && seen.look === '' && !seen.zoom && seen.hand.focused >= 0 &&
+    // (…on a BONUS action's menu too — «Фора»'s two actions are turns like any other: the three targeted rules read
+    // `standing.menu` alone, a bonus menu is `standing.bonus`, and the box's game 2821 thumbed the hand it had opened —
+    // «A Разыграть» lit over a playable Virus — until the door played it.)
+    if (PILOT >= 3 && (standing.menu || standing.bonus) && seen.hand !== undefined && seen.look === '' && !seen.zoom && seen.hand.focused >= 0 &&
         /^hand:browse/.test(seen.frames[seen.frames.length - 1] ?? '')) {
       const album = seen.hand;
       const playable = album.cards.filter((c) => c.playable).map((c) => c.name);
@@ -1253,7 +1256,7 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     // it had reached in a whole pass). On a visit of «Действия карт» the pilot goes to ONE lit action — a card of the
     // game's own list first (`dealt`: the deal, or the scenario's targets), else one in turn — walks the cursor to it
     // (along the grid, turning at a wall, bounded) and presses A.
-    if (PILOT >= 3 && standing.menu && seen.actions !== undefined && seen.look === '' && !seen.zoom && seen.actions.focused !== '' &&
+    if (PILOT >= 3 && (standing.menu || standing.bonus) && seen.actions !== undefined && seen.look === '' && !seen.zoom && seen.actions.focused !== '' &&
         /^card-actions:browse/.test(seen.frames[seen.frames.length - 1] ?? '')) {
       const lit = seen.actions.tiles.filter((tile) => tile.go).map((tile) => tile.name);
       if (standing.actionTarget === undefined || (standing.actionTarget !== '' && !lit.includes(standing.actionTarget))) {

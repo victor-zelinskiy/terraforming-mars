@@ -10982,8 +10982,9 @@ watch(() => mode.value, (now: 'wizard' | 'ceremony', was?: 'wizard' | 'ceremony'
 }, {immediate: true});
 /** The workspace lets go ONLY when the deployment fully settles — its own
  *  calm release, never a prompt gap (the lifetime hold's other half).
- *  Immediate: a re-mount that lands on an already-settled deployment
- *  (un-defer after the last beat) releases right away. */
+ *  A re-mount that lands on an already-settled deployment (un-defer after the
+ *  last beat, the return from «Фора»'s board window) releases right away — from
+ *  the MOUNT (`onMounted`): this immediate run is at setup, with no root yet. */
 watch(() => deploymentSettled.value, (now: boolean) => {
   if (now) {
     void runSceneRelease();
@@ -11540,11 +11541,18 @@ onMounted(() => {
   // opened straight onto the corporation's mandatory first action, or onto a
   // prelude's bonus window, is exactly that case. A watcher cannot fire on
   // `true → true`, so without this the stage would never rise at all.
+  // …and so is THE RELEASE of a deployment that is already settled on this mount (the box's autopilot on
+  // `d79bdbd45a`, game 2821 — «Фора»'s window closed on the board, the start came back to finish the preparation with
+  // nothing left to settle): its watcher is `immediate`, and an immediate handler runs at SETUP, where
+  // `runSceneRelease` finds no root and returns marking nothing — `true → true` fires no edge, and the start stood on
+  // its lifetime hold under the game's menu until the director's level door released it.
   void nextTick(() => {
     if (firstActionEntryDue.value) {
       void enterFirstActionStage();
     } else if (bonusActionEntryDue.value) {
       void enterBonusActionStage();
+    } else if (deploymentSettled.value) {
+      void runSceneRelease();
     }
   });
   void nextTick(() => {

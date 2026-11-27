@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import {
-  corporationsExcluding, createGameWithCards, fetchPlayerModel, openConsole,
-  pressUntil, seedGameOverApi, settle, soloGameConfig,
+  corporationsExcluding, createGameWithCards, fetchPlayerModel, openConsole, pickCards, playQueueCard,
+  pressUntil, queueCards, seedGameOverApi, settle, soloGameConfig, submitSummary, waitQueueIdle, walkToSummary,
 } from './consoleStart';
 import {armWitness, witnessOf} from './witness';
 
@@ -270,5 +270,69 @@ test.describe('console — Head Start bonus actions', () => {
     expect(autoFlight.heldPanel[0],
       `the M€ row jumped before its chip took off: ${autoFlight.heldPanel.join(' ')}`)
       .toMatch(/\|500$/);
+  });
+
+  /*
+   * …AND A RETURN WITH NOTHING LEFT TO SETTLE ENDS BY ITSELF (the box's autopilot on `d79bdbd45a`, game 2821). «Фора»
+   * played last and every gain claimed before the trip, so nothing is left to play and nothing flies on the way back: the deployment is already settled when the
+   * workspace mounts again — and its release ran from an `immediate` watcher at SETUP, found no root, marked nothing.
+   * The start stood on its lifetime hold under the game's menu until the director's level door released it — a
+   * `[start-shadow] cure … by level` line, which the harness's `startStrandGuard` makes red.
+   */
+  test('a return with nothing left to settle releases the workspace by itself', async ({page, request}) => {
+    test.setTimeout(360_000);
+    const playerId = await createGameWithCards(request, [], {config: preludeConfig()});
+    // THROUGH THE SCREEN, as the field played it: the wizard's commit is what sets the start's LIFETIME HOLD — the
+    // thing that brings the workspace back after the window (a page opened onto a seeded window has none, and the
+    // start simply never returns).
+    await openConsole(page, playerId);
+    await walkToSummary(page, {
+      onStep: async (p, kind) => {
+        if (kind === 'corporation') {
+          await p.keyboard.press('Enter');
+        } else if (kind === 'prelude') {
+          expect(await pickCards(p, [HEAD_START, OTHER_PRELUDE]), 'both preludes picked').toEqual(expect.arrayContaining([HEAD_START, OTHER_PRELUDE]));
+        }
+      },
+    });
+    await submitSummary(page);
+    await page.locator('.con-start--ceremony').waitFor({timeout: 90_000});
+    // «Фора» played LAST: the corporation and the other prelude are already down, so the return has nothing of the
+    // deployment left to play (played first, the start comes back for the second prelude — a deployment that settles
+    // after the mount, which the watcher's own edge serves).
+    await waitQueueIdle(page);
+    const corp = (await queueCards(page)).find((name) => name !== HEAD_START && name !== OTHER_PRELUDE);
+    for (const card of [...(corp === undefined ? [] : [corp]), OTHER_PRELUDE, HEAD_START]) {
+      await settle(page, {timeoutMs: 30_000});
+      expect(await playQueueCard(page, card), `${card} played from the queue`).toBe(true);
+      await waitQueueIdle(page);
+    }
+    await expect(page.locator('.con-start__bonusact'), 'the workspace announces the trip').toBeVisible({timeout: 30_000});
+    const rows = page.locator('.con-start__gainrow');
+    // Every gain claimed now — after a claim the cursor comes home to the CTA, so each claim is «↑ to the nearest row,
+    // A» (act → verify → retry: the count of rows is the server's answer).
+    for (let left = await rows.count(); left > 0; left--) {
+      await page.keyboard.press('ArrowUp');
+      await expect(rows.nth(left - 1), 'a gain row under the cursor').toHaveClass(/--focused/);
+      await page.keyboard.press('Enter');
+      await expect(rows, `${left - 1} gain row(s) left`).toHaveCount(left - 1, {timeout: 20_000});
+    }
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.con-start'), 'the workspace lets go of the screen').toHaveCount(0, {timeout: 20_000});
+    const counter = page.locator('.con-status__pstatus-counter').first();
+    await expect(counter, 'the first bonus is standing').toHaveText('1/2');
+    await spendOneBonus(page);
+    await expect(counter, 'the chip walks 1/2 → 2/2').toHaveText('2/2', {timeout: 25_000});
+    // The return is RECORDED from before the last press (a transient the check must not sleep through).
+    const back = await armWitness<boolean>(page, 'head-start-return', () => document.querySelector('.con-start') !== null);
+    await spendOneBonus(page);
+    await expect.poll(async () => ((await fetchPlayerModel(request, playerId)).thisPlayer as {bonusActions?: number}).bonusActions ?? 0,
+      {timeout: 25_000, message: 'the window is spent'}).toBe(0);
+    await back.waitFor((up) => up, {timeoutMs: 40_000, message: 'the workspace came back to finish the preparation'});
+    // THE CLAIM: …and lets go through its OWN release — the board home stands with the game's menu, and no director's
+    // cure was needed (`startStrandGuard`).
+    await expect(page.locator('.con-start'), 'the start ended by its own release').toHaveCount(0, {timeout: 40_000});
+    await back.stop();
+    await expect(page.locator('.con-cmdbar'), 'the board home').toContainText('Базовые', {timeout: 20_000});
   });
 });
