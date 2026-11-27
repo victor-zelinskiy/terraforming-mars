@@ -8487,9 +8487,13 @@ function onPress(action: ConsoleAction): void {
     // The first-action stage adds two beats of its own: the corp's rise
     // into the seat and the submit round trip — both are one motion the
     // collapse would tear (the standing WAIT itself minimizes freely).
+    // …and its RETURN BEAT (`leaving` — the corp card settling home, the room breathing back): a motion too, and the
+    // bar names no B over it. A collapse there parked the start mid-leave — its scene unmounted, the stage could not
+    // finish, and the start director folded it by level (CI's autopilot on `4f01936956`, game 419: Aridor's colony
+    // tile added, «Выполняется…», B ×3).
     if (isPlayedHeroActive() || embedPresenting.value ||
         isHandDeliveryActive() || queueArriving.value.size > 0 ||
-        state.firstAct.stage === 'staging' || state.firstAct.submitting) {
+        state.firstAct.stage === 'staging' || state.firstAct.stage === 'leaving' || state.firstAct.submitting) {
       return;
     }
     // Minimizing must never leave the risk stage armed behind it: the

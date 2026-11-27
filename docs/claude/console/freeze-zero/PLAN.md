@@ -2817,6 +2817,15 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   refused it. Two reactions to one collect; the door's answer is now the cube's (`colonyBonusCollected`). Reproduced
   (`console-screen-shadow-rows` colonyBonus — «the collect was sent once»: red, three refused lines; green), a caller
   trace on the box naming the second sender.
+- **The planned `start-stage/folded/*` · `workspace-anchor/dropped/start/parked` — two roots, read off CI's games 407
+  and 419 on `4f01936956`.** (1) A PASS over the first action with the start parked (B, LT, the pass — 407, and the
+  box's scenario 2971): since `00d2ef2a4e` the pass ends the opening, so the parked stage folding and the parked frame
+  dropping are the pass's own end, never news «from elsewhere» — said by nobody now (both lines skip a seat that
+  passed). (2) B during the first-action stage's RETURN BEAT (`leaving` — 419: Aridor's colony tile added inside the
+  start, «Выполняется…», B ×3): the collapse parked the stack mid-leave, the scene unmounted, the stage could not
+  finish and the director folded it. B's fourth verb is `none` there: the scene's own B and the stack's collapse
+  (`collapseWorkspace` — the B of a step nested in the start) absorb the start's own beats (`staging`, `leaving`, a
+  submit on the wire).
 - **The bottle's `wait-graph/ceiling/parliament-world:story-quiet` (4f01936956's game 438) — TWO COPIES OF «IS THE
   BOARD COVERED».** A sitting's world beat waited for the board's story (a held temperature) «in plain view for 11 s»
   and ended on its ceiling: the player had opened the «РАЗЫГРАНО» table with X. The shell's watchability counted it a

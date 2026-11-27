@@ -75,6 +75,7 @@ import {deckDrawHolds} from '@/client/console/deckDraw/consoleDeckDraw';
 import {patentSaleState} from '@/client/console/patentSale/consolePatentSale';
 import {cardReactionPending, hurryCardReactions} from '@/client/console/cardReaction/cardReactionDirector';
 import {registerBoardCoveredByLook, registerBoardShownDespiteStack} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {viewerHasPassed} from '@/client/console/offTurnReason';
 import {isColonyBuildActive} from '@/client/console/colonyBuild/consoleColonyBuild';
 import {consoleState, closeConsoleLayers, registerConsoleIntentHandler} from '@/client/console/consoleRouter';
 import {cardDeltaAdvanceCard, clearCardDeltaAdvance} from '@/client/console/hydroFlow/deltaAdvanceEntry';
@@ -771,7 +772,12 @@ export function createWiringController(shell: WiringPort) {
     // the same teardown the arbiter's rung runs.
     registerFrameBeatExpired((kind, phase) => shell.forceRecoverStuckWorkspace(kind, `[workspace-stall] beat «${kind}:${phase}» torn down at the frame's own bound`));
     registerAnchorDropListener(({home, kinds}) => {
-      console.warn(`[workspace-anchor] dropped ${kinds.join(', ')} (${home}) — its phase is over; it does not come back`);
+      // (…the parked OPENING of a seat that PASSED is the pass's own end — the pass closes the generation and the
+      // opening with it: never news to say. CI's autopilot on `4f01936956`, game 407.)
+      const passedOpening = home === 'parked' && kinds.every((kind) => kind === 'start') && viewerHasPassed(shell.playerView);
+      if (!passedOpening) {
+        console.warn(`[workspace-anchor] dropped ${kinds.join(', ')} (${home}) — its phase is over; it does not come back`);
+      }
       // «PARKED ⇒ SET ASIDE» HAS ANOTHER HALF: a record that stood for a parked CHAIN ends with the chain. The park's
       // drop left it standing under the game's own question — «a decision set aside» with no restore card and nothing
       // to restore: the pass and every action refused with «сначала завершите текущее действие» until the wait graph

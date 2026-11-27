@@ -53,6 +53,7 @@ import type {SupervisorController} from '@/client/console/supervisor/supervisorC
 import type {SeatController} from '@/client/console/shell/seatController';
 import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 import {takeUpQuestion} from '@/client/console/setAside';
+import {viewerHasPassed} from '@/client/console/offTurnReason';
 
 /**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
@@ -827,6 +828,12 @@ export function createStartController(shell: StartPort) {
           return;
         }
         const stood = foldStartActStages();
+        // (…A SEAT THAT PASSED ended its opening ITSELF — the pass closes the generation and, in the first, the opening
+        // with it (`corpFirstActionInStartFlow`): the parked stage folding then is the pass's own end, never news from
+        // elsewhere. CI's autopilot on `4f01936956`, game 407: B on the first action, LT, the pass.)
+        if (viewerHasPassed(shell.playerView)) {
+          return;
+        }
         console.warn(`[start-stage] the opening's stage (first action «${stood.first}», bonus «${stood.bonus}») folded by the server's word — ` +
           `its frame stood parked with no scene to run its leave, and the server asks «${shell.playerView.waitingFor?.type ?? 'nothing'}» of the game ` +
           `(generation ${shell.playerView.game.generation})`);

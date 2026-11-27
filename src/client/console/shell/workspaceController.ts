@@ -11,6 +11,7 @@ import {consoleCardActionsUi, resetCardActionsFilter} from '@/client/console/con
 import {terraformedSceneState} from '@/client/console/terraformedScene/terraformedScene';
 import {ConsoleSheetRow} from '@/client/components/console/consoleSheetTypes';
 import {maFocusState} from '@/client/console/consoleMaFocus';
+import {consoleStartState} from '@/client/console/consoleStartState';
 import {collapseWorkspaceStack, workspaceKindSpec, enterWorkspace, leaveWorkspace, pushWorkspaceFrame, workspaceFrameIndex, workspaceFrameRenders, workspaceFrameAnywhere, workspaceFrameParked, workspaceReturnsFromBoard, workspaceStackCollapsed, workspaceStackState, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {resetStdProjectsFlow} from '@/client/console/consoleStdProjects';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
@@ -260,6 +261,15 @@ export function createWorkspaceController(shell: WorkspacePort) {
    * colony pick ended up on screen nowhere with no card to return to.
    */
   function collapseWorkspace(): void {
+    // A HOST's OWN BEAT IN FLIGHT ABSORBS THE COLLAPSE (B's fourth verb, `none`): the opening's first-action stage
+    // rising into its seat, on the wire, or settling HOME (`leaving`) is one motion a park would tear — its scene
+    // unmounts and the stage cannot finish. CI's autopilot on `4f01936956`, game 419: Aridor's colony tile added inside
+    // the start (`start › colonies`), «Выполняется…», B on the colonies step parked the whole stack mid-leave and the
+    // start director folded the stage by level. The scene's own B absorbs the same beats.
+    const firstAct = consoleStartState.firstAct;
+    if (workspaceFrameIndex('start') !== -1 && (firstAct.stage === 'staging' || firstAct.stage === 'leaving' || firstAct.submitting)) {
+      return;
+    }
     // A SURFACE NEVER FOLDS UNDER ITS OWN TOKEN — a collapse is a fold too (inventory R16: B collapsed the Parliament
     // while a fighter flew to Arwind's capsule INSIDE it — `[transfer] surface folded under its token`). The B is OWED:
     // the collapse waits for the band surfaces' tokens to land (`surfaceClear`, bounded), then runs; a B meanwhile is
