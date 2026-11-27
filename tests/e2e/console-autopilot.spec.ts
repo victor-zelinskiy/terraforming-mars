@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import {answerPrompt, cinematicBeat, fetchPlayerModel, loadFixtureSeats, NO_PAYMENT, openConsole, reloadConsole, seedGameOverApi, sendPlayerInput, soloGameConfig, syncClient} from './consoleStart';
-import {AutopilotScenario, dealFor, SCENARIO_TARGETS, scenarioFor, ScopeCard, SCOPE_CARDS} from '../testing/autopilotDeal';
+import {AutopilotScenario, dealFor, LEDGER_CARDS, SCENARIO_TARGETS, scenarioFor, ScopeCard, SCOPE_CARDS} from '../testing/autopilotDeal';
 import {campaignConfig, campaignModelAs, devCommit, launchMission} from './campaignFixtures';
 import {awayFromConsole, installPageAway} from './pageAway';
 import {TENDER_IDS} from '../../src/common/campaign/tenders';
@@ -1582,7 +1582,10 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       // (…a campaign's mission opens through the screen always: its tenders stand in the start scene.)
       // (…and a SCENARIO's opening is its own — a corporation's first action left owed in the fixture is played through
       // the start's screen, never seeded over the API.)
-      const uiOpening = OPENING === 'ui' || (OPENING === 'auto' && n % 4 === 3) || mission !== undefined || scenario !== undefined;
+      // (…one dealt game in four — `n % 4 === 1`, the residue the scenarios do not take since they went to `n % 4 === 3` —
+      // and every game the LEDGER's prelude is dealt to: its flow is the start's own.)
+      const ledgerPrelude = LEDGER_CARDS.preludes.some((card) => dealt.includes(card));
+      const uiOpening = OPENING === 'ui' || (OPENING === 'auto' && n % 4 === 1) || ledgerPrelude || mission !== undefined || scenario !== undefined;
       await Promise.all([
         ...(uiOpening ? [] : [seedGameOverApi(request, viewer, {
           buy: 4,

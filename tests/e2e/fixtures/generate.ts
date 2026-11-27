@@ -16224,3 +16224,39 @@ for (const opening of ['scenario-opening', 'scenario-banner'] as const) {
     },
   });
 }
+
+// ── scenario-bot-attack: THE AUTOPILOT's EIGHTH SCENARIO — MarsBot's attack as a QUESTION (`surface:bot-attack`, the
+//    autopilot's ledger): B02 Invasive Species removes the cube of the human's highest-scoring card, and it ASKS only
+//    when two cards tie (a lone candidate is taken in the bot's own turn). A solo table against the bot, blue on the move
+//    with Nitrite Reducing Bacteria (3 microbes) and Regolith Eaters (1 microbe) in play — both score nothing per cube, a
+//    tie of equals — and the bot's action deck forced to B02 for its next turn. Mars two thirds of the way; the bot's
+//    seat terraforms by its own deck. Every card the game's own copy. ──
+{
+  const name = 'scenario-bot-attack';
+  const pinned = [CardName.CREDICOR];
+  const [game, human] = testAutomaGame({startingCorporations: 1, keepInitialCardSelection: true, customCorporationsList: [...pinned]});
+  assignPinnedCorporations(name, [human], pinned);
+  answerStartFlow(game, [human]);
+  const own = (card: CardName): IProjectCard => {
+    moveToDeckTop(game, card);
+    return game.projectDeck.drawPile.pop() as IProjectCard;
+  };
+  const nitrite = own(CardName.NITRITE_REDUCING_BACTERIA);
+  nitrite.resourceCount = 3;
+  const regolith = own(CardName.REGOLITH_EATERS);
+  regolith.resourceCount = 1;
+  human.playedCards.push(nitrite, regolith);
+  human.megaCredits = 60;
+  setTemperature(game, -4);
+  setOxygenLevel(game, 10);
+  const automa = game.automa;
+  if (automa === undefined) {
+    throw new Error(`${name}: not an automa game`);
+  }
+  automa.actionDeck = [{kind: 'bonus', id: BonusCardId.B02_INVASIVE_SPECIES}];
+  runAllActions(game);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id || !(human.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`${name}: expected blue on the move with the action menu — got phase=${game.phase} active=${game.activePlayer.color} wf=${human.getWaitingFor()?.constructor.name}`);
+  }
+  write(name, game);
+}

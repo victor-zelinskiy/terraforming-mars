@@ -3029,8 +3029,8 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   SCREEN for the first time (the pilot's rule «LB / RB a step, ↓, X Применить» — CI's browser on `1c0976df77` had given
   it to the door twice). The autopilot's own axis is held by its own ledger now (`kernel-walked.mjs
   --ledger=autopilot` → `tests/client/bottle/autopilotUnwalked.json`): over the box's lanes and the scenario games on
-  disk, flows 244 of 274, frames 13 of 13, machine moves 39 of 66 — of what stays unwalked 47 keys are declared with
-  their reason (a failure path, a test switch, a playground, a pointer's, the campaign's interlude), 10 are the stage's
+  disk, flows 243 of 274, frames 13 of 13, machine moves 39 of 66 — of what stays unwalked 47 keys are declared with
+  their reason (a failure path, a test switch, a playground, a pointer's, the campaign's interlude), 11 are the stage's
   debt, each named in the ledger. (A pass of the same snapshot replaces the one before it: keys one run walked and the
   next did not come back with CI's passes.)
 - **OPEN (the box, `scenario-opening`, game 43 on `55b63c5204` + the pilots' work) — A SITTING ASIDE FOR THE BOARD THAT
@@ -3041,6 +3041,13 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   collapses the returned sitting — `Вернуться к заседанию` stands: right), with the rival closing its sitting and
   moving into the next generation's research (the sitting comes back), and two replays of the game with the resume path
   instrumented (`[diag-yield]` — the request, the quiet's end, the resume) — all green. Watched in CI and the lanes.
+- **THE LEDGER's DEBT, WORKED (2026-11-27, later).** An eighth table, `scenario-bot-attack` (solo against MarsBot, its
+  next card B02 Invasive Species over a TIE of blue's microbe cards — the attack becomes a question,
+  `surface:bot-attack`); eight scenarios now take one game in FOUR (`n % 4 === 3`, a CI pass of 48 plays each at least
+  once). The opening through the screen moved to the residue the scenarios left (`n % 4 === 1`, the campaign's games
+  among them) — on `n % 4 === 3` no dealt game had opened through the screen any more. A prelude or project no fixture
+  can stand on is dealt FIRST one game in three (`LEDGER_CARDS` — Early Colonization's raise is the start's own, Astra
+  Mechanica's return), and a game dealt the ledger's prelude always opens through the screen.
 - **THE AUTOPILOT's LEDGER, READ (2026-11-27).** The surfaces no whole game opens were read one by one: the card catalogue
   (`/cards`), the campaign's interlude (its map, the carryover picker and its album), the teleport's missing target, a
   window's resize — declared with their reason; the submit's `presenting → failed` / `sending → silent` and the claim's
