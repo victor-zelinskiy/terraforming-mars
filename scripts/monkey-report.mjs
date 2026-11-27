@@ -776,13 +776,15 @@ export function aggregateAutopilot(files) {
   }
   out.shapes = [...shapes.entries()].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).map(([shape, n]) => ({shape, n}));
   if (shapes.size > 0) {
-    const declared = declaredInputTypes();
+    const reach = reachableInputTypes();
+    const declared = reach.reachable;
     const answered = new Set([...shapes.keys()].map((s) => s.replace(/\[.*$/, '').replace(/^or:menu$/, 'or')));
     // (A type the screen SENT inside a batch is answered on the screen too.)
     for (const type of sent.keys()) {
       answered.add(type);
     }
-    out.types = {declared: declared.length, answered: declared.filter((type) => answered.has(type)).length, never: declared.filter((type) => !answered.has(type))};
+    out.types = {declared: declared.length, answered: declared.filter((type) => answered.has(type)).length, never: declared.filter((type) => !answered.has(type)),
+      excluded: reach.excluded};
   }
   out.cards = [...cards.entries()].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).map(([name, games]) => ({name, games}));
   out.doors = [...doors.values()].sort((x, y) => y.n - x.n || x.where.localeCompare(y.where)).map((row) => ({where: row.where, n: row.n, games: row.games.size}));
@@ -791,17 +793,112 @@ export function aggregateAutopilot(files) {
   return out;
 }
 
-/** Input types only a module OUTSIDE the premium scope asks (`common/cards/premiumScope.ts`). */
-const OUT_OF_SCOPE_INPUT_TYPES = ['claimedUndergroundToken'];
+/**
+ * THE INPUT TYPES A TABLE OF THE PREMIUM SCOPE CAN BE ASKED — the denominator, derived from the code (the owner,
+ * 2026-11-26: «оси покрытия со знаменателями из кода»). A type is DECLARED by `common/input/PlayerInputType.ts`; it is
+ * SENT by a server input whose `toModel()` writes `type: '<it>'`; it is REACHABLE when some file constructs that input
+ * outside the card directories of modules the premium scope leaves out (`common/cards/premiumScope.ts` — a table the
+ * autopilot creates never deals them) and outside a classic card the Redux set REPLACES (`turmoilReduxReplacements.ts`
+ * — under Redux the classic is never dealt). A type no input sends, or only an out-of-scope one, is EXCLUDED — by name,
+ * with its reason, in the report (never a silent shrink of the bar). A helper of the engine counts as in scope whoever
+ * calls it: the scan errs toward a larger denominator, never a smaller one.
+ */
+export const OUT_OF_SCOPE_CARD_DIRS = ['ceos', 'community', 'moon', 'pathfinders', 'starwars', 'underworld'];
+/** …and the ENGINE directories of those modules (`src/server/<dir>/` — the Moon's, the Pathfinders', the Underworld's). */
+export const OUT_OF_SCOPE_ENGINE_DIRS = ['moon', 'pathfinders', 'underworld'];
 
-/** The input types the server declares — the string literals of `PlayerInputType` (empty when the source is absent). */
-function declaredInputTypes() {
+function serverSources(root) {
+  const out = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+      } else if (entry.name.endsWith('.ts')) {
+        out.push({file: path.relative(root, full).split(path.sep).join('/'), text: fs.readFileSync(full, 'utf8')});
+      }
+    }
+  };
+  walk(path.join(root, 'src', 'server'));
+  return out;
+}
+
+/** PURE over the sources: `{reachable, excluded: [{type, why}]}` (see above). */
+export function inputTypesReach(declared, sources, replacedClassics) {
+  // Who sends what: a class whose own `toModel()` writes the type — and every class that EXTENDS one (an abstract
+  // input's concrete subclasses are what the code constructs).
+  const parent = new Map();
+  for (const s of sources) {
+    for (const m of s.text.matchAll(/class (\w+)(?:<[^>{]*>)? extends (\w+)/g)) {
+      parent.set(m[1], m[2]);
+    }
+  }
+  const own = new Map();
+  for (const s of sources) {
+    if (!s.text.includes('toModel(')) {
+      continue;
+    }
+    const classes = [...s.text.matchAll(/export (?:abstract )?class (\w+)/g)].map((m) => m[1]);
+    for (const m of s.text.matchAll(/\btype: '([a-zA-Z]+)'/g)) {
+      if (declared.includes(m[1])) {
+        classes.forEach((c) => own.set(c, new Set([...(own.get(c) ?? []), m[1]])));
+      }
+    }
+  }
+  const senders = new Map();
+  for (const c of new Set([...parent.keys(), ...own.keys()])) {
+    for (let at = c, depth = 0; at !== undefined && depth < 8; at = parent.get(at), depth++) {
+      for (const type of own.get(at) ?? []) {
+        senders.set(type, new Set([...(senders.get(type) ?? []), c]));
+      }
+    }
+  }
+  const outOfScope = (s) => {
+    const dir = /^src\/server\/cards\/([^/]+)\//.exec(s.file)?.[1];
+    if (dir !== undefined && OUT_OF_SCOPE_CARD_DIRS.includes(dir)) {
+      return `the ${dir} cards`;
+    }
+    const engine = /^src\/server\/([^/]+)\//.exec(s.file)?.[1];
+    if (engine !== undefined && OUT_OF_SCOPE_ENGINE_DIRS.includes(engine)) {
+      return `the ${engine} engine`;
+    }
+    const name = /name: CardName\.(\w+)/.exec(s.text)?.[1];
+    if (dir === 'turmoil' && name !== undefined && replacedClassics.includes(name)) {
+      return `the classic ${name} (the Redux set replaces it)`;
+    }
+    return undefined;
+  };
+  const reachable = [];
+  const excluded = [];
+  for (const type of declared) {
+    const classes = [...(senders.get(type) ?? [])];
+    if (classes.length === 0) {
+      excluded.push({type, why: 'no server input sends it'});
+      continue;
+    }
+    const builders = sources.filter((s) => classes.some((c) => s.text.includes(`new ${c}(`)));
+    const inScope = builders.filter((s) => outOfScope(s) === undefined);
+    if (inScope.length > 0) {
+      reachable.push(type);
+    } else {
+      const whys = [...new Set(builders.map(outOfScope).filter((w) => w !== undefined))];
+      excluded.push({type, why: whys.length > 0 ? `only ${whys.join(', ')}` : 'nothing constructs its input'});
+    }
+  }
+  return {reachable, excluded};
+}
+
+/** The reach of THIS checkout (empty when the sources are absent — a report read elsewhere). */
+function reachableInputTypes() {
   try {
-    const source = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'common', 'input', 'PlayerInputType.ts'), 'utf8');
-    // (…the ones a module of the premium scope can ask: the claimed underground token is Underworld's alone.)
-    return [...source.matchAll(/'([a-zA-Z]+)'/g)].map((m) => m[1]).filter((type) => !OUT_OF_SCOPE_INPUT_TYPES.includes(type));
+    const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+    const typeSource = fs.readFileSync(path.join(root, 'src', 'common', 'input', 'PlayerInputType.ts'), 'utf8');
+    const declared = [...typeSource.matchAll(/'([a-zA-Z]+)'/g)].map((m) => m[1]);
+    const replacements = fs.readFileSync(path.join(root, 'src', 'common', 'cards', 'turmoilReduxReplacements.ts'), 'utf8');
+    const replaced = [...replacements.matchAll(/classic: CardName\.(\w+)/g)].map((m) => m[1]);
+    return inputTypesReach(declared, serverSources(root), replaced);
   } catch {
-    return [];
+    return {reachable: [], excluded: []};
   }
 }
 
@@ -816,6 +913,9 @@ export function renderAutopilot(a) {
   if (a.types !== undefined) {
     L.push(`   question shapes answered on the screen: ${a.shapes.length} distinct · input types ${a.types.answered} of ${a.types.declared}` +
       `${a.types.never.length > 0 ? ` — never: ${a.types.never.join(', ')}` : ''}`);
+    if ((a.types.excluded ?? []).length > 0) {
+      L.push(`   input types out of the bar: ${a.types.excluded.map((x) => `${x.type} (${x.why})`).join(' · ')}`);
+    }
   }
   if ((a.cards ?? []).length > 0) {
     L.push(`   cards played through the console: ${a.cards.length} distinct · the weather: ${a.weather.games} storm game(s), ` +

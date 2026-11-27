@@ -2817,6 +2817,13 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   refused it. Two reactions to one collect; the door's answer is now the cube's (`colonyBonusCollected`). Reproduced
   (`console-screen-shadow-rows` colonyBonus — «the collect was sent once»: red, three refused lines; green), a caller
   trace on the box naming the second sender.
+- **THE INPUT TYPES' DENOMINATOR IS THE CODE's (2026-11-27).** The bar was every literal of `PlayerInputType` minus a
+  hand list; now a type is in it when a server input that SENDS it (`toModel()` writes the type — an abstract input
+  through its concrete children) is constructed outside the out-of-scope modules' card and engine directories and
+  outside a classic card the Redux set replaces (`monkey-report.inputTypesReach`, unit-tested). Read on 45911869971:
+  18 of 20 — the gaps are Delta Project's `deltaStageReward` and `deltaBlockade`; out of the bar, each named with its
+  reason: `delegate` (only the classic Banned Delegate — Redux replaces it), `globalEvent` (only Community's Executive
+  Order), `policy` (no server input sends it), `claimedUndergroundToken` (Underworld only).
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read

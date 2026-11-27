@@ -31,6 +31,8 @@ type Lib = {
   shapeOfClass: (cls: string) => string,
   aggregateAutopilot: (files: Array<File>) => Whole | undefined,
   renderAutopilot: (whole: Whole | undefined) => string,
+  inputTypesReach: (declared: Array<string>, sources: Array<{file: string, text: string}>, replaced: Array<string>) =>
+    {reachable: Array<string>, excluded: Array<{type: string, why: string}>},
 };
 type Pilot = {end: string, generation: number, phase: string, presses: number, byUi: Record<string, number>, byApi: Record<string, number>, passes: {ui: number, api: number}, tookMs: number, rebuilds?: number, doors?: Array<string>};
 type Whole = {games: number, finished: number, capped: Array<string>, stuck: Array<string>, rebuilds: number, presses: number, byUi: number, byApi: number, passes: {ui: number, api: number}, playMin: number, doors: Array<{where: string, n: number, games: number}>};
@@ -274,5 +276,32 @@ describe('the monkey\'s report — a run summed by cause class', () => {
     expect(verdict.reasons.join(' | ')).to.match(/1 answer\(s\) and 0 pass\(es\) went through the door/);
     expect(verdict.reasons.join(' | ')).to.match(/the log is not clean — 2 class\(es\)/);
     expect(verdict.reasons.join(' | ')).to.match(/band:actionMenu band-fallback:free>deckPick ×2/);
+  });
+
+  it("THE INPUT TYPES' denominator is the code's: a type is in the bar when an input that sends it is built in the scope", async () => {
+    const lib = await load();
+    const src = (file: string, text: string) => ({file, text});
+    const sources = [
+      // The inputs: one plain, one abstract with a concrete child, one only an out-of-scope card builds, one only a
+      // classic the Redux set replaces builds, one only an out-of-scope ENGINE builds.
+      src('src/server/inputs/SelectA.ts', "export class SelectA extends BasePlayerInput { toModel() { return {type: 'a'}; } }"),
+      src('src/server/inputs/SelectB.ts', "export abstract class SelectB<T> extends BasePlayerInput<T> { toModel() { return {type: 'b'}; } } " +
+        'export class SelectBChild extends SelectB<IProjectCard> {}'),
+      src('src/server/inputs/SelectC.ts', "export class SelectC extends BasePlayerInput { toModel() { return {type: 'c'}; } }"),
+      src('src/server/inputs/SelectD.ts', "export class SelectD extends BasePlayerInput { toModel() { return {type: 'd'}; } }"),
+      src('src/server/inputs/SelectE.ts', "export class SelectE extends BasePlayerInput { toModel() { return {type: 'e'}; } }"),
+      src('src/server/cards/base/Uses.ts', 'name: CardName.USES · new SelectA(1); new SelectBChild(2);'),
+      src('src/server/cards/community/Other.ts', 'name: CardName.OTHER · new SelectC(3);'),
+      src('src/server/cards/turmoil/Classic.ts', 'name: CardName.CLASSIC · new SelectD(4);'),
+      src('src/server/underworld/Engine.ts', 'new SelectE(5);'),
+    ];
+    const reach = lib.inputTypesReach(['a', 'b', 'c', 'd', 'e', 'f'], sources, ['CLASSIC']);
+    expect(reach.reachable, 'built in the scope — plainly, and through an abstract parent').to.deep.equal(['a', 'b']);
+    expect(reach.excluded.map((x) => `${x.type}: ${x.why}`)).to.deep.equal([
+      'c: only the community cards',
+      'd: only the classic CLASSIC (the Redux set replaces it)',
+      'e: only the underworld engine',
+      'f: no server input sends it',
+    ]);
   });
 });
