@@ -307,6 +307,13 @@ export function promoteFromQueue(): void {
     if (now - queueBlocked.since < QUEUE_STARVATION_MS) {
       return;
     }
+    // …AND THE ESCAPE's CLOCK IS THE PAGE's PAINT, as a hold's ceiling is (`animationHold.whenPaintedCeilingDue` — CI's
+    // autopilot on `4d74b4f9a0`, game 570: a tab hidden twelve seconds under the sitting's verdict, the backlog
+    // delivered «anyway» over a page nobody was looking at). On a page that gave the animations less than the bound,
+    // nothing has leaked yet and nobody would read a toast: the backlog waits for the page to paint.
+    if (queueBlocked.painted.starved() !== undefined && queueBlocked.painted.motionMs() < QUEUE_STARVATION_MS) {
+      return;
+    }
     if (!starvationWarned) {
       starvationWarned = true;
       // WHO OWNS THE WAIT decides what the line is (FREEZE ZERO, stage 1). «An animation has no player in the loop» —

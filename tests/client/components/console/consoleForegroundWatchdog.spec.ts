@@ -25,6 +25,7 @@ import {
   unregisterAnimationHoldSupplier,
 } from '@/client/components/presentation/animationHold';
 import {QUEUE_STARVATION_MS, clearTransient, notificationState} from '@/client/components/notifications/notificationState';
+import {createManualClock, ManualFlowClock, setFlowClock} from '@/client/console/kernel/flowClock';
 import {NOTIFICATION_PRIORITY} from '@/client/components/notifications/notificationTypes';
 
 function signals(partial: Partial<AdmissionSignals> = {}): AdmissionSignals {
@@ -178,15 +179,25 @@ describe('consoleForegroundWatchdog', () => {
   describe('the queue starvation deadline (the unconditional guarantee)', () => {
     let realNow: () => number;
     let clock = 0;
+    // A PAGE THAT PAINTS (the kernel's manual clock paints a frame every 16 ms as it advances): the escape's clock is
+    // the time the page gave the animations, and a leaked hold is a leak on a page somebody is looking at.
+    let page: ManualFlowClock;
+    const tick = (ms: number): void => {
+      clock += ms;
+      page.advance(ms);
+    };
 
     beforeEach(() => {
       realNow = Date.now;
       clock = 1_000_000;
       Date.now = () => clock;
+      page = createManualClock(clock);
+      setFlowClock(page);
     });
 
     afterEach(() => {
       Date.now = realNow;
+      setFlowClock(undefined);
     });
 
     function queueOne(id: string): void {
@@ -208,9 +219,20 @@ describe('consoleForegroundWatchdog', () => {
       runForegroundWatchdog({surfaceRendered: true, promptLive: false});
       expect(notificationState.transient.length).eq(0, 'the deadline has not passed yet');
 
-      clock += QUEUE_STARVATION_MS + 1;
+      tick(QUEUE_STARVATION_MS + 1);
       runForegroundWatchdog({surfaceRendered: true, promptLive: false});
       expect(notificationState.transient.map((n) => n.id)).deep.eq(['q1']);
+    });
+
+    it('…and on a page that does NOT PAINT (a hidden tab) the backlog waits — nothing leaked yet, nobody would read it (CI\'s game 570)', () => {
+      setFlowClock({...page, nextFrame: () => () => undefined}); // the page gives the animations no frame at all
+      beginAnimationHold('watchdog-spec-hidden', {scope: 'notification-only'});
+      queueOne('q1');
+      runForegroundWatchdog({surfaceRendered: true, promptLive: false});
+      tick(QUEUE_STARVATION_MS * 2);
+      runForegroundWatchdog({surfaceRendered: true, promptLive: false});
+      expect(notificationState.transient.length).eq(0, 'no toast over a page nobody looks at');
+      expect(notificationState.queue.length).eq(1, 'still queued, never lost');
     });
 
     it('does NOT force a backlog past a modal the player is reading', () => {
@@ -223,7 +245,7 @@ describe('consoleForegroundWatchdog', () => {
       queueOne('q1');
 
       runForegroundWatchdog({surfaceRendered: true, promptLive: true});
-      clock += QUEUE_STARVATION_MS * 5;
+      tick(QUEUE_STARVATION_MS * 5);
       runForegroundWatchdog({surfaceRendered: true, promptLive: true});
       expect(notificationState.transient.length).eq(0);
       expect(notificationState.queue.length).eq(1, 'still queued, never lost');
@@ -243,13 +265,13 @@ describe('consoleForegroundWatchdog', () => {
         const reading = acquireForegroundLease('ceremony');
         queueOne('q1');
         runForegroundWatchdog({surfaceRendered: true, promptLive: true});
-        clock += QUEUE_STARVATION_MS * 5;
+        tick(QUEUE_STARVATION_MS * 5);
         runForegroundWatchdog({surfaceRendered: true, promptLive: true});
         // The player is done reading; a cinematic begins in the same breath.
         const hold = beginAnimationHold('watchdog-spec-delivery', {scope: 'notification-only'});
         reading();
         runForegroundWatchdog({surfaceRendered: true, promptLive: false});
-        clock += 1_000;
+        tick(1_000);
         runForegroundWatchdog({surfaceRendered: true, promptLive: false});
         expect(notificationState.transient.length, 'a second into the cinematic nothing is forced over it').eq(0);
         expect(warned.filter((line) => line.includes('queued event')), 'and no hold is called a leak').to.deep.eq([]);
@@ -276,12 +298,12 @@ describe('consoleForegroundWatchdog', () => {
         const first = beginAnimationHold('watchdog-spec-leak', {scope: 'notification-only'});
         queueOne('q1');
         runForegroundWatchdog({surfaceRendered: true, promptLive: false});
-        clock += QUEUE_STARVATION_MS + 1;
+        tick(QUEUE_STARVATION_MS + 1);
         runForegroundWatchdog({surfaceRendered: true, promptLive: false});
         expect(said().length).eq(1);
         // (Which of the escape's three lines it is depends on what the page painted — no frame comes in this runner.)
         // While the SAME starvation stands nothing is repeated…
-        clock += 3_000;
+        tick(3_000);
         queueOne('q2');
         runForegroundWatchdog({surfaceRendered: true, promptLive: false});
         expect(said().length).eq(1);
@@ -293,7 +315,7 @@ describe('consoleForegroundWatchdog', () => {
         beginAnimationHold('watchdog-spec-second', {scope: 'notification-only'});
         queueOne('q3');
         runForegroundWatchdog({surfaceRendered: true, promptLive: false});
-        clock += QUEUE_STARVATION_MS + 1;
+        tick(QUEUE_STARVATION_MS + 1);
         runForegroundWatchdog({surfaceRendered: true, promptLive: false});
         expect(said().length).eq(2);
       } finally {

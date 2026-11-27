@@ -368,6 +368,8 @@ function answerOnTheWireNow(): boolean {
 
 /** How often a ceiling that came due under an unanswered submit looks again. */
 const CEILING_WIRE_RECHECK_MS = 1000;
+/** The least a ceiling re-armed over a starved page waits before it asks again (the page's paint is read per look). */
+const CEILING_REARM_MIN_MS = 1000;
 
 /**
  * THE CEILING COMES DUE — but never under a submit the server has not answered, and never counting that silence. The
@@ -391,6 +393,27 @@ function whenCeilingDue(run: {after(ms: number, what: string, fn: () => void): u
     }
     due();
   });
+}
+
+/**
+ * THE CEILING COUNTS THE TIME THE PAGE GAVE THE MOTION, never the wall (CI's autopilot on `4d74b4f9a0`, game 570: the
+ * tab hidden for twelve seconds under the sitting's verdict, «parliament-sitting:verdict» ended by its ceiling — a
+ * planned line over a page that painted nothing, and the feed's starvation behind it). A hold claims a story is
+ * PLAYING; on a page that does not paint the story cannot play, so its bound waits: when the wall bound comes over a
+ * starved page (`FrameWatch.starved`), the ceiling is armed again for what the motion has not yet been given. A page
+ * that paints spends the budget and the ceiling ends a leak as before; a page never painted again ends nothing —
+ * nobody is looking at it.
+ */
+function whenPaintedCeilingDue(run: {after(ms: number, what: string, fn: () => void): unknown}, maxHoldMs: number, painted: FrameWatch, due: () => void): void {
+  const check = (): void => {
+    const given = painted.motionMs();
+    if (painted.starved() !== undefined && given < maxHoldMs) {
+      whenCeilingDue(run, Math.max(CEILING_REARM_MIN_MS, maxHoldMs - given), check);
+      return;
+    }
+    due();
+  };
+  whenCeilingDue(run, maxHoldMs, check);
 }
 
 /**
@@ -428,10 +451,11 @@ function armCeiling(label: string, entry: SupplierEntry): void {
   entry.heldSince = entry.heldSince ?? Date.now();
   const run = openHoldRun(label);
   entry.run = run;
-  // (A hold claims a story is PLAYING: its ceiling on a page that painted nothing is the hold's honest end.)
+  // (A hold claims a story is PLAYING: the page's paint is witnessed for as long as it stands — see the ceiling below.)
   const painted = watchFrames();
   run.onEnd(() => painted.stop());
-  whenCeilingDue(run, entry.maxHoldMs, () => {
+  // (The ceiling counts the time the page GAVE the motion — `whenPaintedCeilingDue`.)
+  const due = (): void => {
     if (entry.run !== run) {
       return;
     }
@@ -440,7 +464,8 @@ function armCeiling(label: string, entry: SupplierEntry): void {
     console.warn(`[animation-hold] "${label}" held for over ${entry.maxHoldMs}ms — force-released by the safety ceiling ${ceilingWhy(painted, entry.heldForPlayer)}${safeDiagnose(entry.diagnose)}`);
     safeExpireRecovery(label, entry.expire);
     run.end({how: 'expired', bound: `the ${entry.maxHoldMs} ms ceiling`});
-  });
+  };
+  whenPaintedCeilingDue(run, entry.maxHoldMs, painted, due);
   run.onEnd(() => {
     if (entry.run !== run) {
       return; // ended by the registry — the falling edge, the ceiling, a net, an unregister
@@ -512,7 +537,7 @@ export function beginAnimationHold(label: string, options?: AnimationHoldOptions
   manualRuns.set(id, run);
   const painted = watchFrames();
   run.onEnd(() => painted.stop());
-  whenCeilingDue(run, maxHoldMs, () => {
+  whenPaintedCeilingDue(run, maxHoldMs, painted, () => {
     const why = ceilingWhy(painted, options?.heldForPlayer);
     const dropped = dropManualHold(id, {how: 'expired', bound: `the ${maxHoldMs} ms ceiling`});
     if (dropped !== undefined) {

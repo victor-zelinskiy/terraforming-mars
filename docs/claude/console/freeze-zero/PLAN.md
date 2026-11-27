@@ -3114,6 +3114,16 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   Разыграть без эффекта» — game 582's door), «Все» back on the hand's chip row over a pick of cards (582's discard of 3
   of 5 under a tag filter), and a lanes plate laid out by its rows (546's «8 heat» with floaters worth 2 — the random
   walk stood 7 ↔ 9).
+- **THE PLANNED LINES OF THE BROWSER (CI on `4d74b4f9a0`), each cured at its root — a net that fires on a designed road
+  is a false alarm, and the owner counts it as debt.** ① Game 570, a tab hidden twelve seconds under the sitting's
+  verdict: the hold's ceiling and the feed's starvation escape both counted the WALL — a hold's ceiling now counts the
+  time the page GAVE the motion (`animationHold.whenPaintedCeilingDue`: over a starved page it is armed again for what
+  the motion has not been given; a painting page spends the budget and a leak ends as before — `holdRuns.spec`, RED
+  without, GREEN with), and the feed's escape waits on a page that does not paint (nobody would read the toast —
+  `consoleForegroundWatchdog.spec`, the old starvation cases on a page that paints). ② Game 581: «past the bound the
+  chain plays beside the decision» is the design's own step — the reaction director's wait ends in silence there, never
+  «on its ceiling». ③ Game 561: an opening dropped from the park WITH its own step standing on it (solo Colonies' «Убрать
+  плитку» inside the start) ends with the opening like the bare one — not news when nothing of it is owed.
 - **THE AUTOPILOT's LEDGER AT ZERO (stage 6, 2026-11-27 evening).** Over 223 passes (the box's lanes, CI's browser and
   bottle, the scenario runs): flows 252 of 274 opened, frames 13 of 13, every key never walked declared with its reason —
   the debt 0. The last keys walked by the new roads: Early Colonization's raise, Astra Mechanica's return, the remote

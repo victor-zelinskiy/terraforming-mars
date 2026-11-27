@@ -778,7 +778,10 @@ export function createWiringController(shell: WiringPort) {
       // (…and so is one whose first action the player finished on the board while they kept it folded — nothing of the
       // opening is owed any more; a parked opening dropped WITH its first action still owed stays said. The box's game
       // 2901 on `1bfeff8d9a`.)
-      const passedOpening = home === 'parked' && kinds.every((kind) => kind === 'start') &&
+      // (…and so is the opening WITH THE STEP standing on it — the frames above the start's root are its own steps, and
+      // they end with it: CI's autopilot on `4d74b4f9a0`, game 561 — solo Colonies, the setup's «Убрать плитку» answered
+      // inside the start, the opening minimized in the answer's beat, «dropped start, colonies (parked)» said as news.)
+      const passedOpening = home === 'parked' && kinds[0] === 'start' &&
         (viewerHasPassed(shell.playerView) || !firstActionOwed(shell.playerView));
       if (!passedOpening) {
         console.warn(`[workspace-anchor] dropped ${kinds.join(', ')} (${home}) — its phase is over; it does not come back`);

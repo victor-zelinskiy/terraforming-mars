@@ -1680,8 +1680,11 @@ async function waitDecisionClear(myEpoch: number): Promise<void> {
   let wait: CeilingWait | undefined;
   while (epoch === myEpoch && decisionStands()) {
     if (typeof performance !== 'undefined' && performance.now() - started > DECISION_WAIT_MAX_MS) {
+      // PAST THE BOUND THE CHAIN PLAYS BESIDE THE DECISION — the design's own step, never a net that caught something
+      // (CI's autopilot on `4d74b4f9a0`, game 581: the player read the drawn cards at the centre for six seconds and the
+      // wait «ended on its ceiling (planned: …)» — a line for a rule working as written). The wait ends in silence.
       cardReactionState.waitingOnPlayer = '';
-      wait?.ceiling();
+      wait?.end();
       return;
     }
     cardReactionState.waitingOnOther = true;

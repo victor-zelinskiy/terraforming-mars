@@ -65,6 +65,37 @@ describe('animation holds · every hold is a run of the flow tree', () => {
     expect(animationHoldCount()).to.equal(before);
   });
 
+  it('ON A PAGE THAT DOES NOT PAINT the ceiling waits — it counts the time the page gave the motion (CI\'s game 570, a hidden tab)', () => {
+    // A page whose frames come only when the spec paints them (a hidden tab, a starved compositor).
+    let pending: Array<() => void> = [];
+    setFlowClock({...clock, nextFrame: (fn) => {
+      pending.push(fn);
+      return () => {
+        pending = pending.filter((f) => f !== fn);
+      };
+    }});
+    const paint = (): void => {
+      const due = pending;
+      pending = [];
+      due.forEach((fn) => fn());
+    };
+    beginConsoleSession();
+    let recovered = 0;
+    const hold = beginAnimationHold('spec-run-hidden', {maxHoldMs: 5_000, expire: () => recovered++});
+    // Twelve seconds away: the wall bound comes and goes twice — the story could not play, nothing is ended.
+    clock.advance(12_000);
+    expect(hold.scope.ended, 'a hidden page ends no hold').to.equal(undefined);
+    expect(recovered).to.equal(0);
+    expect(warned.some((line) => line.includes('"spec-run-hidden"'))).to.equal(false);
+    // Back on screen: the page paints, the motion is given its time — and a hold that still stands past it is a leak.
+    for (let t = 0; t < 7_000 && hold.scope.ended === undefined; t += 16) {
+      clock.advance(16);
+      paint();
+    }
+    expect(hold.scope.ended?.how, 'the budget spent on a painting page — the ceiling ends it').to.equal('expired');
+    expect(recovered).to.equal(1);
+  });
+
   it('the ceiling runs on the kernel\'s clock: past it the hold is dropped, the owner\'s recovery runs, the run is `expired`', () => {
     beginConsoleSession();
     let recovered = 0;
