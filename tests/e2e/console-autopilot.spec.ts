@@ -832,6 +832,8 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     handTarget: string | undefined} | undefined;
   /** The standard projects' visits of the game so far — the projects' rotation (`SP_ROTATION`). */
   let stdpVisits = 0;
+  /** The start's last press gave a card back (see «THE START SCENE»). */
+  let startTrimmed = false;
   let stdpSteps = 0;
   let handSteps = 0;
   /** The menus of the game so far — the intents' rotation (seeded by the game's own number, so two games start apart). */
@@ -1121,9 +1123,18 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     // LT (the step before) nor B: an opening goes forward.
     if (PILOT >= 3 && wf.type === 'initialCards' && /^start:/.test(seen.frames[seen.frames.length - 1] ?? '') && seen.look === '' && !seen.zoom) {
       const nextLit = seen.offered.some((o) => o.key === 'Period');
-      const key = seen.bar.includes('AСнять выбор') ? (nextLit && g() < 0.6 ? 'Period' : 'ArrowRight') :
-        seen.bar.includes('AВыбрать') ? 'Enter' :
-          nextLit ? 'Period' : seen.offered.some((o) => o.key === 'Enter') ? 'Enter' : 'ArrowRight';
+      // (…a taken card with the step's RT not lit — a buy over the purse, a pick over its count: one card given back now
+      // and then, as a player trims the pile.)
+      // (…and a card just given back is passed by, never taken again at once: a step that wants EXACTLY two stands without
+      // its RT at one card taken as much as at all of them.)
+      const taken = seen.bar.includes('AСнять выбор');
+      // (A step's row ends — a → that does not move is answered by ← or a row away.)
+      const roll = g();
+      const move = roll < 0.55 ? 'ArrowRight' : roll < 0.85 ? 'ArrowLeft' : roll < 0.93 ? 'ArrowDown' : 'ArrowUp';
+      const key: string = taken ? (nextLit ? (g() < 0.6 ? 'Period' : move) : (g() < 0.2 ? 'Enter' : move)) :
+        seen.bar.includes('AВыбрать') ? (startTrimmed ? move : 'Enter') :
+          nextLit ? 'Period' : seen.offered.some((o) => o.key === 'Enter') ? 'Enter' : move;
+      startTrimmed = taken && key === 'Enter';
       await press(key, pause());
       continue;
     }

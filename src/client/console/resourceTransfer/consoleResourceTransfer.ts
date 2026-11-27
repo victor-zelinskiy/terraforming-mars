@@ -45,7 +45,7 @@ import {
   ResourceTransferSpec, TransferCover, TransferEnd, TransferEndLike, TransferPoint, TransferRect,
   transferFlightBudgetMs, transferWaveDelayMs, sourceSpawnPoint, cardResourceKey, isTransferEnd, transferEndOf, transferEndPoint,
   TRANSFER_BEAT_MS, TRANSFER_DETACH_COVER_MAX_MS, TRANSFER_DETACH_WAIT_MS, clampTransferPace, RATING_RAIL_KEY, VP_RAIL_KEY, isVpTransfer, transferLaunchFor,
-  transferSignedAmount, NO_TRANSFER_COVER, transferPaintPlan, TRANSFER_HANDOVER_FROM,
+  transferSignedAmount, NO_TRANSFER_COVER, transferPaintPlan, TRANSFER_HANDOVER_FROM, boxTouchesAny,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   TransferFlightPaint, TransferFlightReport, TransferStagePiece, runDetachedTransferFlight, runTransferFlight, settleTransferChip, killTransferPiece, settleOpenTransferGuards,
@@ -67,6 +67,12 @@ export type TransferFlight = {
   fromBoard: boolean,
   /** The run plays INSIDE a standing decision surface (`ResourceTransferRun.inSurface`); absent = a blocking wave. */
   inSurface?: boolean,
+  /**
+   * THE TOKEN's ROAD CROSSES THE BAND under the status strip (the pending decision's card, the banner chips — a
+   * notification surface above every scene, which no token may fly under): measured at the run's start, the band
+   * steps out of the column for the flight's life (`con-root--strip-intake` — the yield #168 made for a seat's intake).
+   */
+  crossesBand?: boolean,
 };
 
 export const resourceTransferState = reactive({
@@ -1083,8 +1089,12 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
   }));
   // A DETACHED token waits for its surface to leave holding the FEED only (its wait must never be what keeps that
   // surface's flow from concluding); it turns into an ordinary flying chip once its arc starts (`onArc`).
+  // (THE BAND's RECTS, once for the run — the box's game 2608: a sitting's plants token «painted under
+  // div.con-mandatory__ask at the approach», the plate «Вернуться к заседанию» standing over the rail's row.)
+  const band = bandRects();
   resourceTransferState.flights = [...resourceTransferState.flights,
-    ...entries.map((e) => ({id: e.id, spec: e.spec, fromBoard: run.fromBoard === true, inSurface: inSurface || e.detached}))];
+    ...entries.map((e) => ({id: e.id, spec: e.spec, fromBoard: run.fromBoard === true, inSurface: inSurface || e.detached,
+      crossesBand: band.length > 0 && roadTouchesBand(e.from, e.to, band)}))];
   // THE LAW OF THE FOLD (BY): both ends of every token enter the registry in THIS synchronous half of the call, so a host
   // asking `surfaceClear` right after starting the run already sees its tokens (a detached token's destination is under
   // a foreign surface by definition — only its birth can hold the surface it rises from).
@@ -1369,6 +1379,31 @@ export function transferEndPointNow(end: TransferEndLike, role: 'source' | 'dest
   }
   const r = role === 'destination' ? restingRectOf(end.el as HTMLElement) : end.el.getBoundingClientRect();
   return r.width > 0 && r.height > 0 ? transferEndPoint({x: r.left, y: r.top, w: r.width, h: r.height}, end) : undefined;
+}
+
+/** The band under the status strip as it stands (viewport px): the pending decision's card and the banner chips. */
+function bandRects(): Array<TransferRect> {
+  if (typeof document === 'undefined') {
+    return [];
+  }
+  const out: Array<TransferRect> = [];
+  for (const el of document.querySelectorAll<HTMLElement>('.con-mandatory, .con-banner')) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 1 && r.height > 1) {
+      out.push({x: r.left, y: r.top, w: r.width, h: r.height});
+    }
+  }
+  return out;
+}
+
+/** Does a token's road — the box of its two ends, grown by a token's size — touch the band? */
+function roadTouchesBand(from: TransferPoint | undefined, to: TransferPoint | undefined, band: ReadonlyArray<TransferRect>): boolean {
+  if (from === undefined || to === undefined) {
+    return false;
+  }
+  const pad = 32;
+  const box = {x: Math.min(from.x, to.x) - pad, y: Math.min(from.y, to.y) - pad, w: Math.abs(from.x - to.x) + 2 * pad, h: Math.abs(from.y - to.y) + 2 * pad};
+  return boxTouchesAny(box, band);
 }
 
 /** What is painted under a point — undefined when something real is (any element but the page and the console's bare root). */

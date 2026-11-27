@@ -1496,7 +1496,7 @@ import ConsoleJourneyRail, {
   JourneyCompactContext, JourneyItem, JourneyPhase, JourneyPresentation,
 } from '@/client/components/console/foundation/ConsoleJourneyRail.vue';
 import ConsoleStartSelectionDock from '@/client/components/console/ConsoleStartSelectionDock.vue';
-import {armDeliveryHold, runHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
+import {armDeliveryHold, deliverHeldRole, runHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {extractPlayRewards, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import type {RailReward} from '@/client/console/resourceTransfer/railReward';
 import {playRailReward, startPlaySpendReward, withRailAnswerTags} from '@/client/console/consoleActionCommit';
@@ -5274,6 +5274,11 @@ watch(() => props.playerView.waitingFor?.promptId, (): void => {
 const servesNow = computed((): StartServes => {
   if (!sceneUp.value) {
     return props.yielded ? 'yielded' : 'beat';
+  }
+  // (…and the wizard's last frames under a question of the ceremony — `card:corporationPlay · queue>wizard`, 3 ms on
+  // the box's game 2603: the materialization is the entry's beat, never «the wizard still serves».)
+  if (!props.yielded && questionEntering.value && mode.value === 'wizard' && props.playerView.waitingFor?.type !== 'initialCards') {
+    return 'beat';
   }
   return startServesOf({
     mode: mode.value,
@@ -11274,6 +11279,19 @@ watch(() => deliveryHoldSignature.value, (key: string) => {
     armDeliveryHold('bought', key, names);
   }
 }, {immediate: true});
+/**
+ * …AND PAST THE PAYMENT THE HOLD's REASON IS GONE (the box's game 2607 — `start-shadow/cure/release/game/none`,
+ * `unsettled: handDeliveryState.held`): the bought cards are withheld until the pay confirm flies them, and a payment
+ * answered while the start stood folded (B through its stages, the question taken from the plate) never ran that
+ * confirm here — the hold stood for the rest of the opening, the deployment never settled and the director released
+ * the scene by level over an empty bar. Once the pre-payment window has closed in the ceremony, a hold still standing
+ * is delivered (`deliverHeldRole` — a no-op when the confirm already flew it).
+ */
+watch(() => mode.value === 'ceremony' && ceremonyBoughtNames.value.length > 0 && !prePaymentStage.value, (paid: boolean) => {
+  if (paid) {
+    deliverHeldRole('bought');
+  }
+});
 /**
  * SELF-HEAL: the stage STANDS but the seat is EMPTY. Every enumerated
  * entry path seats the corp itself, so this fires only for the orderings

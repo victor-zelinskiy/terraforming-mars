@@ -16,7 +16,7 @@ import {resetStdProjectsFlow} from '@/client/console/consoleStdProjects';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
 import {isHandRevealEpisodeRunning} from '@/client/console/handDock/handRevealDirector';
 import {conWsPresence} from '@/client/console/conWsPresenceBridge';
-import {noteTransferTrail, surfaceClear, surfaceHoldsTokens} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {noteTransferTrail, resourceTransferState, surfaceClear, surfaceHoldsTokens} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {resetConsoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
 import {focusKicker} from '@/client/console/consoleActionFlow';
 import {boardPeekState} from '@/client/console/boardPeek';
@@ -206,7 +206,9 @@ export function createWorkspaceController(shell: WorkspacePort) {
       // because the tokens rise to the plaque through that very band (#168 — CI's game 269: a plants token «painted
       // under span.con-mandatory__glyph at the approach»). The band is a notification surface above every scene, so
       // it cannot step under the lit layer; it steps out of the column for the plaque's read instead.
-      'con-root--strip-intake': statusIntakeState.intakes.length > 0,
+      // (…and the same yield for ANY token whose road crosses the band — the box's game 2608: a sitting's plants token
+      // «painted under div.con-mandatory__ask at the approach» — measured at the token's run, `TransferFlight.crossesBand`.)
+      'con-root--strip-intake': statusIntakeState.intakes.length > 0 || resourceTransferState.flights.some((f) => f.crossesBand === true),
     };
     // The inspected player's ACCENT tokens (--con-insp-accent*) — consumed
     // by the rail ring, the workspace seam AND the hand dock's inspection

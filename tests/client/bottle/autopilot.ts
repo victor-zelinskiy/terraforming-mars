@@ -168,6 +168,8 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
   let quietSince = bottle.clock.now();
   let lastAge = -1;
   let sampledGeneration = 0;
+  /** The start's last press gave a card back (see «THE START SCENE»). */
+  let startTrimmed = false;
 
   const othersMove = async (): Promise<void> => {
     for (const seat of others) {
@@ -264,7 +266,10 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       if (standing !== undefined) {
         bump(standing.byApi ? result.byApi : result.byUi, standing.menu ? 'or:menu' : standing.type);
       }
-      const budget = asked.menu ? (g() < passAtOnce ? 0 : menuMin + Math.floor(g() * (menuMax - menuMin + 1))) : questionBudget;
+      // (The opening is the whole start — a corporation, the preludes, a buy, the summary: four steps' presses, never one
+      // question's.)
+      const budget = asked.menu ? (g() < passAtOnce ? 0 : menuMin + Math.floor(g() * (menuMax - menuMin + 1))) :
+        asked.type === 'initialCards' ? questionBudget * 4 : questionBudget;
       standing = {promptId: asked.promptId, type: asked.type, menu: asked.menu, presses: 0, budget, byApi: false};
     }
     if (standing.presses >= standing.budget) {
@@ -308,8 +313,30 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
     // 2026-11-24: the pilot browsed the Parliament's delegate stage for four questions in a row, and the door
     // answered each — a row of «where the door answered» that named a habit of the pilot, never a place of the
     // product. What the door answers after this walk is a question the HOME could not serve either.)
-    if (!standing.menu && standing.presses === Math.floor(standing.budget / 2)) {
+    if (!standing.menu && standing.type !== 'initialCards' && standing.presses === Math.floor(standing.budget / 2)) {
       await walkHome(false);
+    }
+    // THE START SCENE, WALKED AS A PLAYER WALKS IT (the browser pilot's rule — the bottle's games gave the opening to
+    // the door every time, `by the door: initialCards 1`): a card under the cursor not yet taken is taken, a taken one
+    // passed by or the step done (RT, lit), a lone verb pressed (the summary's launch, «Skip»); never LT nor B.
+    if (asked.type === 'initialCards' && /^start:/.test(bottle.frames()[bottle.frames().length - 1] ?? '')) {
+      const offered = bottle.offered();
+      const label = (key: BottleKey): string => offered.find((o) => o.key === key)?.label ?? '';
+      const nextLit = offered.some((o) => o.key === 'Period');
+      const a = label('Enter');
+      // (…a taken card with the step's RT not lit — a buy over the purse, a pick over its count: one card given back
+      // now and then, as a player trims the pile; the bottle's games picked every card and stood without an RT.)
+      // (…and a card just given back is passed by, never taken again at once: a step that wants EXACTLY two stands without
+      // its RT at one card taken as much as at all of them.)
+      const taken = /^(Unpick|Deselect|Unselect)$/.test(a);
+      // (A step's row ends — a → that does not move is answered by ← or a row away.)
+      const roll = g();
+      const move: BottleKey = roll < 0.55 ? 'ArrowRight' : roll < 0.85 ? 'ArrowLeft' : roll < 0.93 ? 'ArrowDown' : 'ArrowUp';
+      const key: BottleKey = taken ? (nextLit ? (g() < 0.6 ? 'Period' : move) : (g() < 0.2 ? 'Enter' : move)) :
+        /^(Select|Choose|Pick)$/.test(a) ? (startTrimmed ? move : 'Enter') : nextLit ? 'Period' : a !== '' ? 'Enter' : move;
+      startTrimmed = taken && key === 'Enter';
+      await press(key, pause());
+      continue;
     }
     await press(pilotPick(bottle, g, lastKey, !standing.menu && standing.presses >= Math.floor(standing.budget / 2)), pause());
   }

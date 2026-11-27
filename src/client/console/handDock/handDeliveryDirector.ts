@@ -1324,6 +1324,21 @@ export function releaseDockCards(names: ReadonlyArray<CardName>): void {
   });
 }
 
+/**
+ * THE HOLD WHOSE PRESS WENT BY ANOTHER ROAD — a role still HOLDING past the moment that was to fly it (the start's
+ * bought cards: their pay confirm answered while the start stood folded, from its plate — the box's game 2607): its
+ * OWN withheld cards are delivered now (no source rects — the intake's own fallback), never left withheld for the
+ * rest of the deal. `true` when it delivered; a no-op for an episode that is not holding (the confirm already flew it).
+ */
+export function deliverHeldRole(role: DeliveryRole): boolean {
+  const ep = episodes.get(role);
+  if (ep === undefined || ep.phase !== 'holding' || ep.held.length === 0) {
+    return false;
+  }
+  runHandDelivery(role, [...ep.held], new Map());
+  return true;
+}
+
 /** A game switch / error / stall: reconcile so the dock never sticks empty. */
 export function resetHandDelivery(): void {
   if (runs.active > 0) {

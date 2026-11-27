@@ -2745,7 +2745,20 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   (`board-of-directors-draw`) and two guards (K at tv4k, K2 at 1280×720 with B through the beat) record every frame —
   green; the CI road (the server already back on its menu when the cards were shown) is not reproduced yet. Open.
   CI red on `8f0c410589` (#51): the autopilot's table-module set spelled as a literal `['base', 'corpera'` —
-  `premiumScope.spec`'s guard; built from the table now.
+  `premiumScope.spec`'s guard; built from the table now. Closed on CI 45913287036 (`526aaa90d5`, green).
+- **`fzy` (on `6593366912`, the start's named settle in the build):** the first ten games — no door, no capped, no
+  STUCK; two defects and they SAID why:
+  - `start-shadow/cure/release/game/none` (game 2607) — `unsettled: handDeliveryState.held.length === 0`: the
+    start's bought cards are withheld from the dock until the pay confirm flies them, and the pay was answered while
+    the start stood folded (B through its stages, the question taken from the plate) — the confirm never ran here,
+    the hold stood for the rest of the opening. Past the payment the hold's reason is gone: a hold still standing is
+    delivered (`deliverHeldRole` — a no-op when the confirm flew it; spec rows).
+  - `transfer/painted-under/div.con-mandatory__ask/approach` (game 2608) — #168's sibling on the viewer's OWN token:
+    a sitting's plants token under the plate «Вернуться к заседанию», which stood over the rail's row on a 1280×720
+    screen. The band now yields for ANY token whose road crosses it (measured at the run's start —
+    `TransferFlight.crossesBand`), not only for a seat's intake.
+  - The opening's last apart state (`card:corporationPlay · queue>wizard`, 3 ms): the wizard's last frames under a
+    question of the ceremony are the entry's beat.
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read
