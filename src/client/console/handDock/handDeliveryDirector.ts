@@ -1330,12 +1330,12 @@ export function releaseDockCards(names: ReadonlyArray<CardName>): void {
  * OWN withheld cards are delivered now (no source rects — the intake's own fallback), never left withheld for the
  * rest of the deal. `true` when it delivered; a no-op for an episode that is not holding (the confirm already flew it).
  */
-export function deliverHeldRole(role: DeliveryRole): boolean {
+export function deliverHeldRole(role: DeliveryRole, sourceRects: ReadonlyMap<CardName, DOMRect> = new Map()): boolean {
   const ep = episodes.get(role);
   if (ep === undefined || ep.phase !== 'holding' || ep.held.length === 0) {
     return false;
   }
-  runHandDelivery(role, [...ep.held], new Map());
+  runHandDelivery(role, [...ep.held], sourceRects);
   return true;
 }
 

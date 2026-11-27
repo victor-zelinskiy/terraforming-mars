@@ -10333,6 +10333,10 @@ function launchStartCardsDelivery(): void {
     return;
   }
   startDeliveryNames.value = names;
+  runHandDelivery('bought', names, payGridRects());
+}
+/** The FACE-UP rects of the purchase row's cards, read now (the row unmounts as the payment resolves). */
+function payGridRects(): Map<CardName, DOMRect> {
   const grid = payGrid.value ?? undefined;
   const rects = new Map<CardName, DOMRect>();
   if (grid !== undefined && grid !== null) {
@@ -10345,7 +10349,7 @@ function launchStartCardsDelivery(): void {
       }
     }
   }
-  runHandDelivery('bought', names, rects);
+  return rects;
 }
 /**
  * The «НАСЛЕДИЕ» delivery — the mirror of `launchStartCardsDelivery`:
@@ -11324,7 +11328,10 @@ watch(() => deliveryHoldSignature.value, (key: string) => {
  */
 watch(() => mode.value === 'ceremony' && ceremonyBoughtNames.value.length > 0 && !prePaymentStage.value, (paid: boolean) => {
   if (paid) {
-    deliverHeldRole('bought');
+    // (…lifted off the purchase row while it still stands — this watcher runs before the render that unmounts it: a
+    // corporation that pays nothing for its cards (Beginner Corporation — no bill, no pay press) delivered them out of
+    // nowhere, `hand-intake:no-source` — the box's game 2907 on `1bfeff8d9a`.)
+    deliverHeldRole('bought', payGridRects());
   }
 });
 /**

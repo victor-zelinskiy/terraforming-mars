@@ -2947,6 +2947,36 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   action finished while the opening stood folded: nothing of it was left to show, and the stage's fold and the frame's
   drop are that action's end — as a pass's are (`d79bdbd45a`). Both lines skip it now; a parked opening dropped WITH its
   first action still owed stays said.
+- **The box's lanes on `1bfeff8d9a`, game 2907 (a storm game) — A CARD ACTION WHOSE ANSWER THE NETWORK LOST.** «Астероидный
+  пояс»'s action was sent, the server made the move, the answer was lost; the press unwound, the truth was fetched —
+  and the composer stood confirmable over an action the server no longer offered: fourteen 400s of «Card Main Belt
+  Asteroids not found», and a «Выполнение» beat no one ended (the beat law's 3.5 s). Reproduced (`console-card-action-
+  lost-answer` — the first submit fetched then aborted): red on the old build with the liveness arbiter tearing
+  `card-actions:executing` down at ten seconds. Two roots, one rule (availability is the server's word): the SENT mark
+  waits for an answer as the awaiting hand-off does (`onPressUnanswered` — the press no answer is coming for takes it
+  with it), and a composer whose card the live menu no longer offers — the card absent from «action of a played card»,
+  or that option gone from the menu — folds: CONCLUDED when the truth lists the card among this generation's actions
+  (the move was made, the flow is finished), else back to the grid with «Этот вариант больше не предлагается»; the
+  confirm never sends it.
+- **The opening's last short disagreement on `ebe945d353` (the box's game 2915): `or:actionMenu · game>none`,
+  16 – 20 ms.** The game's menu met a start whose first-action stage was on its way OUT — `performing` with its leave
+  due (the leave is confirmed a painted frame later), then `leaving` — and the scene read both as «nothing served».
+  The stage's own exit is its beat (`stageTransit`).
+- **The box's lanes on `ebe945d353`, game 2917 (a campaign duo) — A LATE FIRST ACTION's PICK MARKED AS THE START's.**
+  Valley Trust's «draw 3 preludes, play one» taken in a later generation: the server marked the pick
+  `startGamePrompt: preludeSelection` (`PreludesExpansion.inStartSequence` read any `corporation-action` root as the
+  opening), the console has no start scene past generation 1 (`[start] scene kind outside generation 1` ×141), and the
+  question stood stranded until the door answered it. The first action is the start's only in generation 1; later its
+  pick is the mid-game one (`deckPickPrompt` mode `play`). Unit-tested on Valley Trust.
+- **`net-ended/hand-intake:no-source` once more (the box's game 2907, `1bfeff8d9a`) — A CORPORATION WITH NO BILL.**
+  Beginner Corporation pays nothing for its cards: no pay press, so the delivery that lifts the bought cards off the
+  purchase row never ran, and the fallback for «the hold's press went by another road» (`deliverHeldRole`) delivered
+  them with no source. The fallback now lifts them off the row as well — read before the render that unmounts it.
+- **Two pilot gaps.** CI's game 497 on `1c0976df77` — a whole table STUCK ten minutes: the harness's second human was
+  asked the Venus track bonus (`GainResources` — six dials, the SUM exactly N) and answered every dial at its minimum;
+  the seeder now puts N on the first. CI's bottle on `ea409111c3`, games 2 and 18 — the door answered the sitting's
+  «К драфту»: past the commit, no A while the renewal played, the presses spent the question's budget before the A
+  rose; a press over a committed frame offering neither A nor RT is a player WAITING, counted apart (bounded).
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read
