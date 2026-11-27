@@ -118,5 +118,18 @@ describe('ProductiveOutpost', () => {
       [ColonyName.TITAN, 1, 'card'],
     ]);
     expect(branch.steps.filter((s) => s.kind === 'input'), 'Titan\'s target is collected before the confirm').has.length(1);
+    expect(branch.steps.some((s) => s.kind === 'note' && s.noteKind === 'warning'), 'colonies stand — nothing is skipped').is.false;
+  });
+
+  it('with no colony at all the sheet NAMES the empty payout — never a mute fallback (the box\'s game 2805)', () => {
+    const card = new ProductiveOutpost();
+    const [game, player] = testGame(2, {coloniesExtension: true});
+    game.colonies = [new Titan(), new Luna()];
+
+    const branch = card.cardPlayPreview(player).branches[0];
+    expect(branch.effects).is.empty;
+    const warning = branch.steps.find((s) => s.kind === 'note' && s.noteKind === 'warning');
+    expect(warning, 'the skipped payout is named').is.not.undefined;
+    expect(warning?.kind === 'note' ? warning.skipped?.label : undefined).eq('Gain all your colony bonuses');
   });
 });

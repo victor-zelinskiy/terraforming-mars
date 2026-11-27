@@ -371,5 +371,11 @@ export function allColonyBonusesEffects(player: IPlayer, options: AllColonyBonus
   if (hasInteractiveBonus) {
     steps.push(actionPreviews.noteStep('generic', 'Some colony bonuses are resolved after confirming.'));
   }
+  // NO COLONY, NO BONUS — said, never a mute sheet (invariant 4): with not one cube on the table the payout is
+  // empty, and the play sheet had nothing to state but its fallback (the box's autopilot, game 2805 — «no computable
+  // preview for Productive Outpost», a line of the log in a clear game).
+  if (payoutOrder(game, player).length === 0) {
+    steps.push(actionPreviews.warningNote('You have no colonies', {skipped: {label: 'Gain all your colony bonuses'}}));
+  }
   return {effects, steps};
 }
