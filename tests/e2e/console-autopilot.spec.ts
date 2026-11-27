@@ -338,6 +338,8 @@ type Screen = {
   dock: {focused: boolean} | undefined,
   /** A budget composite's coverage meter (`[data-prompt-meter]` — «ПОКРЫТО done / of»), when one stands. */
   meter: {done: number, of: number} | undefined,
+  /** The rows of a lanes plate (`.con-lanes__row`), as a player reads them: what each holds, its cap, what it pays, the focus. */
+  lanes: Array<{value: number, max: number, pays: number, focused: boolean}>,
   /** The card under the cursor of a pick is already TAKEN (the hand's «✓», a slot's band) — or the pick refuses it. */
   focusTaken: boolean,
   /** The system alert stands (`.con-alert` — a refused / failed press, the server out of reach): its title. */
@@ -501,6 +503,12 @@ async function look(page: Page): Promise<Screen> {
         const of = Number(/(\d+)/.exec(el?.querySelector('.con-prompt-outcome__meter-of')?.textContent ?? '')?.[1] ?? 'NaN');
         return el === null || Number.isNaN(done) || Number.isNaN(of) ? undefined : {done, of};
       })(),
+      lanes: [...document.querySelectorAll('.con-lanes .con-lanes__row')].map((row) => ({
+        value: Number(row.querySelector('.con-lanes__value')?.textContent ?? 'NaN'),
+        max: Number(/(\d+)/.exec(row.querySelector('.con-lanes__of')?.textContent ?? '')?.[1] ?? 'NaN'),
+        pays: Number(/(\d+)/.exec(row.querySelector('.con-lanes__pays')?.textContent ?? '')?.[1] ?? 'NaN'),
+        focused: row.classList.contains('con-lanes__row--focused'),
+      })).filter((row) => !Number.isNaN(row.value) && !Number.isNaN(row.max)),
       quick: document.querySelector('.con-quick') !== null,
       pass: document.querySelector('.con-quick [data-quick-id="pass"]') !== null,
       confirm: document.querySelector('.con-confirm') !== null,
@@ -909,6 +917,8 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     still: number, lastStood: string,
     /** Looks in a row in a side screen while the one function names the question held by its plate or set aside. */
     heldAway: number,
+    /** How many times a prelude's «Разыграть без эффекта» confirm stood before the pilot (see «A PRELUDE PLAYED WITHOUT ITS EFFECT»). */
+    noEffect?: number,
     /** The question was COLLAPSED once past its commit (see «THE INTERRUPTION») — once a question is enough. */
     collapsed: boolean,
     /** Its shape (`questionShape`) — summed when it is answered. */
@@ -1436,6 +1446,29 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       // doors, A and ↓ pressed where a unit is added by RB.)
       const roll = g();
       const steps = seen.offered.some((o) => o.key === 'KeyE') || seen.greyed.includes('KeyE');
+      // …AND IT READS THE ROWS, as a player lays a bill out (CI's autopilot on `4d74b4f9a0`, game 546 — «Select how to
+      // spend 8 heat», the heat row and a floater row worth 2: the walk above stood 7 ↔ 9 until the door answered). Over
+      // the bill by k: a unit off the row whose unit is k, else off the smallest. Short of it: a unit where it fits (a
+      // unit no larger than what is owed, or a row not yet read), else onto any row with room — then the overshoot comes
+      // back off the smallest. The cursor walks to the row first (↓ / ↑ along the rows).
+      const rows = seen.lanes;
+      const at = rows.findIndex((r) => r.focused);
+      if (steps && !seen.offered.some((o) => o.key === 'KeyX') && rows.length > 0 && at >= 0 && seen.meter.done !== seen.meter.of) {
+        const unitOf = (r: {value: number, pays: number}): number | undefined => (r.value > 0 && !Number.isNaN(r.pays) ? r.pays / r.value : undefined);
+        const over = seen.meter.done - seen.meter.of;
+        let target = -1;
+        if (over > 0) {
+          const held = rows.map((r, i) => ({i, u: unitOf(r)})).filter((x): x is {i: number, u: number} => x.u !== undefined);
+          target = (held.find((x) => x.u === over) ?? [...held].sort((a, b) => a.u - b.u)[0])?.i ?? -1;
+        } else {
+          const room = rows.map((r, i) => ({i, r, u: unitOf(r)})).filter((x) => x.r.value < x.r.max);
+          target = (room.find((x) => x.u !== undefined && x.u <= -over) ?? room.find((x) => x.u === undefined) ?? room[0])?.i ?? -1;
+        }
+        if (target >= 0) {
+          await press(target === at ? (over > 0 ? 'KeyQ' : 'KeyE') : target > at ? 'ArrowDown' : 'ArrowUp', pause());
+          continue;
+        }
+      }
       const key = seen.offered.some((o) => o.key === 'KeyX') ? 'KeyX' :
         !dial && steps ? (seen.meter.done > seen.meter.of ? (roll < 0.7 ? 'KeyQ' : 'ArrowDown') : roll < 0.6 ? 'KeyE' : roll < 0.9 ? 'ArrowDown' : 'KeyQ') :
           !dial ? (roll < 0.5 ? 'Enter' : 'ArrowDown') :
@@ -1523,6 +1556,25 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       const key = seen.offered.some((o) => o.key === 'Period') ? 'Period' :
         !seen.focusTaken ? 'Enter' : (['ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowLeft'] as const)[standing.presses % 4];
       await press(key, pause());
+      continue;
+    }
+    // THE TAG FILTER OVER A PICK OF CARDS (CI's autopilot on `4d74b4f9a0`, game 582 — the door on the corporation's
+    // «discard 3 of 5»): the pilot's ▲ reached the hand's chip row and its A applied a tag, the album showed only cards
+    // already taken, and the pick's → → ↓ ← walk never found the third. A player who is choosing among ALL their cards
+    // puts «Все» back: on the chip row of a question of cards, ◄ to «Все» and A.
+    if (PILOT >= 3 && wf.type === 'card' && seen.look === '' && !seen.zoom && !seen.quick && seen.bar.includes('Применить фильтр')) {
+      const onAll = await page.evaluate(() => document.querySelector('.con-hand__filter--focused')?.getAttribute('data-hand-filter') === 'all');
+      await press(onAll ? 'Enter' : 'ArrowLeft', pause());
+      continue;
+    }
+    // A PRELUDE PLAYED WITHOUT ITS EFFECT (CI's autopilot on `4d74b4f9a0`, game 582 — the door on «Select prelude card to
+    // play»): A on a prelude whose effect cannot happen asks once more — «A Разыграть без эффекта · B Вернуться к выбору».
+    // The single pick's A / → cycle walked off that confirm every time. A player looks at the other card once or twice,
+    // then plays one without its effect: the confirm's A, after the first look at it.
+    if (PILOT >= 3 && wf.type === 'card' && seen.look === '' && !seen.zoom && !seen.quick && seen.offered.some((o) => o.key === 'Enter') &&
+        seen.bar.includes('Разыграть без эффекта')) {
+      standing.noEffect = (standing.noEffect ?? 0) + 1;
+      await press(standing.noEffect >= 2 || g() < 0.5 ? 'Enter' : 'ArrowRight', pause());
       continue;
     }
     // …AND A SINGLE PICK THAT COMMITS BY A («Выбрать» on the focused card — the table's answer to the Career's step, a

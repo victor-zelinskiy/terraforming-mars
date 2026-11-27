@@ -227,12 +227,25 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       await press(offers('Escape') || !offers('KeyY') ? 'Escape' : 'KeyY', 600);
     }
   };
-  const passByWheel = async (promptId: number | undefined): Promise<boolean> => {
+  const passByWheel = async (promptId: number | undefined): Promise<boolean | 'resumed'> => {
     for (let attempt = 0; attempt < 3; attempt++) {
       await walkHome(true);
       if (!sees('.con-quick [data-quick-id="pass"]')) {
         await press('Comma', 400);
         await bottle.until(() => sees('.con-quick [data-quick-id="pass"]'), 1_500, 100);
+      }
+      // THE PASS IS NOT OPEN YET — an action of the player's own stands unfinished (CI's bottle on `4d74b4f9a0`, game
+      // 558: the opening minimized with Industrialists Campaign's rally still owed to it, the wheel's slots «Finish your
+      // current action first»; the gesture could not land and the door passed). A player closes the wheel and goes back
+      // to what is unfinished: the home's plate, its A.
+      if (sees('.con-quick [data-quick-id="pass"].con-quick__slot--disabled')) {
+        await press('Escape', 400);
+        await walkHome(false);
+        if (bottle.offered().some((o) => o.key === 'Enter')) {
+          await press('Enter', 800);
+          return 'resumed';
+        }
+        return false;
       }
       await press('ArrowDown', 400);
       await bottle.until(() => sees('.con-confirm'), 1_500, 100);
@@ -327,6 +340,12 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
         // THE TURN ENDS: by the wheel — and through the door when the gesture did not land (counted apart).
         const stood = standsNow();
         const landed = await passByWheel(asked.promptId);
+        if (landed === 'resumed') {
+          // (…back into the unfinished action: the turn's question stands again, with a fresh budget, once it is done.)
+          result.log.push('[WAY-BACK]');
+          standing = undefined;
+          continue;
+        }
         if (!landed) {
           options.onDoor?.(`pass · gen ${truth.generation}`, result.log.slice(-30));
         }

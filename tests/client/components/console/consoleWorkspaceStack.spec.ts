@@ -1360,6 +1360,19 @@ describe('a frame lives only while its anchor holds — in every home, at every 
     expect(dropped).deep.eq(['aside:parliament']);
   });
 
+  it('A PARK IS NEVER OVERWRITTEN IN SILENCE: a second collapse beside a parked opening announces what it replaces (CI\'s bottle, game 558)', () => {
+    enterWorkspace('start', {anchor: {type: 'phase', phase: 'start'}});
+    collapseWorkspaceStack();
+    expect(workspaceStackState.parked.map((f) => f.kind), 'the opening minimized').deep.eq(['start']);
+    // A sitting stands up beside the park and is minimized in turn: the park is the sitting's now — and the opening it
+    // replaced goes through the ONE announced drop (its owners let go of what they held), never with no word.
+    enterWorkspace('parliament', {anchor: SITTING});
+    setWorkspaceFramePhase('parliament', 'committed');
+    collapseWorkspaceStack();
+    expect(workspaceStackState.parked.map((f) => f.kind)).deep.eq(['parliament']);
+    expect(dropped).deep.eq(['parked:start']);
+  });
+
   it('ONE INSTANCE OF A KIND: a door into the kind standing aside for the board is refused — never a second instance beside it (CI #138)', () => {
     enterWorkspace('parliament', {anchor: SITTING});
     setWorkspaceFramePhase('parliament', 'committed');

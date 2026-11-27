@@ -2125,6 +2125,16 @@ export function collapseWorkspaceStack(): void {
   }
   // MOVED, not flagged — the live stack is now free for wherever the player
   // wants to go, and the parked one cannot be destroyed by going there.
+  // …AND A PARK ALREADY STANDING IS NOT OVERWRITTEN IN SILENCE (CI's bottle on `4d74b4f9a0`, game 558): the opening
+  // minimized in generation 1, a sitting stood up beside it and was minimized in turn — the splice replaced the park,
+  // the start's frame left both stacks with no word, and its scene's lifetime hold (let go by the scene's own release
+  // beat, or by the drop listener) stood to generation 18, the foreground claimed busy with nothing rendered. The
+  // frames the new park replaces go through the ONE announced drop: their owners let go of what they held.
+  const replaced = workspaceStackState.parked.splice(0);
+  if (replaced.length > 0) {
+    traceVerb('collapse-replaces-park ' + replaced.map((f) => f.kind).join(','));
+    anchorDropListener?.({home: 'parked', kinds: replaced.map((f) => f.kind)});
+  }
   workspaceStackState.parked.splice(0, workspaceStackState.parked.length,
     ...workspaceStackState.frames.splice(0));
   syncFrameLifetimes();

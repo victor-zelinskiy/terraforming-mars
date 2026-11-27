@@ -23,7 +23,7 @@ import {startPreludeGrantOf} from '@/client/console/parliament/hostedParliamentS
 import {buildEffectDecision, declineModelOf, EffectDecisionAction, EffectDecisionSource, EffectDecisionViewModel, nextStageKeyOf} from '@/client/console/effectDecision/effectDecisionModel';
 import type {DeclineModel} from '@/client/console/optionalChoice';
 import {decisionPromptStamp, effectDecisionState, markDecisionPickAnswered, resetDecisionFocus} from '@/client/console/effectDecision/effectDecisionState';
-import {enterWorkspace, FrameAnchor, frameServing, goBoardHome, hostCarriesPlayersLook, pushWorkspaceFrame, pushWouldNestInItself, questionSetAside, setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, stackYieldedToBoard, workspaceFrameHost, WorkspaceFrameKind, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameSubject, workspaceHostForStep, workspaceStackAwaitsZone, workspaceStackState, workspaceStackTop, yieldedStackCards, yieldedStackServes} from '@/client/console/consoleWorkspaceStack';
+import {enterWorkspace, FrameAnchor, frameServing, goBoardHome, hostCarriesPlayersLook, pushWorkspaceFrame, pushWouldNestInItself, questionSetAside, setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, stackYieldedToBoard, workspaceFrameHost, WorkspaceFrameKind, workspaceFrameKnown, workspaceFrameMounted, workspaceFrameParked, workspaceFramePhase, workspaceFrameSubject, workspaceHostForStep, workspaceStackAwaitsZone, workspaceStackState, workspaceStackTop, yieldedStackCards, yieldedStackServes} from '@/client/console/consoleWorkspaceStack';
 import {isCommitted, isReversible} from '@/client/console/consoleWorkspaceFlow';
 import {cardDiscardTransaction} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {colonyBonusCollectOf, colonyBonusDiscardOf} from '@/client/console/colonyTrade/colonyResolution';
@@ -217,8 +217,12 @@ export function createRouterController(shell: RouterPort) {
     if (consoleState.task.deferred || taskHeldForWorkspace.value) {
       return false;
     }
+    // (…a START the player PARKED presents nothing — its scene is unmounted, the board home's plate is its way back.
+    // It may still SERVE (its scene's lifetime hold kept by a story owed to it — Industrialists Campaign's rally, CI's
+    // bottle on `4d74b4f9a0`, game 558: the opening minimized in generation 1, the hold standing to generation 18), and
+    // holding the lease for it was a foreground claimed busy with nothing rendered, expired by the watchdog.)
     return (hostTask.value !== undefined && shell.taskSpacePending === undefined) ||
-      shell.startSceneServes ||
+      (shell.startSceneServes && !workspaceFrameParked('start')) ||
       shell.govSupportActive ||
       (compositeSurfaceActive.value && !shell.deckPickHeldForWorkspace);
   });

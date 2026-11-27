@@ -1,18 +1,10 @@
 {
  "note": "THE KERNEL'S STATE SPACE THAT NO WHOLE GAME OF THE AUTOPILOT WALKS — each key with the reason the pilot may leave it unwalked ('' = nobody has said yet: the debt of stage 6). Rewritten by `node scripts/kernel-walked.mjs <autopilot passes…> --ledger=autopilot --write`. FREEZE ZERO, stage 6.",
  "flows": {
-  "scene:colony-track-raise": "",
-  "scene:hold:nomad-move-remote": "",
-  "scene:hold:parliament-support-discard": "",
   "scene:hold:screen-control-owed": "A TEST SWITCH — opened only behind a URL switch of the e2e (`?screenControl=1 — console-parliament-into-draft`); no game of the product reaches it.",
   "scene:hold:wait-graph-control:still": "A TEST SWITCH — opened only behind a URL switch of the e2e (`?waitGraphControl=strand — console-wait-graph-dead-end`); no game of the product reaches it.",
-  "scene:nomad-move-remote": "",
-  "scene:played-card-return": "",
-  "scene:played-card-return:flights": "",
   "step:colony-resolution-release-owed": "FAILURE PATH — raised only when the release of a colony resolution's outcome is REFUSED at the resolution's end (`releaseWorkspaceOutcome('resolution-end')`).",
   "step:law-play-fold": "DEAD BY READING, ONE RACE UNPROVEN (2026-11-25) — the fold is raised only where an awaiting handoff resolves with the law's card landing and NO claim in the frame; the direct commit places its claim before the emit (`claimLawPlayOutcome`), and the staged door begins no awaiting handoff. Left in place as the guard of the one unproven race (a claim released mid round-trip): without it the workspace would fold under a landing card. To walk: a unit of `resolveAnsweredCommit` with the claim released by hand.",
-  "step:owed:scale-swing:quiet": "",
-  "story:scale-swing": "",
   "surface:card-album": "CAMPAIGN INTERLUDE ONLY — its one host is the carryover picker (`ConsoleCarryoverPicker.vue`).",
   "surface:card-annotations-layer": "POINTER ONLY — armed by a pointer hover or a click (the journal chips: `console-journal-chips` walks them); the pilot plays by the pad, as the console player does.",
   "surface:card-list": "NOT A GAME's SCREEN — the card catalogue (`/cards`, `CardList.vue` — its hash-sync timer on mount); no road from a game reaches it.",
@@ -30,7 +22,6 @@
   "surface:played-controller": "DEAD BY READING (2026-11-25) — the played hero's `overlay` host: every entry point of a play resolves to the `workspace` host (a prelude of the start, a deck pick, the staged ritual — hard-coded; the hand's play — the hand frame is always descended and «Разыграно» cannot stand open under a composer; the law's play — the card-actions frame is mounted and the bill is set). The scope's one wait is the departing-card safety of `lifting` under a non-workspace host. Leaves with the `overlay` host: a refactor of `consolePlayedHero` / `ConsolePlayedOverlay`'s hero half, not a deletion of a file.",
   "surface:played-overlay": "DEAD BY READING (2026-11-25) — the same `overlay` host as `surface:played-controller`: the overlay's hero frame is measured only for `heroIncoming`, which only an overlay-hosted play raises.",
   "surface:player-cube-playground": "A DEV PLAYGROUND — a route of its own (`the player cube playground`), never a screen of a game.",
-  "surface:rematch-layer": "",
   "surface:turn-handoff-layer": "NOT A PAD'S ACT — it waits only on a window RESIZE (`TurnHandoffLayer.vue` — the 120 ms reposition debounce); a console's window does not change size in a game."
  },
  "frames": {},

@@ -43,7 +43,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentAdvanceModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {AgendaAdvanceStep} from '@/common/parliament/ParliamentTypes';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {workspaceFrameDescended, workspaceFrameHost, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
+import {workspaceFrameDescended, workspaceFrameHost, workspaceFrameKnown, workspaceFrameParked} from '@/client/console/consoleWorkspaceStack';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {verifyRailReward} from '@/client/console/resourceTransfer/railReward';
 import {parliamentHolds} from './parliamentDisplayHolds';
@@ -453,10 +453,14 @@ registerWaitSource('flow:walk', () => {
     return [];
   }
   const take = flow.live && agendaCardInPlayersHands();
+  // (…and while the walk's host is PARKED by the player, not yet opened — the rally's own case, `flow:rally`: the walk
+  // opens when the player brings the host back by its plate, a player's wait with no bound.)
+  const aside = !flow.live && workspaceFrameParked(flow.owed.host);
   return [{
     id: `flow:walk#${flow.owed.seq}`, family: 'flow', owner: `agendaWalk:${flow.owed.host}`,
     targets: [take ? {kind: 'player', what: 'the card of the walk\'s step is taken', accepts: true} :
-      {kind: 'motion', what: flow.live ? `the walk (${flow.beat})` : `the ${flow.owed.host} opens the walk`}],
-    ...(take ? {} : {boundMs: flow.live ? 40_000 : 12_000}),
+      aside ? {kind: 'player', what: `the ${flow.owed.host} comes back from the park (its plate)`} :
+        {kind: 'motion', what: flow.live ? `the walk (${flow.beat})` : `the ${flow.owed.host} opens the walk`}],
+    ...(take || aside ? {} : {boundMs: flow.live ? 40_000 : 12_000}),
   }];
 });

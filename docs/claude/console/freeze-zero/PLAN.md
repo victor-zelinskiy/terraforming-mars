@@ -3097,6 +3097,31 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   in every mode: it is kept like A and B now (`priority: 0` at its one definition — `consoleTaskHost.spec`, RED without,
   GREEN with), and the bottle's pilot lays a distribution out as the browser's does. Replayed: games 7 and 13 to the
   final scoring, three `resources` answered on the screen, no door.
+- **CI's AUTOPILOT ON `4d74b4f9a0` (games 537–584): the browser 48 of 48 to the final scoring, 0 defects, gate pass —
+  game 539 clean; the bottle's game 558, two NEW classes, one episode read to its root** (the bottle is deterministic on
+  the CI commit, replayed with a diag in the watchdog's own line). Industrialists Campaign played in the start, the
+  opening minimized over its placements with the campaign's neutral RALLY owed to it; the pass could not land («Finish
+  your current action first»), the door passed. ① `wait-graph/overdue/flow:rally` — the graph bounded «the start opens
+  the rally pose» at 12 s over a host the PLAYER had parked: a story owed to a parked host is the player's wait now
+  (its way back is the plate), no bound — the walk's node the same (`flow:rally` · `flow:walk`). ② the start's scene hold
+  stood to generation 18 (`startStandsBy: hold`) and held the foreground's mandatory lease with nothing rendered — the
+  start frame had left BOTH stacks: the sitting stood up beside the parked opening and was minimized in turn, and
+  `collapseWorkspaceStack` REPLACED the park in silence (the scene's hold is let go by its release beat or by the drop
+  listener — neither ran). A park is never overwritten in silence now: what a collapse replaces goes through the one
+  announced drop (`consoleWorkspaceStack.spec`, RED without, GREEN with), and a PARKED start holds no mandatory lease.
+  The original road replayed with the cures: no line at all. The pilots: the bottle's pass whose slot is grey goes back
+  to the unfinished action by the home's plate (`[WAY-BACK]`); the browser's — a prelude without its effect («A
+  Разыграть без эффекта» — game 582's door), «Все» back on the hand's chip row over a pick of cards (582's discard of 3
+  of 5 under a tag filter), and a lanes plate laid out by its rows (546's «8 heat» with floaters worth 2 — the random
+  walk stood 7 ↔ 9).
+- **THE AUTOPILOT's LEDGER AT ZERO (stage 6, 2026-11-27 evening).** Over 223 passes (the box's lanes, CI's browser and
+  bottle, the scenario runs): flows 252 of 274 opened, frames 13 of 13, every key never walked declared with its reason —
+  the debt 0. The last keys walked by the new roads: Early Colonization's raise, Astra Mechanica's return, the remote
+  nomads, the scale swing, the support discard, and the declined rematch (`[REMATCH-DECLINED]`, the box's game 11).
+- **The full e2e on `4b2f0ed5b1`: 180 of 181 in its shard, `console-parliament-colonial` red 3/3 in the shard's tail**
+  (the sitting at `reward` with the discard's hand frame standing after the API's answers) — green on the box on that
+  product and on the head, under ×4 too, and green 3/3 in a CI hunt of the head alone (46038004219). Watched on the next
+  full run.
 - **A UNIT SPEC THAT SLEPT THE MOTION's SUM** (`consoleCarryoverPicker.spec`, the full client suite on a loaded laptop:
   `expected 'list' to equal 'album'`): fixed sleeps of 650 / 1500 / 3200 ms read the stage half-way. It waits for the
   STATE now (the stage, the picker's own `stageMoving`, the sheet's phase) under a ceiling that only says «never came».

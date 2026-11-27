@@ -40,7 +40,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentModel, ParliamentRallyModel, ParliamentRallySupportModel, ParliamentRallyVoteModel} from '@/common/models/ParliamentModel';
 import {ReduxParty, ResolutionInstanceId} from '@/common/parliament/ParliamentTypes';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {workspaceFrameDescended, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
+import {workspaceFrameDescended, workspaceFrameKnown, workspaceFrameParked} from '@/client/console/consoleWorkspaceStack';
 import {releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
 import {parliamentHolds} from './parliamentDisplayHolds';
 import {registerWaitSource} from '@/client/console/waitGraph/waitGraph';
@@ -428,15 +428,21 @@ export function neutralRallyLiveIn(host: NeutralRallyHost): boolean {
 /**
  * THE RALLY AS A WAIT (the wait graph, Э4 — a flow declares its own run): owed and not yet opened, the host owes it its
  * pose (bounded — an owed record no host opens is the R9 orphan); playing, it is its own motion (its hold's ceiling).
+ * …EXCEPT WHILE ITS HOST IS PARKED BY THE PLAYER («Свернуть» — CI's bottle on `4d74b4f9a0`, game 558: Industrialists
+ * Campaign played in the start, the start minimized over the opening's placements, and at twelve seconds the graph filed
+ * `wait-graph/overdue/flow:rally` over a host the player had set aside): the pose opens when the player brings the host
+ * back by its plate — the player's wait, and a player's wait has no bound (the conclusion's `owed-step` keeps it owed).
  */
 registerWaitSource('flow:rally', () => {
   const flow = neutralRallyFlow;
   if (flow.owed === undefined || flow.beat === 'done') {
     return [];
   }
+  const aside = !flow.live && workspaceFrameParked(flow.owed.host);
   return [{
     id: `flow:rally#${flow.owed.seq}`, family: 'flow', owner: `neutralRally:${flow.owed.host}`,
-    targets: [{kind: 'motion', what: flow.live ? `the rally pose (${flow.beat})` : `the ${flow.owed.host} opens the rally pose`}],
-    boundMs: flow.live ? 40_000 : 12_000, detail: flow.queued.length > 0 ? `${flow.queued.length} queued` : undefined,
+    targets: [aside ? {kind: 'player', what: `the ${flow.owed.host} comes back from the park (its plate)`} :
+      {kind: 'motion', what: flow.live ? `the rally pose (${flow.beat})` : `the ${flow.owed.host} opens the rally pose`}],
+    ...(aside ? {} : {boundMs: flow.live ? 40_000 : 12_000}), detail: flow.queued.length > 0 ? `${flow.queued.length} queued` : undefined,
   }];
 });
