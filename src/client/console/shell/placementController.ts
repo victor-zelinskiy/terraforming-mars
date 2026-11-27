@@ -77,6 +77,7 @@ import type {SeatController} from '@/client/console/shell/seatController';
 import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 import {questionScope} from '@/client/console/session/questionScope';
 import {setQuestionAside, takeUpQuestion} from '@/client/console/setAside';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 /** The shared hold-to-confirm key of the finale's irreversible stop (PL-296). */
 const FINALE_FINISH_HOLD = 'final-greenery-finish';
@@ -159,6 +160,8 @@ export function createPlacementController(shell: PlacementPort) {
    *  without this the screen re-mounts the instant the pick is released and
    *  BLINKS over the greenery's landing animation. */
   const finalGreeneryCommitting = scopedState('final-greenery-committing', false);
+  /** The nested space pick on the wire (its pick, whether the finale's, the question it answered) — the unwind's. */
+  let taskSpaceCommit: {pending: {index: number, spacePrompt: PlayerInputModel}, finale: boolean, promptId: number | undefined} | undefined;
 
   // ── derived ──────────────────────────────────────────────────────────────────────────────────────────────────────
   /** The tile-placement hero owns the foreground (reactive twin of
@@ -1108,6 +1111,8 @@ export function createPlacementController(shell: PlacementPort) {
     if (pending === undefined) {
       return;
     }
+    // (…kept for the press's unwind — a refused or lost commit puts the pick back out, see `task-space-commit`.)
+    taskSpaceCommit = {pending, finale: finalGreeneryPickPending.value, promptId: shell.playerView.waitingFor?.promptId};
     // Committed: hold the finale down until the answer lands (and the
     // placement hero has taken the foreground).
     finalGreeneryCommitting.value = finalGreeneryPickPending.value;
@@ -1557,12 +1562,35 @@ export function createPlacementController(shell: PlacementPort) {
    * landed» and «the hero holds the foreground» is exactly the frame the screen used to blink in.
    */
   function releaseFinaleCommitAfterAnswer(): void {
+    // (An answer applied: the commit the unwind kept is over, whatever it was.)
+    if (taskSpaceCommit !== undefined && shell.playerView.waitingFor?.promptId !== taskSpaceCommit.promptId) {
+      taskSpaceCommit = undefined;
+    }
     if (finalGreeneryCommitting.value) {
       void nextTick(() => {
         finalGreeneryCommitting.value = false;
       });
     }
   }
+
+  /**
+   * A NESTED SPACE PICK WHOSE COMMIT DID NOT LAND (CI's autopilot on `6593366912`, game 303 — the weather's 503 on a
+   * final greenery's cell): the commit dropped the pick (`taskSpacePending`) and held the finale down
+   * (`finalGreeneryCommitting`) until an answer that never came — the server still asked its `or`, nothing served it,
+   * the liveness ladder spent itself over a stranded question. The refused press puts the pick back out on the same
+   * question: the board re-enters its placement, the finale its pick (no-op when no such commit was in flight, or the
+   * question has moved on).
+   */
+  onPressUnlanded('task-space-commit', () => {
+    const commit = taskSpaceCommit;
+    taskSpaceCommit = undefined;
+    if (commit === undefined || shell.playerView.waitingFor?.promptId !== commit.promptId) {
+      return;
+    }
+    finalGreeneryCommitting.value = false;
+    finalGreeneryPickPending.value = commit.finale;
+    taskSpacePending.value = commit.pending;
+  }, 145);
 
   return {
     releaseFinaleCommitAfterAnswer,

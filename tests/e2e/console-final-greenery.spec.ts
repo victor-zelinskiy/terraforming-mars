@@ -234,5 +234,41 @@ for (const profile of PROFILES) {
       }
       await shoot(page, shots, '04-finished');
     });
+
+    /*
+     * THE WEATHER's FINDING (CI's autopilot on `6593366912`, game 303 — a LIVENESS STALL, `stranded: or`, `task:
+     * choice`, the transfer guard red): the final greenery's placement submitted, the server answered 503 («the
+     * server is restarting»), the alert said so — and the finale's own question (place a greenery · finish) stood
+     * with no surface serving it: the board out of placement, the bar only «RT Завершить» and «B», the ladder spent.
+     * A refused press keeps its question's screen: past the alert, the finale's placement stands again and takes the
+     * next greenery.
+     */
+    test('a greenery whose submit the server answers 503: the alert, then the finale\'s placement stands again and places', async ({page, request}) => {
+      const ids = await fixtureTable(request);
+      await driveToViewerFinale(request, ids);
+      await openConsole(page, ids[0], profile.query);
+      await openFinaleOnBoard(page);
+      expect(await onBoardPick(page), 'the board is in placement with the finale block').toBe(true);
+      let refused = 0;
+      await page.route(/\/player\/input(-batch)?\?/, async (route) => {
+        if (refused === 0 && route.request().method() === 'POST') {
+          refused++;
+          await route.fulfill({status: 503, contentType: 'text/plain', body: 'Service Unavailable'});
+          return;
+        }
+        await route.continue();
+      });
+      // The pick, the confirm — the submit meets the 503.
+      await page.keyboard.press('Enter');
+      await cinematicBeat(page, 420, 'the two-phase pick: the confirm must land PAST the 280 ms lock dwell');
+      await page.keyboard.press('Enter');
+      await expect.poll(() => refused, {timeout: 15_000, message: 'the submit met the 503'}).toBe(1);
+      await expect(page.locator('.con-alert'), 'the alert says so').toBeVisible({timeout: 15_000});
+      await press(page, 'Enter', 600);
+      await expect(page.locator('.con-alert')).toHaveCount(0, {timeout: 10_000});
+      await waitWithFrames(page, async () => (await finaleStage(page)) === 'pick' && await onBoardPick(page),
+        20_000, 'the finale placement stands again after the refused press');
+      expect(await placeFinaleGreenery(page, request, ids[0]), 'and the next greenery is placed through the board').toBe(true);
+    });
   });
 }

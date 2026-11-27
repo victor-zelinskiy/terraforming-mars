@@ -2759,6 +2759,14 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
     `TransferFlight.crossesBand`), not only for a seat's intake.
   - The opening's last apart state (`card:corporationPlay · queue>wizard`, 3 ms): the wizard's last frames under a
     question of the ceremony are the entry's beat.
+- **CI's autopilot on `6593366912` (45911869971) — THE WEATHER FOUND A STALL**: game 303, the final greenery's cell
+  submitted, the server answered 503, the alert said so — and the finale's own `or` stood with nothing serving it
+  (`stranded: or`, the board out of placement, the bar only «RT Завершить» / «B», the ladder spent; a token born under
+  the stranded backdrop). The commit had dropped the pick (`taskSpacePending`) and held the finale down
+  (`finalGreeneryCommitting`) for an answer that never came. Reproduced deterministically
+  (`console-final-greenery.spec` — a 503 on the first submit: red without the fix, the STALL), fixed by a press unwind
+  (`task-space-commit`, place 145): a refused or lost nested-space commit puts the pick back out on the same question —
+  the board re-enters its placement, the finale its pick (green twice; the placement/finale family green).
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read
