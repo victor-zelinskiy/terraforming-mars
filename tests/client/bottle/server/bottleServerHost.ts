@@ -40,7 +40,7 @@ import {Server} from '../../../../src/server/models/ServerModel';
 import {TestPlayer} from '../../../TestPlayer';
 import {fuzzConfig} from '../../../fuzz/engineFuzz';
 import {DEFAULT_KNOBS, NoLegalAnswer, randomAnswer} from '../../../fuzz/randomAnswer';
-import {dealFor, modulesOfOptions} from '../../../testing/autopilotDeal';
+import {dealFor, modulesOfOptions, DealSource} from '../../../testing/autopilotDeal';
 
 /** What the client side reads of a booted table — plain data only (nothing of the engine crosses). */
 export type BottleTable = {
@@ -305,7 +305,7 @@ export async function otherSeatMoves(playerId: string): Promise<{did: string, an
  * console has no surface for that question at all («expected draft, on screen nothing» — a stranded prompt the
  * arbiter cured every few seconds), and every class they named was a class of a table no player can sit at.
  */
-export function bootPilotTable(seed: number, idSuffix: string, deal: boolean = false): BottleTable & {config: {humans: number, marsBot: boolean, options: Record<string, unknown>}} {
+export function bootPilotTable(seed: number, idSuffix: string, deal: boolean = false, source: DealSource = 'scope'): BottleTable & {config: {humans: number, marsBot: boolean, options: Record<string, unknown>}} {
   const config = fuzzConfig(seed);
   const makers = [TestPlayer.BLUE, TestPlayer.RED, TestPlayer.YELLOW];
   const humans = makers.slice(0, config.humans).map((maker, index) => maker.newPlayer({name: `pilot${index + 1}`, idSuffix}));
@@ -320,7 +320,7 @@ export function bootPilotTable(seed: number, idSuffix: string, deal: boolean = f
   // THE DEAL (`tests/testing/autopilotDeal.ts` — the cards of the scope to the opening hand in turn, the browser
   // pilot's rotation): on the decks' tops, the first seat's deal.
   if (deal) {
-    const dealt = dealFor(seed, modulesOfOptions(options as Record<string, unknown>), options.preludeExtension === true);
+    const dealt = dealFor(seed, modulesOfOptions(options as Record<string, unknown>), options.preludeExtension === true, source);
     Object.assign(options, {customProjectCards: dealt.projects, customCorporationsList: dealt.corporations, customPreludes: dealt.preludes});
   }
   const game = Game.newInstance(`game-id${idSuffix}` as GameId, humans, humans[0], `spectator-id${idSuffix}` as SpectatorId, {...options}, config.gameSeed);

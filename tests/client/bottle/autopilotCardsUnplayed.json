@@ -1,0 +1,807 @@
+[
+ {
+  "name": "Artificial Photosynthesis",
+  "module": "base",
+  "family": "project"
+ },
+ {
+  "name": "Beam From A Thorium Asteroid",
+  "module": "base",
+  "family": "project"
+ },
+ {
+  "name": "Capital",
+  "module": "base",
+  "family": "project"
+ },
+ {
+  "name": "Colonizer Training Camp",
+  "module": "base",
+  "family": "project"
+ },
+ {
+  "name": "Domed Crater",
+  "module": "base",
+  "family": "project"
+ },
+ {
+  "name": "Energy Saving",
+  "module": "base",
+  "family": "project"
+ },
+ {
+  "name": "Fusion Power",
+  "module": "base",
+  "family": "project"
+ },
+ {
+  "name": "Grass",
+  "module": "base",
+  "family": "project"
+ },
+ {
+  "name": "Immigrant City",
+  "module": "base",
+  "family": "project"
+ },
+ {
+  "name": "Imported GHG",
+  "module": "base",
+  "family": "project"
+ },
+ {
+  "name": "Import of Advanced GHG",
+  "module": "base",
+  "family": "project"
+ },
+ {
+  "name": "Magnetic Field Generators",
+  "module": "base",
+  "family": "project"
+ },
+ {
+  "name": "Tectonic Stress Power",
+  "module": "base",
+  "family": "project"
+ },
+ {
+  "name": "AI Central",
+  "module": "corpera",
+  "family": "project"
+ },
+ {
+  "name": "Anti-Gravity Technology",
+  "module": "corpera",
+  "family": "project"
+ },
+ {
+  "name": "Asteroid Mining Consortium",
+  "module": "corpera",
+  "family": "project"
+ },
+ {
+  "name": "Corporate Stronghold",
+  "module": "corpera",
+  "family": "project"
+ },
+ {
+  "name": "Interstellar Colony Ship",
+  "module": "corpera",
+  "family": "project"
+ },
+ {
+  "name": "Lightning Harvest",
+  "module": "corpera",
+  "family": "project"
+ },
+ {
+  "name": "Mass Converter",
+  "module": "corpera",
+  "family": "project"
+ },
+ {
+  "name": "Power Supply Consortium",
+  "module": "corpera",
+  "family": "project"
+ },
+ {
+  "name": "Quantum Extractor",
+  "module": "corpera",
+  "family": "project"
+ },
+ {
+  "name": "Tropical Resort",
+  "module": "corpera",
+  "family": "project"
+ },
+ {
+  "name": "Dusk Laser Mining",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Mercurian Alloys",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Law Suit",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Crash Site Cleanup",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Magnetic Shield",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Diversity Support",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Jovian Embassy",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Sub-Crust Measurements",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Potatoes",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Great Dam:promo",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Magnetic Field Generators:promo",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Saturn Surfing",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Aqueduct Systems",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Martian Lumber Corp",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Soil Enrichment",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "City Parks",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Casinos",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Protected Growth",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Public Plans",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Static Harvesting",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Sterling Vents",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Shipment to Earth",
+  "module": "promo",
+  "family": "project"
+ },
+ {
+  "name": "Established Methods",
+  "module": "promo",
+  "family": "prelude"
+ },
+ {
+  "name": "Giant Solar Collector",
+  "module": "promo",
+  "family": "prelude"
+ },
+ {
+  "name": "Atalanta Planitia Lab",
+  "module": "venus",
+  "family": "project"
+ },
+ {
+  "name": "Atmoscoop",
+  "module": "venus",
+  "family": "project"
+ },
+ {
+  "name": "Dawn City",
+  "module": "venus",
+  "family": "project"
+ },
+ {
+  "name": "Extremophiles",
+  "module": "venus",
+  "family": "project"
+ },
+ {
+  "name": "Floating Habs",
+  "module": "venus",
+  "family": "project"
+ },
+ {
+  "name": "Freyja Biodomes",
+  "module": "venus",
+  "family": "project"
+ },
+ {
+  "name": "GHG Import From Venus",
+  "module": "venus",
+  "family": "project"
+ },
+ {
+  "name": "Gyropolis",
+  "module": "venus",
+  "family": "project"
+ },
+ {
+  "name": "Solarnet",
+  "module": "venus",
+  "family": "project"
+ },
+ {
+  "name": "Stratopolis",
+  "module": "venus",
+  "family": "project"
+ },
+ {
+  "name": "Stratospheric Birds",
+  "module": "venus",
+  "family": "project"
+ },
+ {
+  "name": "Terraforming Contract",
+  "module": "venus",
+  "family": "project"
+ },
+ {
+  "name": "Venus Governor",
+  "module": "venus",
+  "family": "project"
+ },
+ {
+  "name": "Venus Soils",
+  "module": "venus",
+  "family": "project"
+ },
+ {
+  "name": "Omnicourt",
+  "module": "venus",
+  "family": "project"
+ },
+ {
+  "name": "Mining Quota",
+  "module": "venus",
+  "family": "project"
+ },
+ {
+  "name": "Corona Extractor",
+  "module": "colonies",
+  "family": "project"
+ },
+ {
+  "name": "Heavy Taxation",
+  "module": "colonies",
+  "family": "project"
+ },
+ {
+  "name": "Impactor Swarm",
+  "module": "colonies",
+  "family": "project"
+ },
+ {
+  "name": "Nitrogen from Titan",
+  "module": "colonies",
+  "family": "project"
+ },
+ {
+  "name": "Quantum Communications",
+  "module": "colonies",
+  "family": "project"
+ },
+ {
+  "name": "Red Spot Observatory",
+  "module": "colonies",
+  "family": "project"
+ },
+ {
+  "name": "Space Port",
+  "module": "colonies",
+  "family": "project"
+ },
+ {
+  "name": "Spin-off Department",
+  "module": "colonies",
+  "family": "project"
+ },
+ {
+  "name": "Titan Air-scrapping",
+  "module": "colonies",
+  "family": "project"
+ },
+ {
+  "name": "Urban Decomposers",
+  "module": "colonies",
+  "family": "project"
+ },
+ {
+  "name": "Warp Drive",
+  "module": "colonies",
+  "family": "project"
+ },
+ {
+  "name": "Supplier",
+  "module": "prelude",
+  "family": "prelude"
+ },
+ {
+  "name": "Ishtar Expedition",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "Summit Logistics",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "Ceres Tech Market",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "Red Appeasement",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "GHG Shipment",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "Sponsoring Nation",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "Colonial Representation",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "Envoys From Venus",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "Colonial Envoys",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "Special Permit",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "Frontier Town",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "Jovian Envoys",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "Microgravity Nutrition",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "Soil Studies",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "Venus Allies",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "Venus Shuttles",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "Venus Trade Hub",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "WG Project",
+  "module": "prelude2",
+  "family": "project"
+ },
+ {
+  "name": "Atmospheric Enhancers",
+  "module": "prelude2",
+  "family": "prelude"
+ },
+ {
+  "name": "EcoTec",
+  "module": "prelude2",
+  "family": "corporation"
+ },
+ {
+  "name": "Diaspora Movement",
+  "module": "turmoil",
+  "family": "project"
+ },
+ {
+  "name": "GMO Contract",
+  "module": "turmoil",
+  "family": "project"
+ },
+ {
+  "name": "Parliament Hall",
+  "module": "turmoil",
+  "family": "project"
+ },
+ {
+  "name": "Public Celebrations",
+  "module": "turmoil",
+  "family": "project"
+ },
+ {
+  "name": "Supported Research",
+  "module": "turmoil",
+  "family": "project"
+ },
+ {
+  "name": "TerraLabs Research",
+  "module": "turmoil",
+  "family": "corporation"
+ },
+ {
+  "name": "Bio-Fertilizer Facility",
+  "module": "ares",
+  "family": "project"
+ },
+ {
+  "name": "Capital:ares",
+  "module": "ares",
+  "family": "project"
+ },
+ {
+  "name": "Deimos Down:ares",
+  "module": "ares",
+  "family": "project"
+ },
+ {
+  "name": "Desperate Measures",
+  "module": "ares",
+  "family": "project"
+ },
+ {
+  "name": "Ecological Survey",
+  "module": "ares",
+  "family": "project"
+ },
+ {
+  "name": "Geological Survey",
+  "module": "ares",
+  "family": "project"
+ },
+ {
+  "name": "Industrial Center:ares",
+  "module": "ares",
+  "family": "project"
+ },
+ {
+  "name": "Great Dam:ares",
+  "module": "ares",
+  "family": "project"
+ },
+ {
+  "name": "Magnetic Field Generators:ares",
+  "module": "ares",
+  "family": "project"
+ },
+ {
+  "name": "Marketing Experts",
+  "module": "ares",
+  "family": "project"
+ },
+ {
+  "name": "Mining Area:ares",
+  "module": "ares",
+  "family": "project"
+ },
+ {
+  "name": "Natural Preserve:ares",
+  "module": "ares",
+  "family": "project"
+ },
+ {
+  "name": "Nuclear Zone:ares",
+  "module": "ares",
+  "family": "project"
+ },
+ {
+  "name": "Ocean City",
+  "module": "ares",
+  "family": "project"
+ },
+ {
+  "name": "Quantum Research",
+  "module": "deltaProject",
+  "family": "project"
+ },
+ {
+  "name": "Storm Surge Barrier",
+  "module": "deltaProject",
+  "family": "project"
+ },
+ {
+  "name": "Social Heating",
+  "module": "deltaProject",
+  "family": "project"
+ },
+ {
+  "name": "Delta Project",
+  "module": "deltaProject",
+  "family": "prelude"
+ },
+ {
+  "name": "Formula Zero",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Political Science",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Supreme Expertise",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Mech Sports",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Administration District",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Martian Fiber",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Sponsored Settlement",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Re-settlement",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Arboretum",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Venusian Census",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "UNMI Liner",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Aurora Station",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Earth Army Contract",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Red Museum",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Red Tech Convention",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Reds News Outlet",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Mars Army Mechs",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Mars Army Ships",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Biological Simulations",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Canyon Carving",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Forestry Mechs",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Plasma Fans",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Green Allegiance",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Ichtiology Grant",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Aquatic Research Station",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Composting Initiative",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Supercomputer",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Frontier Labs",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Nuclear Warhead Utilization",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Overclocked Equipment",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Robotics Factory",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Mining Mechs",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Floating Biodomes",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Backroom Deal",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Political Recognition",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Aerial Lenses:redux",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Political Alliance:redux",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Sponsored Mohole:redux",
+  "module": "turmoilRedux",
+  "family": "project"
+ },
+ {
+  "name": "Greens Campaign",
+  "module": "turmoilRedux",
+  "family": "prelude"
+ },
+ {
+  "name": "Scientists Campaign",
+  "module": "turmoilRedux",
+  "family": "prelude"
+ },
+ {
+  "name": "Corridors of Power:redux",
+  "module": "turmoilRedux",
+  "family": "prelude"
+ },
+ {
+  "name": "Proteus",
+  "module": "turmoilRedux",
+  "family": "corporation"
+ }
+]

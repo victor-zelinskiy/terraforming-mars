@@ -217,8 +217,8 @@ function rng(seed: string): () => number {
  * five projects of the scope's list whose module its table plays, the next corporation and the next two preludes
  * (`customProjectCards` / `customCorporationsList` / `customPreludes`: on the top of their decks, the first seat's
  * deal), and the opening buys them. Over the games every card of the scope is dealt; the report sums which ones the
- * pilot then PLAYED (`scripts/autopilot-cards.mts` — the never-played list). `TM_E2E_AUTOPILOT_DEAL=random` keeps
- * the plain deal.
+ * pilot then PLAYED (`scripts/autopilot-cards.mts` — the never-played list). `TM_E2E_AUTOPILOT_DEAL=missing` deals the
+ * cards no whole game has played yet first (`autopilotDeal.UNPLAYED_CARDS`); `random` keeps the plain deal.
  */
 const DEAL = process.env.TM_E2E_AUTOPILOT_DEAL ?? 'rotate';
 /** The boards MarsBot plays on (`common/automa/automaCompatibility.ts`), by the names the creator sends. */
@@ -262,7 +262,7 @@ function tableOf(n: number): {config: Record<string, unknown>, word: string, duo
   const modules = new Set<string>(on);
   modules.add('base');
   modules.add('corpera');
-  const deal = DEAL === 'rotate' ? dealFor(n, modules, prelude) : {projects: [], corporations: [], preludes: []};
+  const deal = DEAL === 'rotate' || DEAL === 'missing' ? dealFor(n, modules, prelude, DEAL === 'missing' ? 'unplayed' : 'scope') : {projects: [], corporations: [], preludes: []};
   // THE RULES THE CREATOR SETS (stage 6, total coverage — `create/premium/buildCreateGamePayload.ts`: the random
   // milestones and awards, the fast mode, the others' points in real time, the shuffled map, the starting-TR bonus):
   // every switch a player can throw in the creator is a table some game sits at. Their own stream — the tables
@@ -288,7 +288,7 @@ function tableOf(n: number): {config: Record<string, unknown>, word: string, duo
   }
   const said = [ruled.randomMA !== 'No randomization' ? 'random M&A' : '', ruled.fastModeOption ? 'fast' : '', ruled.showOtherPlayersVP ? 'VP shown' : '',
     ruled.shuffleMapOption ? 'shuffled map' : '', boost > 0 ? `TR +${boost}` : '', seated.length > (duo ? 2 : 1) ? `${seated.length} humans` : ''].filter((s) => s !== '');
-  if (DEAL === 'rotate') {
+  if (DEAL === 'rotate' || DEAL === 'missing') {
     Object.assign(config, {customProjectCards: deal.projects, customCorporationsList: deal.corporations, customPreludes: deal.preludes});
   }
   return {config, duo: seated.length > 1, deal: [...deal.corporations, ...deal.preludes, ...deal.projects],

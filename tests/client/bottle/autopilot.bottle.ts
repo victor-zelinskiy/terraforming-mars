@@ -23,7 +23,7 @@ import {bottleServer, nodeProcess, nodeRequire} from './bottleNode';
 import {monkeyRng} from './monkeyWalk';
 import {autopilotGame, AutopilotResult} from './autopilot';
 import type {BottleTable} from './server/bottleServerHost';
-import {dealFor, modulesOfOptions, SCENARIO_TARGETS, scenarioFor} from '../../testing/autopilotDeal';
+import {dealFor, modulesOfOptions, SCENARIO_TARGETS, scenarioFor, DealSource} from '../../testing/autopilotDeal';
 
 const env = nodeProcess().env as Record<string, string | undefined>;
 const ENABLED = env.TM_BOTTLE_AUTOPILOT === '1';
@@ -45,7 +45,10 @@ function seedsOf(spec: string): Array<number> {
 }
 const SEEDS = seedsOf(env.TM_BOTTLE_AUTOPILOT_SEEDS ?? '1-4');
 /** THE DEAL (`tests/testing/autopilotDeal.ts`): `rotate` (the default) — the scope's cards to the opening hand in turn. */
-const DEAL = (env.TM_BOTTLE_AUTOPILOT_DEAL ?? 'rotate') === 'rotate';
+const DEAL_MODE = env.TM_BOTTLE_AUTOPILOT_DEAL ?? 'rotate';
+const DEAL = DEAL_MODE === 'rotate' || DEAL_MODE === 'missing';
+/** `missing` — the cards no whole game has played yet first (`UNPLAYED_CARDS`, the cards axis' worklist). */
+const DEAL_SOURCE: DealSource = DEAL_MODE === 'missing' ? 'unplayed' : 'scope';
 /** THE SCENARIO TABLES (`autopilotDeal.scenarioFor` — the browser pilot's own list): `auto` · `off` · `always`. */
 const SCENARIO = env.TM_BOTTLE_AUTOPILOT_SCENARIO ?? 'auto';
 
@@ -106,10 +109,10 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
           tableWord = `scenario ${scenario}`;
           targets = SCENARIO_TARGETS[scenario];
         } else {
-          const pilotTable = bottleServer().bootPilotTable(n, `-${NAME}-${n}`, DEAL);
+          const pilotTable = bottleServer().bootPilotTable(n, `-${NAME}-${n}`, DEAL, DEAL_SOURCE);
           if (DEAL) {
             const options = pilotTable.config.options;
-            targets = dealFor(n, modulesOfOptions(options), options.preludeExtension === true).projects;
+            targets = dealFor(n, modulesOfOptions(options), options.preludeExtension === true, DEAL_SOURCE).projects;
           }
           table = pilotTable;
           tableWord = `${pilotTable.config.humans}h${pilotTable.config.marsBot ? '+bot' : ''} ${String(pilotTable.config.options.boardName)}`;

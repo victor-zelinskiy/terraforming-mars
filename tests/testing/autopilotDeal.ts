@@ -10,6 +10,7 @@
 import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
 import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 import {CardName} from '../../src/common/cards/CardName';
+import UNPLAYED_JSON from '../client/bottle/autopilotCardsUnplayed.json';
 
 /** A card of the scope: its name, its module and the OTHER modules it needs (its factory's `compatibility`). */
 export type ScopeCard = {name: CardName, module: string, needs: ReadonlyArray<string>};
@@ -65,6 +66,21 @@ export const LEDGER_CARDS: {projects: ReadonlyArray<CardName>, preludes: Readonl
   corporations: [CardName.PHILARES],
 };
 
+/**
+ * THE CARDS NO WHOLE GAME HAS PLAYED YET (the cards axis' worklist — `tests/client/bottle/autopilotCardsUnplayed.json`,
+ * written by `npx tsx scripts/autopilot-cards.mts <monkey-report.json …> --never <that file>` over every pass): the
+ * deal's `unplayed` source deals THEM in turn, the table's modules permitting — the rotation over the whole scope gives
+ * a card to the hand once in a hundred games, and the fixed CI range (537 – 584) deals the same windows every night.
+ */
+export const UNPLAYED_CARDS = ((): {projects: Array<ScopeCard>, corporations: Array<ScopeCard>, preludes: Array<ScopeCard>} => {
+  const names = new Set((UNPLAYED_JSON as Array<{name: string}>).map((row) => row.name));
+  const keep = (list: ReadonlyArray<ScopeCard>) => list.filter((card) => names.has(card.name));
+  return {projects: keep(SCOPE_CARDS.projects), corporations: keep(SCOPE_CARDS.corporations), preludes: keep(SCOPE_CARDS.preludes)};
+})();
+
+/** Where a deal takes its cards: the whole scope in turn, or the cards no game has played yet (`UNPLAYED_CARDS`). */
+export type DealSource = 'scope' | 'unplayed';
+
 /** The ledger's card of `list` for game `n` — one game in `every` (at `n % every === at`), the next one the table plays (or none). */
 function ledgerCard(names: ReadonlyArray<CardName>, list: ReadonlyArray<ScopeCard>, n: number, on: ReadonlySet<string>, every = 3, at = 0): Array<CardName> {
   const playable = names.map((name) => list.find((c) => c.name === name))
@@ -76,8 +92,17 @@ function ledgerCard(names: ReadonlyArray<CardName>, list: ReadonlyArray<ScopeCar
  * Game `n`'s deal over the modules its table plays (the scope's keys — `base`, `corpera`, …; classic `turmoil` rides
  * with `turmoilRedux`). `prelude` — the table deals preludes at all.
  */
-export function dealFor(n: number, modules: ReadonlySet<string>, prelude: boolean): Deal {
+export function dealFor(n: number, modules: ReadonlySet<string>, prelude: boolean, source: DealSource = 'scope'): Deal {
   const on = new Set([...modules, ...(modules.has('turmoilRedux') ? ['turmoil'] : [])]);
+  if (source === 'unplayed') {
+    // (The unplayed first, the scope's window behind them: a table whose modules hold none of a family still gets a deal.)
+    const fill = (first: Array<CardName>, window: Array<CardName>, count: number) => [...first, ...window.filter((name) => !first.includes(name))].slice(0, count);
+    return {
+      projects: fill(dealWindow(UNPLAYED_CARDS.projects, n, 5, on), dealWindow(SCOPE_CARDS.projects, n, 5, on), 5),
+      corporations: fill(dealWindow(UNPLAYED_CARDS.corporations, n, 1, on), dealWindow(SCOPE_CARDS.corporations, n, 1, on), 1),
+      preludes: prelude ? fill(dealWindow(UNPLAYED_CARDS.preludes, n, 2, on), dealWindow(SCOPE_CARDS.preludes, n, 2, on), 2) : [],
+    };
+  }
   const projectFirst = ledgerCard(LEDGER_CARDS.projects, SCOPE_CARDS.projects, n, on);
   const preludeFirst = prelude ? ledgerCard(LEDGER_CARDS.preludes, SCOPE_CARDS.preludes, n, on) : [];
   const rest = (first: Array<CardName>, window: Array<CardName>, count: number) => [...first, ...window.filter((name) => !first.includes(name))].slice(0, count);

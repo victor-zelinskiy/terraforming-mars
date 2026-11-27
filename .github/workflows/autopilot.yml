@@ -36,6 +36,12 @@ on:
         description: 'The pass''s name — the stream of presses is <name>:<n> (another name = other presses on the same tables)'
         required: false
         default: 'ap0'
+      deal:
+        description: 'rotate (the scope in turn) · missing (the cards no game has played yet first — tests/client/bottle/autopilotCardsUnplayed.json) · random'
+        required: false
+        type: choice
+        options: [rotate, missing, random]
+        default: rotate
       where:
         description: 'bottle (the manual clock, minutes) · browser (a real Chromium, real time) · both'
         required: false
@@ -96,6 +102,7 @@ jobs:
           TM_BOTTLE_AUTOPILOT: '1'
           TM_BOTTLE_AUTOPILOT_SEEDS: ${{ matrix.seeds }}
           TM_BOTTLE_AUTOPILOT_NAME: ${{ inputs.name }}
+          TM_BOTTLE_AUTOPILOT_DEAL: ${{ inputs.deal || 'rotate' }}
           NODE_ENV: development
           NODE_OPTIONS: --max-old-space-size=6144
         run: node scripts/client-tests.mts tests/client/bottle/autopilot.bottle.ts 2>&1 | tee autopilot.log | grep -E '· game |passing|failing|HARNESS' || true
@@ -156,6 +163,7 @@ jobs:
           TM_E2E_AUTOPILOT: '1'
           TM_E2E_AUTOPILOT_GAMES: ${{ matrix.seeds }}
           TM_E2E_AUTOPILOT_NAME: ${{ inputs.name }}
+          TM_E2E_AUTOPILOT_DEAL: ${{ inputs.deal || 'rotate' }}
           TM_E2E_COVERAGE: '1'
         run: npx playwright test tests/e2e/console-autopilot.spec.ts --project=chromium --workers=1 --retries=0 --reporter=list,github
       - name: The report
