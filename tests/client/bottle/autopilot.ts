@@ -52,6 +52,8 @@ export type AutopilotOptions = {
    * album's cursor to a playable one.
    */
   targets?: ReadonlyArray<string>,
+  /** …and every card the opening deals the game for (its corporation, its preludes, its projects): the start's steps take them. */
+  startTargets?: ReadonlyArray<string>,
 };
 
 export type AutopilotResult = {
@@ -189,6 +191,7 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
   let standing: {promptId: number | undefined, type: string, menu: boolean, presses: number, budget: number, byApi: boolean, waited: number,
     handVisits: number, handTarget?: string, handSteps: number, startTargetTries: number} | undefined;
   const targets = new Set(options.targets ?? []);
+  const startTargets = new Set(options.startTargets ?? options.targets ?? []);
   let quietSince = bottle.clock.now();
   let lastAge = -1;
   let sampledGeneration = 0;
@@ -414,15 +417,17 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       // — the walk below goes on once every target stands taken (or the purse refuses the next).
       const doc = (globalThis as unknown as {window: {document: {querySelector(q: string): {getAttribute(a: string): string | null} | null,
         querySelectorAll(q: string): Iterable<{getAttribute(a: string): string | null, classList: {contains(c: string): boolean}}>}}}).window.document;
-      const focusedSlot = doc.querySelector('.con-start .con-cards__slot--focused[data-step-slot^="projects|"]')?.getAttribute('data-step-slot') ?? '';
-      if (focusedSlot !== '' && targets.size > 0) {
-        const slots = [...doc.querySelectorAll('.con-start .con-cards__slot[data-step-slot^="projects|"]')]
-          .map((el) => ({name: (el.getAttribute('data-step-slot') ?? '').slice('projects|'.length), picked: el.classList.contains('con-cards__slot--picked')}));
-        const owed = slots.filter((s) => targets.has(s.name) && !s.picked);
-        const here = slots.find((s) => `projects|${s.name}` === focusedSlot);
+      // (…on every step of the opening that deals a card: the corporation, the preludes, the projects.)
+      const focusedSlot = doc.querySelector('.con-start .con-cards__slot--focused[data-step-slot]')?.getAttribute('data-step-slot') ?? '';
+      const step = focusedSlot.split('|')[0];
+      if (focusedSlot !== '' && startTargets.size > 0 && (step === 'projects' || step === 'corp' || step === 'prelude')) {
+        const slots = [...doc.querySelectorAll(`.con-start .con-cards__slot[data-step-slot^="${step}|"]`)]
+          .map((el) => ({name: (el.getAttribute('data-step-slot') ?? '').slice(step.length + 1), picked: el.classList.contains('con-cards__slot--picked')}));
+        const owed = slots.filter((s) => startTargets.has(s.name) && !s.picked);
+        const here = slots.find((s) => `${step}|${s.name}` === focusedSlot);
         if (owed.length > 0 && standing.startTargetTries < 40) {
           standing.startTargetTries++;
-          await press(here !== undefined && targets.has(here.name) && !here.picked ? 'Enter' : 'ArrowRight', pause());
+          await press(here !== undefined && startTargets.has(here.name) && !here.picked ? 'Enter' : 'ArrowRight', pause());
           continue;
         }
       }

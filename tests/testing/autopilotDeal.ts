@@ -73,7 +73,8 @@ export const LEDGER_CARDS: {projects: ReadonlyArray<CardName>, preludes: Readonl
  * a card to the hand once in a hundred games, and the fixed CI range (537 – 584) deals the same windows every night.
  */
 export const UNPLAYED_CARDS = ((): {projects: Array<ScopeCard>, corporations: Array<ScopeCard>, preludes: Array<ScopeCard>} => {
-  const names = new Set((UNPLAYED_JSON as Array<{name: string}>).map((row) => row.name));
+  // (A card the ledger DECLARES — a `why` — is not dealt: its reason says no game of the pilot can play it.)
+  const names = new Set((UNPLAYED_JSON as Array<{name: string, why?: string}>).filter((row) => (row.why ?? '') === '').map((row) => row.name));
   const keep = (list: ReadonlyArray<ScopeCard>) => list.filter((card) => names.has(card.name));
   return {projects: keep(SCOPE_CARDS.projects), corporations: keep(SCOPE_CARDS.corporations), preludes: keep(SCOPE_CARDS.preludes)};
 })();

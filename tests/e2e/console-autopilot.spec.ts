@@ -1263,10 +1263,15 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       // dealt card not yet taken is walked to and taken before the step's RT (lit at zero cards) moves on.
       if (dealt.length > 0 && standing.startTargetTries < 40) {
         const step = await page.evaluate((names) => {
-          const slots = [...document.querySelectorAll('.con-start .con-cards__slot[data-step-slot^="projects|"]')];
-          const owed = slots.filter((el) => names.includes((el.getAttribute('data-step-slot') ?? '').slice(9)) && !el.classList.contains('con-cards__slot--picked'));
-          const here = document.querySelector('.con-start .con-cards__slot--focused[data-step-slot^="projects|"]');
-          return {owed: owed.length, onOwed: here !== null && owed.includes(here)};
+          // (…on every step of the opening that deals a card: the corporation, the preludes, the projects.)
+          const here = document.querySelector('.con-start .con-cards__slot--focused[data-step-slot]');
+          const id = (here?.getAttribute('data-step-slot') ?? '').split('|')[0];
+          if (here === null || !['projects', 'corp', 'prelude'].includes(id)) {
+            return {owed: 0, onOwed: false};
+          }
+          const slots = [...document.querySelectorAll(`.con-start .con-cards__slot[data-step-slot^="${id}|"]`)];
+          const owed = slots.filter((el) => names.includes((el.getAttribute('data-step-slot') ?? '').slice(id.length + 1)) && !el.classList.contains('con-cards__slot--picked'));
+          return {owed: owed.length, onOwed: owed.includes(here)};
         }, [...dealt]);
         if (step.owed > 0) {
           standing.startTargetTries++;

@@ -45,7 +45,20 @@ for (const manifest of ALL_MODULE_MANIFESTS) {
 
 const never = scope.filter((row) => !played.has(row.name));
 const seen = scope.length - never.length;
-console.log(`cards in scope ${scope.length} · played through the console ${seen} (${(100 * seen / Math.max(1, scope.length)).toFixed(1)} %) · never ${never.length}`);
+// THE LEDGER's REASONS (stage 6 — «walked or declared», the kernel ledger's rule for the cards axis): a card no whole game
+// plays keeps the `why` the ledger already gave it (a requirement no game of the pilot reaches, a card the console plays
+// through another road …); '' is the debt. Read from the file `--never` writes.
+const reasons = new Map<string, string>();
+if (neverOut !== undefined && fs.existsSync(neverOut)) {
+  for (const row of JSON.parse(fs.readFileSync(neverOut, 'utf8')) as Array<{name: string, why?: string}>) {
+    if (row.why !== undefined && row.why !== '') {
+      reasons.set(row.name, row.why);
+    }
+  }
+}
+const declared = never.filter((row) => reasons.has(row.name)).length;
+console.log(`cards in scope ${scope.length} · played through the console ${seen} (${(100 * seen / Math.max(1, scope.length)).toFixed(1)} %) · never ${never.length}` +
+  ` — declared with a reason ${declared} · THE DEBT ${never.length - declared} · walked or declared ${(100 * (seen + declared) / Math.max(1, scope.length)).toFixed(1)} %`);
 const by = new Map<string, Array<string>>();
 for (const row of never) {
   const key = `${row.module} · ${row.family}`;
@@ -55,6 +68,6 @@ for (const [key, names] of [...by.entries()].sort((a, b) => b[1].length - a[1].l
   console.log(`  ${String(names.length).padStart(4)}  ${key}: ${names.slice(0, 12).join(', ')}${names.length > 12 ? ', …' : ''}`);
 }
 if (neverOut !== undefined) {
-  fs.writeFileSync(neverOut, JSON.stringify(never, null, 1));
+  fs.writeFileSync(neverOut, JSON.stringify(never.map((row) => ({...row, why: reasons.get(row.name) ?? ''})), null, 1));
   console.log(`→ ${neverOut}`);
 }

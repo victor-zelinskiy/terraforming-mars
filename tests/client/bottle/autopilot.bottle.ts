@@ -104,6 +104,7 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
         const scenario = scenarioFor(n, SCENARIO);
         // (THE CARDS THE GAME IS FOR — a scenario's targets, or the deal's projects: the pilot steers to them.)
         let targets: ReadonlyArray<string> = [];
+        let startTargets: ReadonlyArray<string> = [];
         if (scenario !== undefined) {
           table = await bottleServer().bootFixture(scenario);
           tableWord = `scenario ${scenario}`;
@@ -112,7 +113,9 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
           const pilotTable = bottleServer().bootPilotTable(n, `-${NAME}-${n}`, DEAL, DEAL_SOURCE);
           if (DEAL) {
             const options = pilotTable.config.options;
-            targets = dealFor(n, modulesOfOptions(options), options.preludeExtension === true, DEAL_SOURCE).projects;
+            const dealt = dealFor(n, modulesOfOptions(options), options.preludeExtension === true, DEAL_SOURCE);
+            targets = dealt.projects;
+            startTargets = [...dealt.corporations, ...dealt.preludes, ...dealt.projects];
           }
           table = pilotTable;
           tableWord = `${pilotTable.config.humans}h${pilotTable.config.marsBot ? '+bot' : ''} ${String(pilotTable.config.options.boardName)}`;
@@ -125,6 +128,7 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
         played = await autopilotGame(bottle, table.seats, seed, {
           maxPresses: PRESSES,
           targets,
+          startTargets,
           // THE SOAK: what a page that leaks would grow by, counted at the board home once a generation.
           sample: () => {
             (globalThis as unknown as {gc?: () => void}).gc?.();
