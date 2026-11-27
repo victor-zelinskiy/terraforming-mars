@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
-import {answerPrompt, cinematicBeat, fetchPlayerModel, NO_PAYMENT, openConsole, reloadConsole, seedGameOverApi, sendPlayerInput, soloGameConfig, syncClient} from './consoleStart';
-import {dealFor, ScopeCard, SCOPE_CARDS} from '../testing/autopilotDeal';
+import {answerPrompt, cinematicBeat, fetchPlayerModel, loadFixtureSeats, NO_PAYMENT, openConsole, reloadConsole, seedGameOverApi, sendPlayerInput, soloGameConfig, syncClient} from './consoleStart';
+import {AutopilotScenario, dealFor, SCENARIO_TARGETS, scenarioFor, ScopeCard, SCOPE_CARDS} from '../testing/autopilotDeal';
 import {campaignConfig, campaignModelAs, devCommit, launchMission} from './campaignFixtures';
 import {awayFromConsole, installPageAway} from './pageAway';
 import {TENDER_IDS} from '../../src/common/campaign/tenders';
@@ -125,6 +125,19 @@ const CAMPAIGN = process.env.TM_E2E_AUTOPILOT_CAMPAIGN ?? 'auto';
 /** Game `n` sits at a campaign's mission. */
 function campaignGame(n: number): boolean {
   return CAMPAIGN === 'always' || (CAMPAIGN === 'auto' && n % 8 === 5);
+}
+
+/**
+ * THE SCENARIO TABLES (stage 6, total coverage — the input-type bar's gaps, derived from the code since 2026-11-27:
+ * a choice no dealt game reaches in a whole pass). A scenario is a FIXTURE — a real engine state, generated
+ * (`tests/e2e/fixtures/generate.ts`) and loaded through the dev door — played from there TO ITS END by the same pilot,
+ * its other seats answered over the API like any rival. The list and the cadence are the bottle's too
+ * (`autopilotDeal.scenarioFor`). `auto` · `off` · `always`.
+ */
+const SCENARIO = process.env.TM_E2E_AUTOPILOT_SCENARIO ?? 'auto';
+/** Game `n`'s scenario, or undefined (a table of its own). */
+function scenarioOf(n: number): AutopilotScenario | undefined {
+  return scenarioFor(n, SCENARIO);
 }
 
 /**
@@ -329,6 +342,10 @@ type Screen = {
   hand: {focused: number, cards: Array<{name: string, playable: boolean, page: number, row: number, col: number}>} | undefined,
   /** The standard projects' grid, when it stands in browse: the focused row and every row (its project, lit or not). */
   stdp: {focused: number, cards: Array<{name: string, go: boolean, futile: boolean}>} | undefined,
+  /** The card actions' grid, when it stands in browse: the focused tile and every tile (lit or not) — a tile is «card#n». */
+  actions: {focused: string, tiles: Array<{name: string, card: string, go: boolean}>} | undefined,
+  /** A composer's variant choice, when one stands: its axis, the focused option and which options are live. */
+  variants: {axis: string, focused: number, live: Array<boolean>} | undefined,
   /**
    * The keys of the bar's commands that stand DISABLED — not offered, yet the screen's own word for the next press once
    * the layout is complete (a pick of exactly two cards: «RT Сбросить» stays grey until the second card).
@@ -411,6 +428,32 @@ async function look(page: Page): Promise<Screen> {
           focused: cards.findIndex((c) => c.classList.contains('con-stdp__card--focused')),
           cards: cards.map((c) => ({name: c.getAttribute('data-stdp-card') ?? '', go: c.classList.contains('con-stdp__card--go'),
             futile: c.hasAttribute('data-stdp-futile')})),
+        };
+      })(),
+      variants: (() => {
+        const choice = [...document.querySelectorAll<HTMLElement>('.con-composer .con-vchoice')].find((el) => el.offsetParent !== null);
+        if (choice === undefined) {
+          return undefined;
+        }
+        const opts = [...choice.querySelectorAll<HTMLElement>('.con-vchoice__opt')];
+        return {axis: choice.getAttribute('data-variant-axis') ?? '', focused: opts.findIndex((o) => o.classList.contains('con-vchoice__opt--focused')),
+          live: opts.map((o) => !o.classList.contains('con-vchoice__opt--off'))};
+      })(),
+      actions: (() => {
+        const tiles = [...document.querySelectorAll<HTMLElement>('.con-cardactions .con-cardactions__tile')].filter((el) => el.offsetParent !== null);
+        // (A tile is its card and its place among that card's tiles — a card of two actions stands as TWO tiles, its
+        // variants: «Modular Floodgates#0» fabricates, «#1» deploys the blockade.)
+        const seenOf = new Map<string, number>();
+        const keyed = tiles.map((el) => {
+          const card = el.getAttribute('data-action-card') ?? '';
+          const at = seenOf.get(card) ?? 0;
+          seenOf.set(card, at + 1);
+          return {el, name: `${card}#${at}`, card};
+        });
+        return keyed.length === 0 ? undefined : {
+          focused: keyed.find((k) => k.el.classList.contains('con-cardactions__tile--focused'))?.name ?? '',
+          tiles: keyed.map((k) => ({name: k.name, card: k.card,
+            go: k.el.classList.contains('con-cardactions__tile--available') || k.el.classList.contains('con-cardactions__tile--soft')})),
         };
       })(),
       alertBody: (document.querySelector('.con-alert__body')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 140),
@@ -829,13 +872,24 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     /** The standard project this visit of the grid goes to (see «THE PROJECT A TURN GOES TO»). */
     stdpTarget: string | undefined,
     /** The card of the hand this visit goes to play (see «THE CARD A TURN PLAYS»). */
-    handTarget: string | undefined} | undefined;
+    handTarget: string | undefined,
+    /** The card action this visit of the grid takes (see «THE ACTION A TURN TAKES»). */
+    actionTarget: string | undefined,
+    /** The variant this question's composer takes, and whether it was taken (see «THE VARIANT A TURN CHOOSES»). */
+    variantTarget: number | undefined, variantChosen: boolean} | undefined;
   /** The standard projects' visits of the game so far — the projects' rotation (`SP_ROTATION`). */
   let stdpVisits = 0;
   /** The start's last press gave a card back (see «THE START SCENE»). */
   let startTrimmed = false;
   let stdpSteps = 0;
   let handSteps = 0;
+  /** The card actions' visits, the walk's steps to the target, and its last step (the focus it stood on, the key). */
+  let actionVisits = 0;
+  let actionSteps = 0;
+  let actionLast = {focus: '', key: ''};
+  /** The composers' variant choices of the game so far (their rotation) and the walk's steps to the one taken. */
+  let variantVisits = 0;
+  let variantSteps = 0;
   /** The menus of the game so far — the intents' rotation (seeded by the game's own number, so two games start apart). */
   let menus = Math.floor(g() * INTENTS.length);
   /** The tableau's length at the last look (-1 before the first: the opening's cards are no play of the walk). */
@@ -938,7 +992,8 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       const intent = intentful ? [...INTENTS[menus++ % INTENTS.length].keys] : [];
       const budget = bonus ? 60 : menu ? (g() < (intentful ? 0.05 : 0.18) ? 0 : (intentful ? 9 : 4) + Math.floor(g() * 23)) : 45;
       standing = {promptId: wf.promptId, type: wf.type, menu, bonus, presses: 0, budget, byApi: false, intent: budget > 0 ? intent : [], intentful: intentful && budget > 0, still: 0, lastStood: '', heldAway: 0, collapsed: false,
-        shape: questionShape(wf, menu), stdpTarget: undefined, handTarget: undefined};
+        shape: questionShape(wf, menu), stdpTarget: undefined, handTarget: undefined, actionTarget: undefined,
+        variantTarget: undefined, variantChosen: false};
       if (standing.intent.length > 0) {
         log.push(`[INTENT ${INTENTS[(menus - 1) % INTENTS.length].name}]`);
       }
@@ -1193,6 +1248,66 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         continue;
       }
     }
+    // THE ACTION A TURN TAKES (stage 6, total coverage — the input-type bar's gaps: a choice only a blue card's action
+    // asks — Dutch Mountains' stage reward, Modular Floodgates' blockade — no thumb pressing whatever tile stood under
+    // it had reached in a whole pass). On a visit of «Действия карт» the pilot goes to ONE lit action — a card of the
+    // game's own list first (`dealt`: the deal, or the scenario's targets), else one in turn — walks the cursor to it
+    // (along the grid, turning at a wall, bounded) and presses A.
+    if (PILOT >= 3 && standing.menu && seen.actions !== undefined && seen.look === '' && !seen.zoom && seen.actions.focused !== '' &&
+        /^card-actions:browse/.test(seen.frames[seen.frames.length - 1] ?? '')) {
+      const lit = seen.actions.tiles.filter((tile) => tile.go).map((tile) => tile.name);
+      if (standing.actionTarget === undefined || (standing.actionTarget !== '' && !lit.includes(standing.actionTarget))) {
+        actionSteps = 0;
+        const wanted = lit.filter((name) => dealt.includes(name.replace(/#\d+$/, '')));
+        const from = wanted.length > 0 ? wanted : lit;
+        standing.actionTarget = from.length === 0 ? '' : from[actionVisits++ % from.length];
+        if (standing.actionTarget !== '') {
+          log.push(`[ACTION ${standing.actionTarget}]`);
+        }
+      }
+      if (standing.actionTarget !== '' && seen.actions.focused !== standing.actionTarget && ++actionSteps > 20) {
+        standing.actionTarget = '';
+      } else if (standing.actionTarget !== '' && seen.actions.focused !== standing.actionTarget) {
+        // (The tiles stand in the grid's own order — the model's flat order, the rows packed left to right: toward the
+        // target's index along a row, and across rows where a row ends — a step along it that moved nothing.)
+        const names = seen.actions.tiles.map((tile) => tile.name);
+        const forward = names.indexOf(standing.actionTarget) > names.indexOf(seen.actions.focused);
+        const along = forward ? 'ArrowRight' : 'ArrowLeft';
+        const across = forward ? 'ArrowDown' : 'ArrowUp';
+        const stuck = seen.actions.focused === actionLast.focus && actionLast.key === along;
+        const key = stuck ? across : along;
+        actionLast = {focus: seen.actions.focused, key};
+        await press(key, pause());
+        continue;
+      } else if (standing.actionTarget !== '') {
+        await press('Enter', pause());
+        continue;
+      }
+    }
+    // THE VARIANT A TURN CHOOSES (stage 6, total coverage — the same gap from the other side: seven visits of Modular
+    // Floodgates on the scenario's first pass, every one of them its variant A, the thumb pressing whatever variant stood
+    // focused). A composer's variants are taken IN TURN, by the game's own count of them: the pilot walks the focus to
+    // the live variant whose turn it is (along the choice's own axis, bounded) and presses A once — the rest of the
+    // composer is the walk's.
+    if (PILOT >= 3 && seen.variants !== undefined && seen.look === '' && !seen.zoom && seen.variants.focused >= 0 && !standing.variantChosen) {
+      const live = seen.variants.live.map((on, i) => (on ? i : -1)).filter((i) => i >= 0);
+      if (standing.variantTarget === undefined) {
+        standing.variantTarget = live.length === 0 ? -1 : live[variantVisits++ % live.length];
+        variantSteps = 0;
+      }
+      const target = standing.variantTarget;
+      if (target >= 0 && seen.variants.focused !== target && ++variantSteps <= 8) {
+        const forward = target > seen.variants.focused;
+        await press(seen.variants.axis === 'column' ? (forward ? 'ArrowDown' : 'ArrowUp') : (forward ? 'ArrowRight' : 'ArrowLeft'), pause());
+        continue;
+      }
+      standing.variantChosen = true;
+      if (target >= 0 && seen.variants.focused === target) {
+        log.push(`[VARIANT ${target}]`);
+        await press('Enter', pause());
+        continue;
+      }
+    }
     // THE INTERRUPTION (stage 6, total coverage — the kernel's frame machine had walked 18 of its 35 moves, never a frame
     // past its commit set OFF STAGE and brought back: `committed → *.away`, `completing.away → …`). A player who has
     // committed a move and wants the board folds the workspace («B Свернуть» — the decision stays live) and comes back
@@ -1343,14 +1458,22 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       const seed = `${NAME}:${n}`;
       const table = tableOf(n);
       test.info().annotations.push({type: 'autopilot-table', description: `${seed} — ${table.word}`});
+      // (A SCENARIO's fixture instead of a plain table — see `SCENARIO`; its seats are all human, the first one the viewer.)
+      const scenario = scenarioOf(n);
+      const scenarioSeats = scenario === undefined ? undefined : await loadFixtureSeats(request, scenario);
+      if (scenario !== undefined) {
+        test.info().annotations.push({type: 'autopilot-scenario', description: scenario});
+        table.word = `scenario ${scenario}`;
+        table.deal.splice(0);
+      }
       // (A CAMPAIGN's mission instead of a plain table — see `CAMPAIGN`.)
-      const mission = campaignGame(n) ? await campaignMission(request, n, table) : undefined;
+      const mission = scenario === undefined && campaignGame(n) ? await campaignMission(request, n, table) : undefined;
       if (mission !== undefined) {
         test.info().annotations.push({type: 'autopilot-campaign', description: mission.word});
         table.word = `${mission.word} · ${table.word}`;
         table.deal.splice(0);
       }
-      let created = mission !== undefined ? undefined : await request.post('/api/creategame', {data: table.config});
+      let created = mission !== undefined || scenarioSeats !== undefined ? undefined : await request.post('/api/creategame', {data: table.config});
       // (A deal the creator refuses — a card its rules keep off a custom deck — is the harness's, never the game's: the
       // table is dealt plainly and the refusal named.)
       if (created !== undefined && !created.ok() && table.deal.length > 0) {
@@ -1361,7 +1484,10 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       }
       let viewer: string;
       let rivals: Array<string>;
-      if (created === undefined) {
+      if (scenarioSeats !== undefined) {
+        viewer = scenarioSeats[0];
+        rivals = scenarioSeats.slice(1);
+      } else if (created === undefined) {
         viewer = (mission as {viewer: string}).viewer;
         rivals = (mission as {rivals: Array<string>}).rivals;
       } else {
@@ -1376,7 +1502,8 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       // corporation, the preludes, the projects; a card the table's rules kept out of the deal is simply not there.)
       const offered = await fetchPlayerModel(request, viewer).then((model) => new Set(
         ((model.waitingFor as {options?: Array<{cards?: Array<{name: string}>}>} | undefined)?.options ?? []).flatMap((o) => (o.cards ?? []).map((c) => c.name))));
-      const dealt = table.deal.filter((name) => offered.has(name));
+      // (…a SCENARIO's own list is what it is for — the cards its pilot steers to, already on the table.)
+      const dealt = scenario !== undefined ? [...SCENARIO_TARGETS[scenario]] : table.deal.filter((name) => offered.has(name));
       const is = (list: ReadonlyArray<ScopeCard>) => (name: string) => list.some((c) => c.name === name);
       // (…a campaign's mission opens through the screen always: its tenders stand in the start scene.)
       const uiOpening = OPENING === 'ui' || (OPENING === 'auto' && n % 4 === 3) || mission !== undefined;

@@ -22,6 +22,8 @@ import {bootBottle, ConsoleBottle, disposeLiveBottle} from './consoleBottle';
 import {bottleServer, nodeProcess, nodeRequire} from './bottleNode';
 import {monkeyRng} from './monkeyWalk';
 import {autopilotGame, AutopilotResult} from './autopilot';
+import type {BottleTable} from './server/bottleServerHost';
+import {scenarioFor} from '../../testing/autopilotDeal';
 
 const env = nodeProcess().env as Record<string, string | undefined>;
 const ENABLED = env.TM_BOTTLE_AUTOPILOT === '1';
@@ -44,6 +46,8 @@ function seedsOf(spec: string): Array<number> {
 const SEEDS = seedsOf(env.TM_BOTTLE_AUTOPILOT_SEEDS ?? '1-4');
 /** THE DEAL (`tests/testing/autopilotDeal.ts`): `rotate` (the default) — the scope's cards to the opening hand in turn. */
 const DEAL = (env.TM_BOTTLE_AUTOPILOT_DEAL ?? 'rotate') === 'rotate';
+/** THE SCENARIO TABLES (`autopilotDeal.scenarioFor` — the browser pilot's own list): `auto` · `off` · `always`. */
+const SCENARIO = env.TM_BOTTLE_AUTOPILOT_SCENARIO ?? 'auto';
 
 type Filed = {cls: string, shape: string, tier: string, family: string, page: number, count: number, lines: number, atMs: number, title: string, dims: Record<string, string>};
 const filed = (cls: string, tier: string, count: number, text: string): Filed => ({
@@ -83,7 +87,9 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
       const records: Array<Filed> = [];
       let status = 'passed';
       let played: AutopilotResult | undefined;
-      let table: ReturnType<ReturnType<typeof bottleServer>['bootPilotTable']> | undefined;
+      let table: BottleTable | undefined;
+      /** What the table is, in the game's line: its seats and board — or its scenario. */
+      let tableWord = '';
       let why: Array<string> = [];
       let rebuilds = 0;
       let coverage: ReturnType<ConsoleBottle['coverage']>;
@@ -91,7 +97,16 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
       try {
         // THE GAME'S WHOLE WORLD IS ITS SEED (as a walk's): every roll that is not the engine's own seeded one.
         restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`${seed}:world`)());
-        table = bottleServer().bootPilotTable(n, `-${NAME}-${n}`, DEAL);
+        // (A SCENARIO's fixture instead of a table of its own — its seats all human, the first one the viewer.)
+        const scenario = scenarioFor(n, SCENARIO);
+        if (scenario !== undefined) {
+          table = await bottleServer().bootFixture(scenario);
+          tableWord = `scenario ${scenario}`;
+        } else {
+          const pilotTable = bottleServer().bootPilotTable(n, `-${NAME}-${n}`, DEAL);
+          table = pilotTable;
+          tableWord = `${pilotTable.config.humans}h${pilotTable.config.marsBot ? '+bot' : ''} ${String(pilotTable.config.options.boardName)}`;
+        }
         bottle = await bootBottle(table, {query: 'coverage=1', layout: LAYOUT});
         await bottle.advance(3_000);
         const page = bottle;
@@ -241,7 +256,7 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
       const defects = records.filter((record) => record.tier === 'defect');
       const sum = (row: Record<string, number>): string => Object.entries(row).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(' · ') || '—';
       console.log(status !== 'passed' ? `      · game ${n}: HARNESS — ${records[records.length - 1].title.slice(0, 200)}` :
-        `      · game ${n} [${table?.config.humans}h${table?.config.marsBot ? '+bot' : ''} ${String(table?.config.options.boardName)}]: ${played?.end} in generation ${played?.generation} (${played?.phase}) · ` +
+        `      · game ${n} [${tableWord}]: ${played?.end} in generation ${played?.generation} (${played?.phase}) · ` +
         `${played?.presses} presses, ${Math.round((played?.tookMs ?? 0) / 60_000)} min of play · by the screen: ${sum(played?.byUi ?? {})} · by the door: ${sum(played?.byApi ?? {})} · ` +
         `passes ${played?.passes.ui} by the wheel / ${played?.passes.api} by the door${defects.length > 0 ? ` · DEFECTS: ${defects.map((d) => d.cls).join(' | ')}` : ''}`);
     });

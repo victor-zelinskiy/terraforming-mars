@@ -72,6 +72,8 @@ import {MiningExpedition} from '../../../src/server/cards/base/MiningExpedition'
 import {ElectroCatapult} from '../../../src/server/cards/base/ElectroCatapult';
 import {ModularFloodgates} from '../../../src/server/cards/delta/ModularFloodgates';
 import {DeltaWorks} from '../../../src/server/cards/delta/DeltaWorks';
+import {DutchMountains} from '../../../src/server/cards/delta/DutchMountains';
+import {buildBlockadeProjection} from '../../../src/server/delta/deltaFloodgates';
 import {WaterSplittingPlant} from '../../../src/server/cards/base/WaterSplittingPlant';
 import {AquiferPumping} from '../../../src/server/cards/base/AquiferPumping';
 import {RestrictedArea} from '../../../src/server/cards/base/RestrictedArea';
@@ -1420,6 +1422,35 @@ finaleRichFixture('finale-rich-2p', 2);
   player.drawCard(2);
   runAllActions(game);
   write('hydro-floodgates-mix', game);
+}
+
+// ── scenario-delta: THE AUTOPILOT's SCENARIO TABLE for the two Delta Project choices no dealt game had reached — the
+//    input-type bar's gaps on CI 45911869971 (2026-11-27): `deltaStageReward` (Dutch Mountains: 3 energy → the reward of
+//    a stage reached or passed) and `deltaBlockade` (Modular Floodgates, variant B: a stored steel in front of another
+//    player's marker). A 2p Delta + Colonies table, blue on the move: position 5, 9 energy, Dutch Mountains, Modular
+//    Floodgates with 2 steel, Delta Works and the row tags in play; red at position 2. The autopilot plays it TO ITS END
+//    (`console-autopilot.spec.ts` — SCENARIO); the dry run proves both actions are offered and the blockade is legal. ──
+{
+  const [game, p1, p2] = testGame(2, {skipInitialCardSelection: false, deltaProjectExpansion: true, coloniesExtension: true});
+  answerStartFlow(game, [p1, p2]);
+  const dutch = new DutchMountains();
+  const floodgates = new ModularFloodgates();
+  floodgates.resourceCount = 2;
+  p1.playedCards.push(new SolarPower(), new AdaptedLichen(), new RegolithEaters(), new IoMiningIndustries(), new Pets(), new DeltaWorks(), dutch, floodgates);
+  p1.deltaProjectData!.position = 5;
+  p2.deltaProjectData!.position = 2;
+  p1.energy = 9;
+  p1.steel = 2;
+  p1.megaCredits = 50;
+  p1.drawCard(3);
+  p2.megaCredits = 40;
+  runAllActions(game);
+  if (game.activePlayer.id !== p1.id || !dutch.canAct(p1) || !floodgates.canAct() ||
+      !buildBlockadeProjection(p1, floodgates).targets.some((target) => target.legal)) {
+    throw new Error(`scenario-delta: expected blue on the move with Dutch Mountains and a legal Floodgates blockade — active=${game.activePlayer.color} ` +
+      `dutch=${dutch.canAct(p1)} floodgates=${floodgates.canAct()}`);
+  }
+  write('scenario-delta', game);
 }
 
 // ── hydro-terminal-2p: the owner's freeze of 2026-10-31 — the SAME terminal landing («К дальнему» onto the 5 VP

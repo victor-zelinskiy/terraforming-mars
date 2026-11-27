@@ -2817,6 +2817,16 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   refused it. Two reactions to one collect; the door's answer is now the cube's (`colonyBonusCollected`). Reproduced
   (`console-screen-shadow-rows` colonyBonus — «the collect was sent once»: red, three refused lines; green), a caller
   trace on the box naming the second sender.
+- **THE SCENARIO AXIS (2026-11-27) — the input-type bar's two gaps closed.** A choice only a blue card's action asks
+  (Dutch Mountains' stage reward, Modular Floodgates' blockade) was reached by no dealt game in a pass. Now one game
+  in twelve (`n % 12 === 11`, never a campaign's) is a SCENARIO: a fixture standing on those choices (`scenario-delta`
+  — generated with a dry run that proves both actions offered and the blockade legal), loaded through the dev door and
+  played TO ITS END by the same pilot, in both pilots (`autopilotDeal.scenarioFor`). Two pilot rules made the choices
+  reachable: «THE ACTION A TURN TAKES» — on a visit of «Действия карт» the pilot goes to ONE lit tile (the scenario's
+  targets first, else in turn), walking the grid by its tiles' own order (a step along a row, across where it ends —
+  never «turn at a wall», which an answer lagging a frame behind the press made oscillate); a card of two actions is
+  TWO tiles (`card#n`), so the variants are taken in turn — and «THE VARIANT A TURN CHOOSES» for a composer's choice.
+  Read on the box (four scenario games, `4f01936956`'s client): `deltaStageReward` ×1, `deltaBlockade` ×2, no defect.
 - **`wait-graph/ceiling/external-draw:prompt-moved` (the box's lanes on `4f01936956`, game 2631) — A REFUSAL HEARD
   TOO LATE.** A take of a resolution's drawn card met the weather's stale answer (a 400 within 30 ms); its settle came
   while the card was still flying into the dock, and the wait that reads the settle was armed only after the flight —

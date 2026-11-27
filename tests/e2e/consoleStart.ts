@@ -3245,7 +3245,7 @@ export type BootOptions = {
  * resumed prompt. Costs one request + one page load — a spec whose subject
  * lives in the late game stops replaying the game to reach it.
  */
-export type FixtureName = 'solo-actions' | 'astra-mechanica-return' | 'nomads-remote-move' | 'parliament-colony-venus-assembly' | 'journal-chips' | 'first-action-owed-late' | 'first-action-owed-opening' | 'colony-host-handover' | 'bot-polder' | 'bot-insurance' | 'bot-shipyard' | 'bot-boiler' | 'bot-lab' | 'bot-imprint' | 'bot-rumours' | 'bot-leverage' | 'solo-pre-endgame' | 'venus-trade' | 'venus-trade-delegates' | 'venus-trade-unity' | 'venus-trade-unity-bonus' | 'venus-trade-unity-bonus-2p' | 'field-venus-unity-trade' |
+export type FixtureName = 'solo-actions' | 'astra-mechanica-return' | 'nomads-remote-move' | 'parliament-colony-venus-assembly' | 'journal-chips' | 'first-action-owed-late' | 'first-action-owed-opening' | 'scenario-delta' | 'colony-host-handover' | 'bot-polder' | 'bot-insurance' | 'bot-shipyard' | 'bot-boiler' | 'bot-lab' | 'bot-imprint' | 'bot-rumours' | 'bot-leverage' | 'solo-pre-endgame' | 'venus-trade' | 'venus-trade-delegates' | 'venus-trade-unity' | 'venus-trade-unity-bonus' | 'venus-trade-unity-bonus-2p' | 'field-venus-unity-trade' |
   // P90 Venus Trade Hub: the card's answer to a trade — a colony trade (`venus-trade-hub`) and a dock's (`-dock`).
   'venus-trade-hub' | 'venus-trade-hub-dock' |
   // P46 Colony Trade Hub: the card's answer to ANY colony built — blue's own build, red's, MarsBot's (B18).
@@ -3852,6 +3852,23 @@ export async function bootFixture(
 }
 
 /**
+ * LOAD A FIXTURE — the serialized game through the dev load-game door (`Game.deserialize`, the path every real save
+ * rides) — and nothing else: the seats' ids, the first one first. No page opens (the autopilot's SCENARIO tables open
+ * the console themselves); `bootFixtureSeats` below is this plus the landing.
+ */
+export async function loadFixtureSeats(
+  request: APIRequestContext, fixture: FixtureName, arrange?: (serialized: Record<string, unknown>) => void,
+): Promise<Array<string>> {
+  const file = path.resolve(__dirname, 'fixtures', `${fixture}.json`);
+  const serialized = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
+  arrange?.(serialized);
+  const res = await timed('fixture', () => request.post('/api/dev/load-game', {data: serialized}));
+  expect(res.ok(), `the dev load-game door accepted ${fixture} (status ${res.status()})`).toBeTruthy();
+  const model = await res.json() as {players: Array<{id: string}>};
+  return model.players.map((p) => p.id);
+}
+
+/**
  * `bootFixture` that also hands back EVERY seat's id (in the fixture's player
  * order) — a multi-seat spec drives the other seats over the API (an
  * opponent's pass between the viewer's turns) without a second browser.
@@ -3867,13 +3884,7 @@ export async function bootFixtureSeats(
    */
   opts: {query?: string, waitRounds?: number, landing?: 'board' | 'prompt', keepColony?: string, arrange?: (serialized: Record<string, unknown>) => void} = {},
 ): Promise<{playerId: string, seats: Array<string>}> {
-  const file = path.resolve(__dirname, 'fixtures', `${fixture}.json`);
-  const serialized = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
-  opts.arrange?.(serialized);
-  const res = await timed('fixture', () => request.post('/api/dev/load-game', {data: serialized}));
-  expect(res.ok(), `the dev load-game door accepted ${fixture} (status ${res.status()})`).toBeTruthy();
-  const model = await res.json() as {players: Array<{id: string}>};
-  const seats = model.players.map((p) => p.id);
+  const seats = await loadFixtureSeats(request, fixture, opts.arrange);
   const playerId = seats[0];
   try {
     test.info().annotations.push({type: 'game', description: `fixture=${fixture}${opts.arrange === undefined ? '' : ' (arranged)'} player=${playerId}`});

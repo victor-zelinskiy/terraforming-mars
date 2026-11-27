@@ -1,7 +1,5 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import {test, expect} from './consoleTest';
-import {fetchPlayerModel, sendPlayerInput} from './consoleStart';
+import {fetchPlayerModel, loadFixtureSeats, sendPlayerInput} from './consoleStart';
 
 /**
  * THE SOFT GATES OVER THE LIVE API (docs/claude/console/parliament-soft-gates.md — П1 · П3): a real two-seat
@@ -19,15 +17,6 @@ type Model = {
     parliament?: {phase?: {step: string; generation: number; pending?: {player: string}}; sitting?: {generation: number; seq: number; final: boolean; pending: Array<string>}}};
   thisPlayer: {color: string};
 };
-
-async function loadFixtureSeats(request: Parameters<typeof fetchPlayerModel>[0], fixture: string): Promise<Array<string>> {
-  const file = path.resolve(__dirname, 'fixtures', `${fixture}.json`);
-  const serialized = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
-  const res = await request.post('/api/dev/load-game', {data: serialized});
-  expect(res.ok(), `the dev load-game door accepted ${fixture} (status ${res.status()})`).toBeTruthy();
-  const model = await res.json() as {players: Array<{id: string}>};
-  return model.players.map((p) => p.id);
-}
 
 const modelOf = async (request: Parameters<typeof fetchPlayerModel>[0], id: string): Promise<Model> => await fetchPlayerModel(request, id) as unknown as Model;
 
