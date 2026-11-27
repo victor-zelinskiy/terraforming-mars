@@ -99,6 +99,7 @@ export function createFinaleController(shell: FinalePort) {
       pickOut: shell.finalGreeneryPickPending && shell.taskSpacePending !== undefined,
       promptStands: shell.finalGreeneryRawVm !== undefined,
       committing: shell.finalGreeneryCommitting,
+      offerStands: shell.finalGreeneryRawVm?.diverted !== undefined,
     });
   });
 

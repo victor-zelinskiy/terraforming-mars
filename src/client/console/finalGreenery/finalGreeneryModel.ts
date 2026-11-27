@@ -92,12 +92,16 @@ export const SEAT_YOU = 'you';
 export const STAGE_PICK = 'Cell choice';
 export const STAGE_LANDING = 'Landing';
 export const STAGE_WAIT = 'Waiting on a seat';
+/** …and under a law that REPLACES the greenery (RX35): the plants buy data, there is no cell — the offer stage. */
+export const STAGE_OFFER = 'Exchange';
 /** The wait stage's line: «Ждём ответа: ${0}». */
 export const WAITING_ON = 'Waiting for ${0} to answer';
 /** …and the reason the finish is disabled meanwhile. */
 export const FINISH_WAITS = 'Finish is available once ${0} has answered';
 /** The landing stage's line. */
 export const LANDING_LINE = 'The greenery is landing — the next pick follows';
+/** The offer stage's line (RX35): no cell is asked, each exchange is the player's own press. */
+export const OFFER_LINE = 'Under the law the plants buy data — no cell to choose';
 
 /**
  * Build the finale's view, or `undefined` when this prompt is not it. Like
@@ -232,7 +236,7 @@ export function finalGreeneryBank(stock: FinalGreeneryStock, cap = 24): FinalGre
  * on the wire, or the next prompt stands and the pick follows by itself); `wait` — the seat holds no prompt and
  * another seat decides (a triggered pick of theirs). Derived from facts, never from a title.
  */
-export type FinaleStage = 'pick' | 'landing' | 'wait';
+export type FinaleStage = 'pick' | 'offer' | 'landing' | 'wait';
 
 export function finaleStageOf(facts: {
   /** The finale's own board pick is out. */
@@ -241,9 +245,19 @@ export function finaleStageOf(facts: {
   promptStands: boolean,
   /** The last answer is on the wire / its landing has not released the loop yet. */
   committing: boolean,
+  /**
+   * THE OFFER STANDS WITH NO CELL — under a law that REPLACES the greenery (RX35 Diverted Research) the placing branch
+   * is a plain option: nothing is picked on the board, the player's press IS the exchange. A standing state, never a
+   * beat — the stage the context names and the bar's A answers (CI's autopilot on `6ba4e117ff`, game 539: read as the
+   * one flush before a board pick, it stood with no verb and no surface, and the question was stranded).
+   */
+  offerStands?: boolean,
 }): FinaleStage {
   if (facts.pickOut) {
     return 'pick';
+  }
+  if (facts.offerStands === true && facts.promptStands && !facts.committing) {
+    return 'offer';
   }
   if (facts.promptStands || facts.committing) {
     return 'landing';

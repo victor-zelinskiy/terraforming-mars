@@ -163,6 +163,10 @@ const EXTRA_KIND_SURFACES: Partial<Record<string, ReadonlyArray<string>>> = {
   projectCard: ['.con-sheet', '.con-composer--play', '.con-task'],
   corpFirstAction: ['.con-composer--corpfirst'],
   draftWait: ['.con-draftwait'],
+  // THE FINALE's OFFER (RX35 — the law replaces the greenery, the plants buy data): no cell is asked, so no board
+  // pick serves it — the finale context's offer stage does, the bar's A answering it (CI's autopilot on
+  // `6ba4e117ff`, game 539: the offer stood with no surface at all, `stall (unserved) · holder: stranded`).
+  choice: ['.con-context__finale[data-finale-stage="offer"]'],
 };
 
 /**

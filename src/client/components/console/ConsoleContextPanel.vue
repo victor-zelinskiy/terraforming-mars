@@ -99,6 +99,11 @@
           <span class="con-context__finale-pulse" aria-hidden="true"></span>
           <span class="con-context__finale-wait-text">{{ $t(LANDING_LINE) }}</span>
         </div>
+        <!-- THE OFFER (RX35 — the law REPLACES the greenery): no cell is asked, the plants buy data. The line says so —
+             no pulse, nothing is pending: the exchange waits for the player's own press (the bar's verb). -->
+        <div v-else-if="finale.stage === 'offer'" class="con-context__finale-wait con-context__finale-wait--offer" data-finale-offer>
+          <span class="con-context__finale-wait-text">{{ $t(OFFER_LINE) }}</span>
+        </div>
         <div class="con-context__finale-head">
           <span class="con-context__finale-label">{{ $t(FINALE_BANK_LABEL) }}</span>
           <span class="con-context__finale-stock">
@@ -378,8 +383,8 @@ import {
 } from '@/client/console/placementDossier';
 import {cardArtUrl, cardArtUrlAtTier} from '@/client/cards/cardArt';
 import {
-  BANK_BURNS, BANK_CELLS, BANK_ENOUGH, BANK_LABEL as FINALE_BANK_LABEL, FinalePanelModel, FinaleSeatState, LANDING_LINE,
-  QUEUE_LABEL, SEAT_DONE, SEAT_PLACING, SEAT_WAITING, SEAT_YOU, STAGE_LANDING, STAGE_PICK, STAGE_WAIT, WAITING_ON,
+  BANK_BURNS, BANK_CELLS, BANK_ENOUGH, BANK_LABEL as FINALE_BANK_LABEL, FinalePanelModel, FinaleSeatState, LANDING_LINE, OFFER_LINE,
+  QUEUE_LABEL, SEAT_DONE, SEAT_PLACING, SEAT_WAITING, SEAT_YOU, STAGE_LANDING, STAGE_OFFER, STAGE_PICK, STAGE_WAIT, WAITING_ON,
 } from '@/client/console/finalGreenery/finalGreeneryModel';
 import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
 import {ScaleTooltipRow} from '@/client/components/board/scaleTooltipState';
@@ -487,6 +492,7 @@ const finaleStageKey = computed((): string => {
   switch (props.finale?.stage) {
   case 'wait': return STAGE_WAIT;
   case 'landing': return STAGE_LANDING;
+  case 'offer': return STAGE_OFFER;
   default: return STAGE_PICK;
   }
 });

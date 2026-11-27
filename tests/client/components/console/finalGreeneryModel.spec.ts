@@ -135,6 +135,14 @@ describe('finalGreeneryModel', () => {
     expect(finaleStageOf({pickOut: false, promptStands: false, committing: false})).to.eq('wait');
   });
 
+  it('under a law that REPLACES the greenery (RX35) the offer is a STANDING stage — no cell, the press is the exchange (game 539)', () => {
+    // The offer stands while the prompt does and no exchange is on the wire; the commit is the landing as ever.
+    expect(finaleStageOf({pickOut: false, promptStands: true, committing: false, offerStands: true})).to.eq('offer');
+    expect(finaleStageOf({pickOut: false, promptStands: true, committing: true, offerStands: true})).to.eq('landing');
+    expect(finaleStageOf({pickOut: false, promptStands: false, committing: false, offerStands: true}), 'no prompt of ours — the wait').to.eq('wait');
+    expect(finaleStageOf({pickOut: false, promptStands: true, committing: false, offerStands: false}), 'the classic beat before the pick').to.eq('landing');
+  });
+
   it("the FINALE ORDER names every seat's place: done by the server's list, placing by the asked seat's kind, the rest waiting", () => {
     const seats = finaleQueue([
       {color: 'blue', name: 'player1', isWaitingForInput: true, waitingForKind: 'finalgreenery'},

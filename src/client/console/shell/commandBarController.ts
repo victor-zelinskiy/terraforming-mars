@@ -133,6 +133,7 @@ export type CommandBarPort = {
   externalDrawOwnsPad: UnwrapRef<RevealController['externalDrawOwnsPad']>,
   finaleSessionEngaged: UnwrapRef<FinaleController['finaleSessionEngaged']>,
   finalGreeneryActive: UnwrapRef<PlacementController['finalGreeneryActive']>,
+  finalGreeneryOfferStands: UnwrapRef<PlacementController['finalGreeneryOfferStands']>,
   finalGreeneryPickPending: UnwrapRef<PlacementController['finalGreeneryPickPending']>,
   govSupportActive: UnwrapRef<ParliamentController['govSupportActive']>,
   handCoveredByHydro: UnwrapRef<HydroController['handCoveredByHydro']>,
@@ -875,8 +876,11 @@ export function createCommandBarController(shell: CommandBarPort) {
     if (shell.finalGreeneryActive) {
       noteBarRung('finalGreenery');
       // The beat between «the finale stands open» and the board taking the pick (the watcher hands it over in the
-      // same flush): the finale's own verbs, never the host's.
-      return [finalGreeneryFinishCommand(), {control: 'back', label: 'Minimize'}];
+      // same flush): the finale's own verbs, never the host's. …UNDER A LAW THAT REPLACES THE GREENERY (RX35) there is
+      // no pick to hand over: the finale STANDS on its offer, and A is the exchange — the one verb that answers it.
+      return shell.finalGreeneryOfferStands ?
+        [{control: 'confirm', label: 'Convert plants'}, finalGreeneryFinishCommand(), {control: 'back', label: 'Minimize'}] :
+        [finalGreeneryFinishCommand(), {control: 'back', label: 'Minimize'}];
     }
     if (shell.taskHostOwnsInput) {
       noteBarRung('taskHost');

@@ -252,6 +252,8 @@ export type PadRouterPort = {
   onNotificationInspectResolution(resolution: string): void,
   onNotificationOpenParliament: UnwrapRef<ParliamentController['onNotificationOpenParliament']>,
   openFinalGreeneryOnBoard: UnwrapRef<PlacementController['openFinalGreeneryOnBoard']>,
+  convertFinalGreenery: UnwrapRef<PlacementController['convertFinalGreenery']>,
+  finalGreeneryOfferStands: UnwrapRef<PlacementController['finalGreeneryOfferStands']>,
   openHandWithReveal: UnwrapRef<RevealController['openHandWithReveal']>,
   openJournalToNotification: UnwrapRef<JournalController['openJournalToNotification']>,
   openMandatoryAnnounce: UnwrapRef<MandatoryController['openMandatoryAnnounce']>,
@@ -1103,7 +1105,12 @@ export function createPadRouterController(shell: PadRouterPort) {
         } else if (intent.button === 'triggerR') {
           shell.beginFinalGreeneryFinish();
         } else if (act === 'primary') {
-          shell.openFinalGreeneryOnBoard();
+          // (RX35's offer: the press IS the exchange — nothing to take the board for.)
+          if (shell.finalGreeneryOfferStands) {
+            shell.convertFinalGreenery();
+          } else {
+            shell.openFinalGreeneryOnBoard();
+          }
         }
       }
       return true;

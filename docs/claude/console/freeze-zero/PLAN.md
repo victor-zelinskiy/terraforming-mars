@@ -2972,7 +2972,7 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   Beginner Corporation pays nothing for its cards: no pay press, so the delivery that lifts the bought cards off the
   purchase row never ran, and the fallback for «the hold's press went by another road» (`deliverHeldRole`) delivered
   them with no source. The fallback now lifts them off the row as well — read before the render that unmounts it.
-- **OPEN (the box's game 2921 on `ebe945d353`, a Turmoil Redux + Ares table) — THE FINALE's NEXT PICK DID NOT RISE.**
+- **(CURED below — the finale's offer under RX35, game 539's class) The box's game 2921 on `ebe945d353`, a Turmoil Redux + Ares table — THE FINALE's NEXT PICK DID NOT RISE.**
   After a final greenery landed, the prompt came back (`or[finalGreeneryPrompt]` #133) and the context stood with no
   board pick out (only «RT Завершить свою партию» — a hold), the last thing in flight the sitting's results
   (`parliament-sitting:results`): the leak detector, the screen shadow («expected task»), the foreground watchdog and
@@ -3055,19 +3055,25 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   with two equal targets (`surface:bot-attack`), B on the loading curtain (`surface:gamepad-focus-ring`), a declined
   rematch between two humans (`surface:rematch-layer`), a claim re-homed after its host left (`orphaned → bound`),
   Early Colonization's raise, a rival's nomads, Astra Mechanica's return, RX35's pick.
-- **OPEN, SEEN TWICE NOW (CI's autopilot on `6ba4e117ff`, game 539 — the scenario of the board; the box's 2921) — THE
-  FINALE's QUESTION WITH NO VERB.** After the final sitting closed, the finale's plate opened (or#207 «Разместить
-  озеленение»), and 256 ms later the server asked the same question anew (or#208) — the context «Конец партии · RT
-  Завершить свою партию · B Свернуть» stood with no pick and no A, the leak detector named the `or` stranded, the
-  arbiter rebuilt the page at eight seconds (`liveness/stall/unserved/choice/board/stranded`, the last thing in flight
-  `parliament-sitting:enact/enact`). Read: the finale opens its pick on the EDGE of `finalGreeneryActive`, and a renewed
-  question while it stays true gives no edge. Under a law that replaces the greenery (RX35) the open IS the answer —
-  so that road was walked deterministically (`finale-diverted` · `console-finale-diverted.spec`: no conversion without a
-  press, none after a reload, the second conversion reachable through the plate) — green on the build of the field:
-  not this class's road. Nor is the server's loop re-entered by another seat's answer: it keeps the standing question
-  and its identity (`setWaitingForSafely` queues behind it — `Game.spec` «keeps a seat's standing question»). What is
-  left is the client's: the run's own record `console-foreground-watchdog/expired/lease:mandatory-choice` — a beat of the
-  renewed question claimed the foreground and rendered nothing while the finale's context stood. Watched.
+- **CURED (CI's autopilot on `6ba4e117ff`, game 539 — the scenario of the board; the box's 2921) — THE FINALE's OFFER
+  WITH NO VERB.** After the final sitting closed, the finale's plate opened (or#207 «Разместить озеленение»), and 256 ms
+  later the server asked the same question anew (or#208) — the context «Конец партии · RT Завершить свою партию · B
+  Свернуть» stood with no pick and no A, the leak detector named the `or` stranded, the arbiter rebuilt the page at
+  eight seconds (`liveness/stall/unserved/choice/board/stranded`); 2921 is the same road to the press (the plate's A →
+  or#133 half a second later, the same bar). The root: under a law that REPLACES the greenery (RX35 Diverted Research)
+  the placing branch is a plain option — there is no cell, so the finale's «take the board» (`openFinalGreeneryOnBoard`,
+  run on the EDGE of `finalGreeneryActive`) answered the branch itself. The plate's A made the first exchange; a table
+  with no card that can hold the data forfeits it and the server asks the next offer AT ONCE — `finalGreeneryActive`
+  stays true, no edge, and the bar's rung, written for «the one flush before the board pick», offered no A. With a data
+  holder the law's «where» stands between two offers — and the next offer's edge answered it with NO press at all
+  (invariant 3). The cure gives the offer a STAGE of its own: `finaleStageOf` → `'offer'` (the context's pill «Обмен»,
+  its line «По закону растения покупают данные — клетку выбирать не нужно», `data-finale-offer`); the edge enters the
+  finale session and answers nothing; A on the offer is the exchange (`convertFinalGreenery` — held down as the
+  landing until the answer lands, a refused press puts the offer back: `final-offer-commit`); the bar offers «A
+  Потратить растения · RT Завершить · B Свернуть»; the leak detector reads the offer's stage as the question's surface.
+  Proven: `finale-diverted-bare` (no card to hold the data) is RED on the old build with exactly the field's line
+  (`stall (unserved) … holder: stranded`) and GREEN with the cure; `finale-diverted` (Martian Census) now also holds
+  «the next offer waits for its press»; the finale family on the box 24/24; unit pin in `finalGreeneryModel.spec`.
 - **THE PILOTS' ROADS TO THE GAME's CARDS, widened.** The browser's own intents rotate over every road the game's cards
   ask (`dealtIntents` — the hand, an action, a project of the list, the TRADE when a fleet dock of the list is in play),
   the album's target goes by the order of the list (a card whose window closes first stands first — Ecological

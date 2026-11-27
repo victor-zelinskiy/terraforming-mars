@@ -162,6 +162,8 @@ export function createPlacementController(shell: PlacementPort) {
   const finalGreeneryCommitting = scopedState('final-greenery-committing', false);
   /** The nested space pick on the wire (its pick, whether the finale's, the question it answered) — the unwind's. */
   let taskSpaceCommit: {pending: {index: number, spacePrompt: PlayerInputModel}, finale: boolean, promptId: number | undefined} | undefined;
+  /** The finale's EXCHANGE on the wire (RX35's offer — no cell): the question it answered, for the unwind. */
+  let finaleOfferCommit: number | undefined;
 
   // ── derived ──────────────────────────────────────────────────────────────────────────────────────────────────────
   /** The tile-placement hero owns the foreground (reactive twin of
@@ -216,6 +218,14 @@ export function createPlacementController(shell: PlacementPort) {
       !shell.govSupportActive && !shell.productionLossActive &&
       !consoleState.task.deferred && taskSpacePending.value === undefined &&
       !shell.handPickActive;
+  });
+
+  /**
+   * THE FINALE's OFFER STANDS (RX35 — the law replaces the greenery): the finale open with no cell to take — a
+   * STANDING state, not the one flush before a board pick. The bar's A and the pad's primary are the exchange.
+   */
+  const finalGreeneryOfferStands = computed((): boolean => {
+    return finalGreeneryActive.value && finalGreeneryVm.value?.diverted !== undefined;
   });
 
   /**
@@ -1063,15 +1073,35 @@ export function createPlacementController(shell: PlacementPort) {
       return;
     }
     // Under a law that REPLACES the greenery (RX35, decision Р2) the placing branch is a plain OPTION: the plants
-    // buy data, no cell is asked — the press answers the branch, and the law's own «where» follows as the next
-    // prompt (the shared picker, the plate's scene).
+    // buy data, no cell is asked. There is nothing to take the board for — the finale STANDS OPEN on its offer
+    // stage (the context names it, the bar's A is the exchange: `convertFinalGreenery`). Never answered here: this
+    // runs on an EDGE (the announce's A, the way back, the next offer after a landing) and an edge is no press
+    // (invariant 3 — the next offer converted itself after the law's «where»; and with no «where» in between there
+    // was no edge at all: the offer stood with no verb and no surface — CI's autopilot on `6ba4e117ff`, game 539).
     if (vm.diverted !== undefined) {
-      shell.submit({type: 'or', index: vm.placeIndex, response: {type: 'option'}});
+      enterFinaleSession();
       return;
     }
     // THE SESSION RISES with the first pick (and returns from a minimize with the next): one context from here on.
     enterFinaleSession();
     onFinalGreenerySpacePick({index: vm.placeIndex, spacePrompt});
+  }
+
+  /**
+   * THE EXCHANGE — A on the finale's offer stage (RX35: the law replaces the greenery, the plants buy data). The
+   * player's own press answers the placing branch; the finale is held down until the answer lands (the landing
+   * stage), and a press the server refused puts the offer back on the same question (`final-offer-commit`).
+   */
+  function convertFinalGreenery(): void {
+    const vm = finalGreeneryVm.value;
+    const wf = shell.playerView.waitingFor;
+    if (vm?.diverted === undefined || wf?.type !== 'or' || finalGreeneryCommitting.value) {
+      return;
+    }
+    finaleOfferCommit = wf.promptId;
+    finalGreeneryCommitting.value = true;
+    takeUpQuestion('answered');
+    shell.submit(orOptionResponse(vm.placeIndex));
   }
 
   /** B on the finale: MINIMIZE — the pick is dropped (nothing was sent), the board home's plate brings it back. */
@@ -1566,6 +1596,9 @@ export function createPlacementController(shell: PlacementPort) {
     if (taskSpaceCommit !== undefined && shell.playerView.waitingFor?.promptId !== taskSpaceCommit.promptId) {
       taskSpaceCommit = undefined;
     }
+    if (finaleOfferCommit !== undefined && shell.playerView.waitingFor?.promptId !== finaleOfferCommit) {
+      finaleOfferCommit = undefined;
+    }
     if (finalGreeneryCommitting.value) {
       void nextTick(() => {
         finalGreeneryCommitting.value = false;
@@ -1581,6 +1614,16 @@ export function createPlacementController(shell: PlacementPort) {
    * question: the board re-enters its placement, the finale its pick (no-op when no such commit was in flight, or the
    * question has moved on).
    */
+  // …and the finale's EXCHANGE (RX35's offer) whose press did not land: the offer stands again on the same question.
+  onPressUnlanded('final-offer-commit', () => {
+    const promptId = finaleOfferCommit;
+    finaleOfferCommit = undefined;
+    if (promptId === undefined || shell.playerView.waitingFor?.promptId !== promptId) {
+      return;
+    }
+    finalGreeneryCommitting.value = false;
+  }, 145);
+
   onPressUnlanded('task-space-commit', () => {
     const commit = taskSpaceCommit;
     taskSpaceCommit = undefined;
@@ -1604,6 +1647,7 @@ export function createPlacementController(shell: PlacementPort) {
     finalGreeneryVm,
     finalGreeneryRawVm,
     finalGreeneryActive,
+    finalGreeneryOfferStands,
     remoteLandingBeforePlacement,
     placementTakesBoardForLanding,
     placementTakesBoardForStory,
@@ -1657,6 +1701,7 @@ export function createPlacementController(shell: PlacementPort) {
     onTaskSpacePick,
     onFinalGreenerySpacePick,
     openFinalGreeneryOnBoard,
+    convertFinalGreenery,
     deferFinalGreenery,
     beginFinalGreeneryFinish,
     finishFinalGreenery,

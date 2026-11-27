@@ -4,13 +4,15 @@ import {bootFixture, fetchPlayerModel, press, reloadConsole} from './consoleStar
 /**
  * THE FINALE UNDER A LAW THAT REPLACES THE GREENERY (RX35 Diverted Research) — a guard of the finale's road, written
  * while reading CI's autopilot on `6ba4e117ff`, game 539, and the box's game 2921 (`liveness/stall/unserved/choice/
- * board/stranded`: the finale's context standing with no pick and no verb, the last thing in flight the sitting's
- * enactment). That class did not come on this road; what the road must keep is held here:
- *   · under the law the placing branch is a plain OPTION — its «open» IS the answer, so nothing converts the player's
- *     plants by itself (no press, no conversion — and none after a reload, invariant 3);
+ * board/stranded`: the finale's context standing with no pick and no verb). Under the law there is no cell to pick:
+ * the finale stands on its OFFER stage («Обмен»), and A is the exchange. What the road must keep is held here:
+ *   · under the law the placing branch is a plain OPTION — the finale's «open» is an edge and answers nothing, so
+ *     nothing converts the player's plants by itself (no press, no conversion — and none after a reload, invariant 3);
  *   · every conversion is reachable from the screen: the law's «where» (the data's card) is taken, and the next offer
  *     stands behind a press (the plate's A), never behind a bar of «Завершить · Свернуть» alone.
- * The fixture: blue asked its final greenery with 16 plants — two conversions — and Martian Census to hold the data.
+ * The fixtures: blue asked its final greenery with 16 plants — two conversions; `finale-diverted` with Martian Census to
+ * hold the data (the law's «where» between two offers), `finale-diverted-bare` with no card that can (the data is
+ * forfeited and the next offer is asked AT ONCE — the road of game 539, where the offer stood with no verb at all).
  */
 
 const plantsOf = async (request: APIRequestContext, id: string): Promise<number> =>
@@ -51,10 +53,40 @@ test('the diverted finale offers its press for every conversion — the second o
     await expect.poll(census, {timeout: 5_000}).toBe(1).catch(() => undefined);
   }
   expect(await census(), 'the first data landed on Martian Census').toBe(1);
-  // THE NEXT OFFER — the same question renewed: a press of the screen reaches it (the plate's A, or the finale's own
-  // «Потратить растения»), never a bar of «Завершить · Свернуть» alone — act → verify by the server's count.
+  // THE NEXT OFFER STANDS AND WAITS FOR ITS PRESS — the finale opening again is an EDGE, and an edge is no press (the
+  // old road answered the offer on that edge: the second exchange made itself). Read once its verb is on the screen.
+  await expect.poll(() => bar(page), {timeout: 15_000, message: 'the next offer stands'}).toMatch(/Разместить озеленение|Потратить растения/);
+  expect(await plantsOf(request, id), 'no exchange the player did not press').toBe(8);
+  // …then a press of the screen reaches it (the plate's A, or the finale's own «Потратить растения»), never a bar of
+  // «Завершить · Свернуть» alone — act → verify by the server's count.
   for (let i = 0; i < 8 && await plantsOf(request, id) === 8; i++) {
     await expect.poll(() => bar(page), {timeout: 10_000}).toMatch(/Разместить озеленение|Потратить растения/).catch(() => undefined);
+    await press(page, 'Enter', 400);
+    await expect.poll(() => plantsOf(request, id), {timeout: 5_000}).toBe(0).catch(() => undefined);
+  }
+  expect(await plantsOf(request, id), 'the second conversion spent the rest').toBe(0);
+});
+
+test('the diverted finale with NO card to hold the data — the next offer is asked at once, and its press stands (game 539)', async ({page, request}) => {
+  test.setTimeout(240_000);
+  // THE FIELD's ROAD (CI's autopilot on `6ba4e117ff`, game 539): no card of blue's can hold the data, so the law's data
+  // is forfeited (named) and the server asks the NEXT offer at once — the same question renewed, with no «where» in
+  // between. The finale's screen never left (no edge), and its bar stood on «Завершить · Свернуть»: no verb reached the
+  // offer, the question was stranded. The second conversion must be one press away like the first.
+  const id = await bootFixture(page, request, 'finale-diverted-bare', {landing: 'prompt'});
+  expect(await plantsOf(request, id), 'the fixture: 16 plants').toBe(16);
+  for (let i = 0; i < 8 && await plantsOf(request, id) === 16; i++) {
+    await press(page, 'Enter', 400);
+    await expect.poll(() => plantsOf(request, id), {timeout: 5_000}).toBe(8).catch(() => undefined);
+  }
+  expect(await plantsOf(request, id), 'the first conversion spent 8 plants').toBe(8);
+  // The next offer stands: a verb of the screen reaches it — act → verify by the server's count.
+  await expect.poll(() => bar(page), {timeout: 15_000, message: 'the next offer stands behind a verb, not behind «Завершить · Свернуть» alone'})
+    .toMatch(/Разместить озеленение|Потратить растения/);
+  // The finale's context names the stage: the offer, no cell to choose (`data-finale-offer` — the dossier's line).
+  await expect(page.locator('[data-finale-offer]'), 'the context stands on its offer').toBeVisible({timeout: 10_000});
+  expect(await plantsOf(request, id), 'no exchange the player did not press').toBe(8);
+  for (let i = 0; i < 8 && await plantsOf(request, id) === 8; i++) {
     await press(page, 'Enter', 400);
     await expect.poll(() => plantsOf(request, id), {timeout: 5_000}).toBe(0).catch(() => undefined);
   }
