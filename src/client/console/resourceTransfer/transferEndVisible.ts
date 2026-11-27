@@ -46,8 +46,12 @@ export const TRANSFER_END_MIN_OPACITY = 0.5;
  * an X-hold, and an M€ token of the bot's attack was born under `.mbr__chains`, painted under the review's panel).
  * ONE list for every question asked of them: an end under one is covered, an end inside one is no flight end, a bare
  * point under one is covered, and a token under one is under a scene that took the screen — not a paint defect.
+ * …and the SYSTEM ALERT (`.con-alert` — «Ошибка сети», the server's refusal, z 12 900 over the flight layer, its
+ * backdrop the whole frame): not called up by the player but by the wire, and it takes the screen all the same. The
+ * box's autopilot on `fa37325692`, game 2805 (a storm game): the alert rose over tokens in flight and they were named
+ * «painted under div.con-alert__backdrop» — a scene that took the screen, not a hull surface the token should cross.
  */
-export const FULLSCREEN_OVERLAYS = '.con-zoom-veil, .con-sys, .card-zoom-container, .con-bot-review';
+export const FULLSCREEN_OVERLAYS = '.con-zoom-veil, .con-sys, .card-zoom-container, .con-bot-review, .con-alert';
 
 /**
  * What COVERS an end: a band surface — and a FULL-SCREEN overlay standing over the whole frame (ledger HC, the monkey's

@@ -2817,6 +2817,11 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   refused it. Two reactions to one collect; the door's answer is now the cube's (`colonyBonusCollected`). Reproduced
   (`console-screen-shadow-rows` colonyBonus — «the collect was sent once»: red, three refused lines; green), a caller
   trace on the box naming the second sender.
+- **`transfer/painted-under/div.con-alert__*` (the box's lanes on `fa37325692`, game 2805 — a storm game).** The
+  system alert («Ошибка сети», z 12 900 over the flight layer, its backdrop the whole frame) rose over tokens in flight
+  and they were named painted under it. The alert is a scene that takes the screen like the viewer and the system
+  menu — called up by the wire, not the player: it joined `FULLSCREEN_OVERLAYS` (a token under it is no paint defect,
+  an end under it is covered). Unit-tested red → green; the alert's e2e family green on the box.
 - **The planned `start-stage/folded/*` · `workspace-anchor/dropped/start/parked` — two roots, read off CI's games 407
   and 419 on `4f01936956`.** (1) A PASS over the first action with the start parked (B, LT, the pass — 407, and the
   box's scenario 2971): since `00d2ef2a4e` the pass ends the opening, so the parked stage folding and the parked frame
