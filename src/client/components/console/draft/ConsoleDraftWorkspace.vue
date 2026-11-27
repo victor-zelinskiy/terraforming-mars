@@ -328,7 +328,8 @@ import {
   finishRiseScene, beginRiseScene, riseArrivalLanded, riseSetComplete,
   riseLiftOff, riseFrameReveal, whenPickBeatDone, resolveTraySlot,
 } from '@/client/console/cardDeal/consoleDraftTray';
-import {applyDiscardExit} from '@/client/console/cardDeal/cardExitDirector';
+import {applyDiscardExit, clearDiscardExit} from '@/client/console/cardDeal/cardExitDirector';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
 import {
   draftWorkspaceState, draftStageOf, draftPickInput, draftBuyInput,
@@ -1331,6 +1332,32 @@ function confirmPurchase(): void {
     commit: () => submitCards(bought),
   }).then(() => markDraftCompletionFlightsDone());
 }
+/**
+ * A PURCHASE THE SERVER REFUSED IS NOT MADE (CI's autopilot on `16f6bbef91`, game 549 — the weather's `#stale-prompt`
+ * on «Купить 0»): the commit had begun the completion (the receipt, the unbought cards tumbling to the discard, the
+ * flights' timer) at the press, and nothing gave it back — the stage stood empty, «Купить» dead, until the door. The
+ * question still stands after a refusal: the completion is taken back, the cards return to their slots, and the commit
+ * takes the next press (the deck pick's «recovered pick», `clearDiscardExit`, the same way).
+ */
+function unwindRefusedPurchase(): void {
+  if (draftWorkspaceState.completion === 'none') {
+    return;
+  }
+  cancelCompletionFlights();
+  cancelDiscardSettle();
+  discardWaitNonce.value++;
+  discardsSettled.value = false;
+  shelfRetired.value = false;
+  for (const entry of buyEntries.value) {
+    const el = slotCardEl(entry.name);
+    if (el !== null) {
+      clearDiscardExit(el);
+    }
+  }
+  finishDraftCompletion();
+  submitting.value = false;
+}
+onPressUnlanded('draft-purchase', unwindRefusedPurchase, 150);
 /**
  * The terminal beat: a readable window AFTER the delivery — the frame may
  * release only once the bought cards have actually landed in the dock

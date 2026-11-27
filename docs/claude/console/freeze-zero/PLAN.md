@@ -3136,6 +3136,16 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   record (was three); the start / first-action / reaction family on the box 29/29; client 10064/10064, guards 3080. A
   guard of Philares' first action at the opening was added on the way (`console-first-action-philares.spec`, fixture
   `first-action-philares-opening` — on the solo table its payout question comes first and the start leaves after it).
+- **SUPPORT (2026-11-28): the confirming autopilot on `16f6bbef91` — the bottle's gate PASS (0 defects), the browser
+  48 of 48, game 553's class again (the run predates its fix, `45f9bf2703`), and three doors.** ① Game 549: the research
+  buy's answer refused once by the weather (`#stale-prompt`) and «Купить» dead after it — the purchase's commit begins
+  the completion at the press (the receipt, the unbought cards tumbling out, the flights' timer) and a refusal gave none
+  of it back: the stage stood empty. A refused purchase unwinds now (`onPressUnlanded('draft-purchase')` — the completion
+  taken back, the cards back in their slots, the commit armed). `console-research-buy-stale.spec` (zero cards and one
+  card, the first answer refused by an injected 400): RED on the build without it, GREEN with it; the draft family 26/26.
+  ② Games 556 and 566: a workspace standing `committed` / `executing` (a colony from the hand inside the Parliament; the
+  standard project's colony) while the server asked the menu — the pass could not be made from the screen. Replayed on
+  the box on the head: no door; not fixed blind — watched in the next passes.
 - **STAGE 6 — WHERE IT STANDS (the hand-over, 2026-11-27 night; the owner: this session goes to CI's bugs, the program
   continues in another).** *Coverage:* the autopilot's ledger at ZERO debt over 223 passes (`tests/client/bottle/
   autopilotUnwalked.json` — flows 252 of 274 opened, frames 13 of 13, every key never walked declared with its reason);
