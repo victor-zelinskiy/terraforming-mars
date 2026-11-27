@@ -513,8 +513,13 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
     // resolution's effect inside the sitting: «LB/RB Distribute −1 / +1 · A Save», A grey until the four are placed, and
     // the thumb pressed A and the bumpers at random until the door answered): what is left onto the focused card (RT
     // «Rest here» — the narrow bar drops its hint, never its key), +1 where it fits, the next card — and A once it is lit.
-    if (/Distribute\s*−1\s*\/\s*\+1/.test(bottle.bar()) && !sees('dialog.con-zoom[open]') && !sees('.con-quick')) {
-      const key: BottleKey = offeredNow.some((o) => o.key === 'Enter') ? 'Enter' : (['Period', 'KeyE', 'ArrowDown'] as const)[standing.presses % 3];
+    // (…and EVERY layout that steps by LB / RB — a payment's lanes «LB −1 · RB +1 · X Pay», a split of resources «LB/RB
+    // Distribute · X Collect» (CI's bottle on `1d740f2ea5`, two doors): the commit is whichever verb is lit — A, or X
+    // when X is the layout's own answer (Pay · Collect · Save · Confirm), never X «Inspect».)
+    const commitX = offeredNow.some((o) => o.key === 'KeyX' && /^(Pay|Collect|Save|Confirm|Take|Accept)/.test(o.label));
+    if ((/Distribute\s*−1\s*\/\s*\+1/.test(bottle.bar()) || /LB\s*−1\s*RB\s*\+1/.test(bottle.bar().replace(/\s+/g, ' '))) &&
+        !sees('dialog.con-zoom[open]') && !sees('.con-quick')) {
+      const key: BottleKey = offeredNow.some((o) => o.key === 'Enter') ? 'Enter' : commitX ? 'KeyX' : (['Period', 'KeyE', 'ArrowDown'] as const)[standing.presses % 3];
       await press(key, pause());
       continue;
     }
