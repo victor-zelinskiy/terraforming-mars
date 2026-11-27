@@ -2750,8 +2750,14 @@ export function createColonyController(shell: ColonyPort) {
   // one press can produce several effects in one response, and the previous
   // one must be worked through before this surface is handed over. Reactive,
   // so the push happens by itself on the frame the chain clears.
+  // …and never onto a question the player SET ASIDE (the bottle's autopilot on `1578c8f4fd`, game 445): the opening's
+  // colony pick stood behind the deal's reveal, the player folded the start to the board and walked into «Действия
+  // карт»; the door opened on the admission's edge and pushed the pick INTO that browse (it hosts «always») — a step
+  // of a workspace that owed it nothing, with no zone for it to render in. The Parliament's door asks the same mark.
+  // The way back is the question's own: the board-home card takes it up, and the stranded heal below opens it the
+  // instant the mark clears.
   function whenColonyPromptOpenableChanges(on: boolean): void {
-    if (!on || workspaceFrameIndex('colonies') !== -1) {
+    if (!on || workspaceFrameIndex('colonies') !== -1 || consoleState.task.deferred) {
       return;
     }
     openColoniesForPrompt();
