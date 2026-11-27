@@ -151,6 +151,15 @@ for (const profile of PROFILES) {
       await expect(page.locator(FINALE_BLOCK), 'B closed the WHEEL — the finale context still stands under it').toHaveCount(1);
       await expect(page.locator('.con-mandatory'), 'nothing was minimized to the plate').toHaveCount(0);
       expect(await finaleStage(page), 'still the wait stage').toBe('wait');
+      // …AND SO IS A SHEET: LB opens «Вехи» inside the context, its bar is the sheet's, and B closes THE SHEET — never
+      //    the finale under it (the one-owner law's `bar-APART:sheet:milestones>finale`, CI's autopilot, game 565).
+      await press(page, 'KeyQ', 700);
+      await waitWithFrames(page, async () => (await page.evaluate(() => document.querySelector('.con-ma') !== null || /Вехи/i.test(
+        (document.querySelector('.con-cmdbar')?.textContent ?? '')))), 10_000, 'LB opens the milestones sheet inside the waiting context');
+      await press(page, 'Escape', 700);
+      await waitWithFrames(page, async () => (await page.locator(FINALE_BLOCK).count()) === 1, 10_000, 'B closed the SHEET — the finale context stands');
+      await expect(page.locator('.con-mandatory'), 'nothing was minimized to the plate').toHaveCount(0);
+      expect(await finaleStage(page), 'still the wait stage').toBe('wait');
 
       // ── ③ B minimizes to the plate; A brings the context back, still waiting ──
       const witnessBeforeCollapse = await readFinaleWitness(page);

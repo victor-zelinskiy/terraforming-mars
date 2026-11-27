@@ -1123,7 +1123,12 @@ export function createPadRouterController(shell: PadRouterPort) {
     // minimized the finale under it and RT answered «the finish waits» instead of turning the wheel — the bar said one
     // owner's commands and another rung took the press (the one-owner law's `bar-APART:quick>finale`, the autopilot in
     // a real browser — game 71, finding #113).
-    if (shell.finaleSessionEngaged && !shell.placementActive && intent.kind === 'press' && consoleState.quick === undefined) {
+    // …AND SO IS A SHEET the player has open there (Вехи, Награды, «Действия карт»): the bar stands it ABOVE this context
+    // (`commandBarController` — its sheet rungs before the finale's), so its presses are the sheet's too — B closes the
+    // sheet, never the finale under it (the one-owner law's `bar-APART:sheet:milestones>finale`, CI's autopilot on
+    // `9b18aa2259`, game 565 — #113 again).
+    if (shell.finaleSessionEngaged && !shell.placementActive && intent.kind === 'press' && consoleState.quick === undefined &&
+        consoleState.sheet === undefined) {
       notePadRung('finale');
       const act = consoleActionOf(intent);
       if (act === 'back') {
