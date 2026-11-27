@@ -165,8 +165,9 @@ function externalDrawMarker(remaining: number): ExternalDrawTakeMeta {
   };
 }
 
-async function installSequence(page: Page): Promise<{taken: () => number}> {
+async function installSequence(page: Page, opts: {refuseFirst?: boolean} = {}): Promise<{taken: () => number, refused: () => number}> {
   let taken = 0;
+  let refused = 0;
   let cycle = 1;
   let last: Model | undefined;
   await page.route('**/api/player*', async (route: Route) => {
@@ -177,6 +178,12 @@ async function installSequence(page: Page): Promise<{taken: () => number}> {
     await route.fulfill({response, json: body});
   });
   await page.route('**/player/input*', async (route: Route) => {
+    // (`refuseFirst`: the first answer meets the server's «the question has moved on» — a 400 at once, the move not made.)
+    if (opts.refuseFirst === true && refused === 0) {
+      refused++;
+      await route.fulfill({status: 400, contentType: 'application/json', body: JSON.stringify({id: '#stale-prompt', message: 'The question has moved on (injected).'})});
+      return;
+    }
     // The answer names the cards taken — advance by exactly that many.
     const post = route.request().postDataJSON() as {cards?: Array<string>} | undefined;
     const took = post?.cards?.length ?? 1;
@@ -186,7 +193,7 @@ async function installSequence(page: Page): Promise<{taken: () => number}> {
     patchForCycle(body, cycle, taken);
     await route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(body)});
   });
-  return {taken: () => taken};
+  return {taken: () => taken, refused: () => refused};
 }
 
 /** Every fact this spec asserts, sampled from inside the page. */
@@ -277,6 +284,38 @@ test('an external draw: announced → A opens the workspace → take one, take a
   console.log('── external draw, after ──', JSON.stringify(end));
   expect(end.stranded, 'an unserved prompt was left behind').toBeFalsy();
   expect(end.plate, 'the announcement did not clear').toBeFalsy();
+});
+
+/*
+ * A TAKE THE SERVER REFUSES AT ONCE (the box's autopilot on `4f01936`, game 2631 — `wait-graph/ceiling/external-draw:
+ * prompt-moved`): the weather's stale answer, a 400 within milliseconds — its settle came while the card was still
+ * flying into the dock, before the wait that reads it was armed; the wait sat out its grace and ended on its ceiling
+ * over a refusal the transport had already said. The settle is caught at the press: the card comes back into the row,
+ * nothing is taken, and no wait ends on its ceiling.
+ */
+test('a take the server refuses at once: the card comes back into the row, and no wait ends on its ceiling', async ({page, request}) => {
+  test.setTimeout(240_000);
+  const ceilings: Array<string> = [];
+  page.on('console', (m) => {
+    if (m.text().includes('ceiling external-draw:prompt-moved')) {
+      ceilings.push(m.text());
+    }
+  });
+  const playerId = await createGame(request);
+  await bootSeededGame(page, request, playerId, {buy: 2});
+  const sequence = await installSequence(page, {refuseFirst: true});
+  await reloadConsole(page);
+  expect(await openMandatoryAnnounce(page), 'the external draw was not announced').toBeTruthy();
+  await page.waitForSelector('.con-extdraw', {timeout: 30_000});
+  await waitDealt(page);
+  await press(page, 'Enter', 400);
+  await expect.poll(() => sequence.refused(), {timeout: 15_000, message: 'the take met the refusal'}).toBe(1);
+  // The refusal's own end: the card back in its seat (no taken seat), the row whole.
+  await expect.poll(async () => (await snapshot(page)).takenSeats, {timeout: 20_000, message: 'the refused card came back into the row'}).toBe(0);
+  await settle(page);
+  expect((await snapshot(page)).slots, 'the row is whole').toBe(3);
+  expect(sequence.taken(), 'nothing was taken').toBe(0);
+  expect(ceilings, 'the refusal ended the wait — never its ceiling').toEqual([]);
 });
 
 test('the workspace is LOCKED: B with one card left neither takes nor closes', async ({page, request}) => {

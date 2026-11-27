@@ -2817,6 +2817,13 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   refused it. Two reactions to one collect; the door's answer is now the cube's (`colonyBonusCollected`). Reproduced
   (`console-screen-shadow-rows` colonyBonus — «the collect was sent once»: red, three refused lines; green), a caller
   trace on the box naming the second sender.
+- **`wait-graph/ceiling/external-draw:prompt-moved` (the box's lanes on `4f01936956`, game 2631) — A REFUSAL HEARD
+  TOO LATE.** A take of a resolution's drawn card met the weather's stale answer (a 400 within 30 ms); its settle came
+  while the card was still flying into the dock, and the wait that reads the settle was armed only after the flight —
+  it sat out its grace and ended on its ceiling over a refusal the transport had already said. The take now catches
+  its settle at the press (`catchSubmitSettle`), and a refusal already said ends the wait before it begins.
+  Reproduced (`console-external-draw` — «a take the server refuses at once»: red, the ceiling line; green, the card
+  back in the row).
 - **THE INPUT TYPES' DENOMINATOR IS THE CODE's (2026-11-27).** The bar was every literal of `PlayerInputType` minus a
   hand list; now a type is in it when a server input that SENDS it (`toModel()` writes the type — an abstract input
   through its concrete children) is constructed outside the out-of-scope modules' card and engine directories and

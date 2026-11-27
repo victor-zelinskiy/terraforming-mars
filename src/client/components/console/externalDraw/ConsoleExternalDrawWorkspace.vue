@@ -692,15 +692,28 @@ function take(names: ReadonlyArray<CardName>): void {
   // moved on and the hold is not yet up (the shell's close watcher reads
   // `externalDrawHolding` before folding the frame).
   beginExternalDrawSend(names);
+  // THE ANSWER's END IS HEARD FROM THE PRESS (the box's autopilot, game 2631 — `wait-graph/ceiling/external-draw:
+  // prompt-moved`): a take the server refused within 30 ms (the weather's stale answer, a 400) settled while its card
+  // was still flying, before the wait that reads the settle was armed — the wait sat out its grace and ended on its
+  // ceiling over a refusal the transport had already said. The settle is caught at the submit and read after.
+  const settle = catchSubmitSettle();
   emit('submit', cardsResponse([...names]));
-  void runTakeBeats(names);
+  void runTakeBeats(names, settle);
 }
-async function runTakeBeats(names: ReadonlyArray<CardName>): Promise<void> {
+/** The first submit settle from now on (the take's own: the funnel takes one submit at a time). */
+function catchSubmitSettle(): {status: () => string | undefined, stop: () => void} {
+  let status: string | undefined;
+  const stop = onSubmitSettled((settled) => {
+    status ??= settled.status;
+  });
+  return {status: () => status, stop};
+}
+async function runTakeBeats(names: ReadonlyArray<CardName>, settle: ReturnType<typeof catchSubmitSettle>): Promise<void> {
   const key = promptKey.value;
   try {
     await flyToHand(names);
   } finally {
-    await awaitPromptMoved(key);
+    await awaitPromptMoved(key, settle);
     // An unmounted surface is a question the server has moved past (the last take answered) — never a refusal:
     // waiting for a dead watcher read every final take as REFUSED after the grace, and held `committing` (every
     // gate that asks it — the frame's close, the sitting's receipt) for the whole 1.5 s.
@@ -800,8 +813,12 @@ function settleTaken(names: ReadonlyArray<CardName>): void {
     }
   });
 }
-function awaitPromptMoved(key: string): Promise<void> {
-  if (unmounting.value || meta.value === undefined || promptKey.value !== key || typeof window === 'undefined') {
+function awaitPromptMoved(key: string, early?: ReturnType<typeof catchSubmitSettle>): Promise<void> {
+  // (The take's own settle, caught at its press: a refusal already said is the end of the wait before it begins.)
+  const already = early?.status();
+  early?.stop();
+  if (unmounting.value || meta.value === undefined || promptKey.value !== key || typeof window === 'undefined' ||
+      already === 'refused' || already === 'failed' || already === 'silent' || already === 'rejected') {
     return Promise.resolve();
   }
   // The wait has to wait: a node of the wait graph, its grace ending it said (`ceilingWait.ts`). WHAT IT WAITS FOR
