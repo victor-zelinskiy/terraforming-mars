@@ -1448,7 +1448,7 @@ import {
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {
   firstActionActionable, firstActionAsk, firstActionBranch, firstActionCandidates as firstActionCandidatesOf, firstActionDrawExpected,
-  firstActionOwed, firstActionPreviewable, firstActionStageCorp, startFlowOtherPromptStands,
+  firstActionBeatInFlight, firstActionOwed, firstActionPreviewable, firstActionStageCorp, startFlowOtherPromptStands,
   startWaitMate,
 } from '@/client/console/startFirstAction';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
@@ -8491,9 +8491,11 @@ function onPress(action: ConsoleAction): void {
     // bar names no B over it. A collapse there parked the start mid-leave — its scene unmounted, the stage could not
     // finish, and the start director folded it by level (CI's autopilot on `4f01936956`, game 419: Aridor's colony
     // tile added, «Выполняется…», B ×3).
+    // …and a stage PERFORMED with nothing of it asked any more, its chain presenting on the way to that leave
+    // (`firstActionBeatInFlight` — the stack's collapse asks the same).
     if (isPlayedHeroActive() || embedPresenting.value ||
         isHandDeliveryActive() || queueArriving.value.size > 0 ||
-        state.firstAct.stage === 'staging' || state.firstAct.stage === 'leaving' || state.firstAct.submitting) {
+        firstActionBeatInFlight(state.firstAct, props.playerView)) {
       return;
     }
     // Minimizing must never leave the risk stage armed behind it: the

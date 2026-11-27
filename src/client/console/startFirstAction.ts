@@ -107,6 +107,25 @@ export function startFlowOtherPromptStands(
 }
 
 /**
+ * THE FIRST ACTION's OWN BEAT IS IN FLIGHT — B's fourth verb (`none`) over the opening's stage. One motion a collapse
+ * would tear (its scene unmounts with the park, the stage cannot finish, and the server's word folds it): the corp
+ * rising into its seat (`staging`), the submit on the wire, the card settling home (`leaving`) — and a stage still
+ * `performing` with NOTHING of it asked any more (the box's autopilot on `1c0976df77`, game 2679: PolderTECH's two tiles
+ * placed, the server already on the game's menu, the chain still presenting on its way to the leave — B 1.5 s after the
+ * last confirm parked the start and the stage was folded). A performing stage whose follow-up IS asked (a step it
+ * hosts, a pick) collapses as ever: the decision stays live.
+ */
+export function firstActionBeatInFlight(
+  firstAct: {stage: string, submitting: boolean},
+  view: PlayerViewModel,
+): boolean {
+  if (firstAct.stage === 'staging' || firstAct.stage === 'leaving' || firstAct.submitting) {
+    return true;
+  }
+  return firstAct.stage === 'performing' && !firstActionOwed(view) && !startFlowOtherPromptStands(view, {allowActionMenu: true});
+}
+
+/**
  * The corporation the stage puts on its seat RIGHT NOW. With several owed
  * (Merger) the one whose option is LIVE leads; the rest follow one at a time
  * as the server re-raises the prompt.

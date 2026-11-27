@@ -12,6 +12,7 @@ import {terraformedSceneState} from '@/client/console/terraformedScene/terraform
 import {ConsoleSheetRow} from '@/client/components/console/consoleSheetTypes';
 import {maFocusState} from '@/client/console/consoleMaFocus';
 import {consoleStartState} from '@/client/console/consoleStartState';
+import {firstActionBeatInFlight} from '@/client/console/startFirstAction';
 import {collapseWorkspaceStack, workspaceKindSpec, enterWorkspace, leaveWorkspace, pushWorkspaceFrame, workspaceFrameIndex, workspaceFrameRenders, workspaceFrameAnywhere, workspaceFrameParked, workspaceReturnsFromBoard, workspaceStackCollapsed, workspaceStackState, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {resetStdProjectsFlow} from '@/client/console/consoleStdProjects';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
@@ -266,8 +267,8 @@ export function createWorkspaceController(shell: WorkspacePort) {
     // unmounts and the stage cannot finish. CI's autopilot on `4f01936956`, game 419: Aridor's colony tile added inside
     // the start (`start › colonies`), «Выполняется…», B on the colonies step parked the whole stack mid-leave and the
     // start director folded the stage by level. The scene's own B absorbs the same beats.
-    const firstAct = consoleStartState.firstAct;
-    if (workspaceFrameIndex('start') !== -1 && (firstAct.stage === 'staging' || firstAct.stage === 'leaving' || firstAct.submitting)) {
+    // (…and a stage performed with nothing of it asked any more — `firstActionBeatInFlight`.)
+    if (workspaceFrameIndex('start') !== -1 && firstActionBeatInFlight(consoleStartState.firstAct, shell.playerView)) {
       return;
     }
     // A SURFACE NEVER FOLDS UNDER ITS OWN TOKEN — a collapse is a fold too (inventory R16: B collapsed the Parliament

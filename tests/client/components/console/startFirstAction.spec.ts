@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  firstActionActionable, firstActionAsk, firstActionBranch, firstActionCandidates, firstActionDrawExpected,
+  firstActionActionable, firstActionAsk, firstActionBeatInFlight, firstActionBranch, firstActionCandidates, firstActionDrawExpected,
   firstActionOwed, firstActionPreviewable, firstActionStageCorp, startFlowOtherPromptStands,
   startWaitMate,
 } from '@/client/console/startFirstAction';
@@ -91,6 +91,25 @@ describe('startFirstAction (the first-action stage model)', () => {
       // the workspace standing for the rest of the game.
       expect(startFlowOtherPromptStands(menu, {allowActionMenu: true}), 'the stage may go').to.be.false;
     });
+  });
+
+  /**
+   * B's fourth verb over the opening's stage (`none`): its own beats absorb a collapse — and a stage PERFORMED with
+   * nothing of it asked any more is one (the box's game 2679: PolderTECH's two tiles placed, the server on the game's
+   * menu, the chain presenting; B parked the start and the stage was folded).
+   */
+  it('the stage\'s own beat absorbs B — the rise, the wire, the return, and a performed stage nothing asks of', () => {
+    const at = (stage: string, submitting = false) => ({stage, submitting});
+    const asked = (title: string) => ({waitingFor: {type: 'or', title, options: []}} as unknown as PlayerViewModel);
+    const quiet = view();
+    expect(firstActionBeatInFlight(at('staging'), quiet), 'the rise').to.be.true;
+    expect(firstActionBeatInFlight(at('leaving'), quiet), 'the return').to.be.true;
+    expect(firstActionBeatInFlight(at('standing', true), quiet), 'the wire').to.be.true;
+    expect(firstActionBeatInFlight(at('standing'), view({pending: ['Aridor'], prompt: true})), 'the standing wait collapses freely').to.be.false;
+    expect(firstActionBeatInFlight(at('performing'), asked(ACTION_MENU_FIRST_TITLE)), 'performed, the game\'s menu asked').to.be.true;
+    expect(firstActionBeatInFlight(at('performing'), quiet), 'performed, nothing asked').to.be.true;
+    expect(firstActionBeatInFlight(at('performing'), asked('Select space for ocean tile')), 'its follow-up asked — the decision stays live').to.be.false;
+    expect(firstActionBeatInFlight(at('idle'), quiet)).to.be.false;
   });
 
   it('OWED is the domain ledger plus the live marked prompt — never a client latch', () => {
