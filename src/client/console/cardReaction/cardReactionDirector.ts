@@ -70,8 +70,8 @@ import {
   RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, TRANSFER_ARC_MS, TRANSFER_POP_MS, TransferEndLike, cardResourceKey, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
-  beginPanelRewardHold, heldCardResource, heldProduction, heldStock, noteTransferTrail, registerRewardHoldKeeper, releasePanelRewardHold, runResourceTransfers,
-  takeDeclaredAnswers,
+  beginPanelRewardHold, heldCardResource, heldProduction, heldStock, noteTransferTrail, oweSurfaceTokens, registerRewardHoldKeeper, releasePanelRewardHold,
+  runResourceTransfers, settleSurfaceDebt, takeDeclaredAnswers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {RailAnswerFlight} from '@/client/console/resourceTransfer/railReward';
 import {waitRewardPayoutQuiet} from '@/client/console/rewardPayoutQuiet';
@@ -645,6 +645,11 @@ type RiseOpts = {
    * and hands it here — `null` = the stage. Omitted: decided here, at the rise.
    */
   place?: ReactorEmergence | null;
+  /**
+   * THE DEBT OF THE FACE (`oweSurfaceTokens`): the key the risen face owes its surface the tokens it will bear under —
+   * declared the moment the face is known, BEFORE its effect row is lit (`runStep` — the read beat a fold must wait out).
+   */
+  owe?: string;
 };
 
 /**
@@ -693,6 +698,9 @@ async function rise(group: CardReactionGroup, slot: number, view: PlayerViewMode
       noteTransferTrail('reaction:place-faceless', {card: group.card, places: describeReactorPlaces(group.card)});
       return rise(group, slot >= 0 ? slot : freeStageSlot(opts.slots), view, emergence, {...opts, place: null});
     }
+    if (opts.owe !== undefined) {
+      oweSurfaceTokens(opts.owe, risen.face);
+    }
     markReactionRow(risen.face, group.record.printedEffect, specs, opts.readMs);
     noteTransferTrail('reaction:rise', {card: group.card, via: 'place'});
     checkReactionIdentity(`rise:${group.card}`);
@@ -721,6 +729,9 @@ async function rise(group: CardReactionGroup, slot: number, view: PlayerViewMode
     noteReactorSettled(seated.key);
     noteTransferTrail('reaction:rise-after-cut', {card: group.card, via: 'stage'});
     return {group, key, face: undefined, via: 'none'};
+  }
+  if (opts.owe !== undefined) {
+    oweSurfaceTokens(opts.owe, seated.el);
   }
   markReactionRow(seated.el, group.record.printedEffect, specs, opts.readMs);
   noteTransferTrail('reaction:rise', {card: group.card, via: 'stage', places: describeReactorPlaces(group.card)});
@@ -1253,13 +1264,21 @@ function runStep(entry: Standalone, slot: number, t: ReactionTempo, slots: Reado
   const launched = new Promise<void>((resolve) => {
     launchedResolve = resolve;
   });
+  // THE FACE OWES ITS SURFACE THE TOKENS IT IS ABOUT TO BEAR (the law of the fold — CI's autopilot on `c975ec4ff6`, game
+  // 11, issue #184: a corporation's reaction rose IN its place in the start, held its read beat, and B folded the start
+  // in that beat — the tokens were born over a surface that was gone, `transfer/surface-folded/birth`). From the face
+  // known (`rise` declares it before the effect row is lit) until the last token has LEFT the face, a fold of the surface
+  // around it waits (`surfaceClear` — the collapse's own B, owed).
+  const debt = `card-reaction:${entry.group.record.seq}:${slot}`;
   const done = (async () => {
     try {
       await waitPlaceArrival(entry.group.card, myEpoch);
       if (epoch !== myEpoch) {
         return;
       }
-      const risen = await rise(entry.group, slot, undefined, undefined, {slots, readMs: t.holdMs + TRANSFER_POP_MS, cause: causePlateFor(entry.group)});
+      const risen = await rise(entry.group, slot, undefined, undefined, {
+        slots, readMs: t.holdMs + TRANSFER_POP_MS, cause: causePlateFor(entry.group), ...(entry.held.length > 0 ? {owe: debt} : {}),
+      });
       if (epoch !== myEpoch) {
         return;
       }
@@ -1285,7 +1304,10 @@ function runStep(entry: Standalone, slot: number, t: ReactionTempo, slots: Reado
       }
       await runResourceTransfers({
         specs: tokens, source: {}, origins, arrival: 'auto', pace: 1 / paceNow(planPace),
-        onLeft: () => launchedResolve(),
+        onLeft: () => {
+          settleSurfaceDebt(debt);
+          launchedResolve();
+        },
         onArrive: (spec) => {
           const at = entry.held.indexOf(spec);
           if (at >= 0) {
@@ -1307,6 +1329,7 @@ function runStep(entry: Standalone, slot: number, t: ReactionTempo, slots: Reado
       await pacedWait(t.settleMs, planPace);
       await recede(risen);
     } finally {
+      settleSurfaceDebt(debt);
       launchedResolve();
     }
   })();

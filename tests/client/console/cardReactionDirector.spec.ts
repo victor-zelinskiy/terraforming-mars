@@ -7,7 +7,8 @@ import {CardReactionRecord} from '@/common/models/CardReactionModel';
 import {RailAnswerFlight} from '@/client/console/resourceTransfer/railReward';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
-  beginPanelRewardHold, clearPanelRewardHold, declareHeldAnswers, heldCardResource, heldProduction, heldStock, releasePanelRewardHold, transferTrailTail,
+  beginPanelRewardHold, clearPanelRewardHold, declareHeldAnswers, heldCardResource, heldProduction, heldStock, releasePanelRewardHold, surfaceHoldsTokens,
+  transferTrailTail,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
   cardReactionAnswerFlight, cardReactionHurried, cardReactionPending, composeAnswerFlights, cutCardReactions, hurryCardReactions, markReactionCause,
@@ -262,6 +263,58 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
       unstage();
       unplace();
       face.remove();
+      resetReactorPlaces();
+    }
+  });
+
+  /*
+   * THE FACE OWES ITS SURFACE THE TOKENS IT IS ABOUT TO BEAR (FREEZE ZERO · #184 — CI's autopilot on `c975ec4ff6`, game
+   * 11: Poseidon's reaction to its own first-action colony rose IN its place in the start, held its read beat, and the
+   * player's B collapsed the start in that beat — the token was born over a surface that was gone,
+   * `transfer/surface-folded/birth/production/megacredits`). Nothing was registered on the surface between the rise
+   * and the first token's birth, so the collapse (`collapseWorkspace` — it waits for a band surface that HOLDS tokens)
+   * saw a clear surface. The face owes them from the moment it is known — before its effect row is lit — until the last
+   * has LEFT it; then the surface is clear again.
+   */
+  it('#184 — a reactor risen IN ITS PLACE owes its surface the tokens: the surface holds them through the read beat, and is clear once the chain is over', async () => {
+    const corp = CardName.POSEIDON;
+    const surface = document.createElement('div');
+    surface.className = 'con-ws';
+    const seat = document.createElement('div');
+    surface.appendChild(seat);
+    document.body.appendChild(surface);
+    const unplace = registerReactorPlace({
+      id: 'start-seat',
+      standsIn: (card) => card === corp,
+      emergeTarget: async () => {},
+      settleTarget: async () => {},
+      emergedFaceEl: (card) => card === corp ? seat : undefined,
+    });
+    const stageFace = document.createElement('div');
+    document.body.appendChild(stageFace);
+    const unstage = registerCardReactionStage({faceEl: () => stageFace, stageRect: () => ({left: 0, top: 0, width: 1920, height: 1080})});
+    const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
+    // (THIS reactor's rise — the trail outlives a test, and an earlier one's rise stands in it.)
+    const risen = () => transferTrailTail(80).some((e) => e.ev === 'reaction:rise' && (e.detail as {card?: string} | undefined)?.card === corp);
+    try {
+      seedCardReactionHolds(view([]), view([record(84, {kind: 'corporation', card: corp, printedEffect: 0,
+        impacts: [{kind: 'production', resource: Resource.MEGACREDITS, amount: 1, to: BLUE}]})]), snapshotRailHolds());
+      for (let i = 0; i < 1200 && !risen(); i++) {
+        await tick();
+      }
+      expect(risen(), 'the reactor rose in its place').eq(true);
+      expect(reactionIdentitySnapshot().declared.filter((d) => d.card === corp).map((d) => d.via), 'in its place, not at the stage').deep.eq(['place']);
+      expect(surfaceHoldsTokens(surface), 'the read beat: the surface holds the tokens its face owes').eq(true);
+      for (let i = 0; i < 2400 && cardReactionState.phase !== 'idle'; i++) {
+        await tick();
+      }
+      expect(cardReactionState.phase, 'the chain played out').eq('idle');
+      expect(surfaceHoldsTokens(surface), 'the tokens left: the surface is clear').eq(false);
+    } finally {
+      unstage();
+      unplace();
+      surface.remove();
+      stageFace.remove();
       resetReactorPlaces();
     }
   });
