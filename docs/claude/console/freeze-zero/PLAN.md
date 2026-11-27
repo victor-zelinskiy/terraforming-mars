@@ -2928,6 +2928,25 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   the purchase row until the bill came. The server keeps the bill's ledger (`Player.cardPaymentOwed` — set at the
   deferral, cleared by the payment, transient) and sends it to its own seat (`PlayerViewModel.cardPaymentOwed`); the
   window reads it.
+- **#113 `bar-APART:start>section:board` (CI's bottle, `1578c8f4fd`'s 455 and `1c0976df77`'s 491 — the delta scenario)
+  — ONE PRESS, TWO OWNERS.** A temporary trace at the pad's door read it: the B entered the ladder with the start
+  owning the pad and reached the band with the board's. The ladder's first act was to HURRY the table's reactions; a
+  second press inside the window CUTS them synchronously, the table's answer let the held placement in, the start
+  yielded — and the same B went to the board under a bar that showed the start's commands. The hurry now runs AFTER
+  the press is routed (`padRouterController.handleIntent`): the press goes to the owner the player SAW, the reaction
+  is hurried all the same.
+- **…and what that route uncovered: A DEAF START (the same replay, ten seconds).** The B now collapsed the start
+  mid-`performing` (Poseidon's first action, its follow-up still asked); the chain ended while parked, the restore
+  re-seated the corporation, and the stage stood `performing` with nothing to wait for — its leave reads an EDGE
+  (`firstActionLeaveDue`, not `immediate`) and `true → true` is none; the deployment never settled, the director's
+  release could not end a stage still standing, and the arbiter parked the phase root at last. The MOUNT asks the
+  stage's leave (`confirmFirstActionLeave`), as it asks the two entries and, since 2821, the release.
+- **The planned `start-stage/folded/performing` · `workspace-anchor/dropped/start/parked` on `1bfeff8d9a` (the box's
+  game 2901, the first of the new lanes) — THE PLAYER's OWN PATH, SAID AS NEWS.** B over the first action's own
+  placement (asked, so the decision stayed live — the collapse is right), the placement answered on the board, the
+  action finished while the opening stood folded: nothing of it was left to show, and the stage's fold and the frame's
+  drop are that action's end — as a pass's are (`d79bdbd45a`). Both lines skip it now; a parked opening dropped WITH its
+  first action still owed stays said.
 - **CI on `f58e7e4263` (dispatched by this session — the owner, 2026-11-26: «ты имеешь доступ к СИ и можешь запускать
   сам»):** the full Playwright E2E GREEN — every shard and the burn-in, 0 failed, 0 flaky (the boot's two halves and the
   hosted-step fix confirmed; #151 #157 #158 closed). The freeze gate went red on the bottle's own clock (two frames read

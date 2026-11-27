@@ -834,6 +834,12 @@ export function createStartController(shell: StartPort) {
         if (viewerHasPassed(shell.playerView)) {
           return;
         }
+        // (…and A FIRST ACTION THE PLAYER SUBMITTED, finished while they kept the opening folded — B over its follow-up,
+        // the board's placement answered on the board — is that action's own end: the stage stood `performing`, the
+        // server took its last answer, nothing of it is left to show. The box's lanes on `1bfeff8d9a`, game 2901.)
+        if (stood.first === 'performing' && !firstActionOwed(shell.playerView)) {
+          return;
+        }
         console.warn(`[start-stage] the opening's stage (first action «${stood.first}», bonus «${stood.bonus}») folded by the server's word — ` +
           `its frame stood parked with no scene to run its leave, and the server asks «${shell.playerView.waitingFor?.type ?? 'nothing'}» of the game ` +
           `(generation ${shell.playerView.game.generation})`);

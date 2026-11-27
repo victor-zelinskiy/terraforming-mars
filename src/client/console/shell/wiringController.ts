@@ -774,7 +774,11 @@ export function createWiringController(shell: WiringPort) {
     registerAnchorDropListener(({home, kinds}) => {
       // (…the parked OPENING of a seat that PASSED is the pass's own end — the pass closes the generation and the
       // opening with it: never news to say. CI's autopilot on `4f01936956`, game 407.)
-      const passedOpening = home === 'parked' && kinds.every((kind) => kind === 'start') && viewerHasPassed(shell.playerView);
+      // (…and so is one whose first action the player finished on the board while they kept it folded — nothing of the
+      // opening is owed any more; a parked opening dropped WITH its first action still owed stays said. The box's game
+      // 2901 on `1bfeff8d9a`.)
+      const passedOpening = home === 'parked' && kinds.every((kind) => kind === 'start') &&
+        (viewerHasPassed(shell.playerView) || !firstActionOwed(shell.playerView));
       if (!passedOpening) {
         console.warn(`[workspace-anchor] dropped ${kinds.join(', ')} (${home}) — its phase is over; it does not come back`);
       }
