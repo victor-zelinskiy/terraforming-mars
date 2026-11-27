@@ -16260,3 +16260,45 @@ for (const opening of ['scenario-opening', 'scenario-banner'] as const) {
   }
   write(name, game);
 }
+
+// ── finale-diverted: THE FINALE UNDER A LAW THAT REPLACES THE GREENERY (RX35 Diverted Research — CI's autopilot on
+//    `6ba4e117ff`, game 539, and the box's 2921: the placing branch is a plain OPTION, the plants buy a data; after the
+//    first conversion the next offer stood with no verb on screen and the question was stranded). A 2p Turmoil Redux
+//    table at its FINAL GREENERY placement: Mars finished, the Reds' Diverted Research enacted, blue asked first with
+//    16 plants (two conversions) and Martian Census to hold the data; red with no plants. ──
+parliamentFixture('finale-diverted', {
+  stopAt: 'vote',
+  megacredits: [40, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, p2, parliament}) => {
+    // (Mars first: under the law an ocean is a data — the helper's loop would never reach nine.)
+    setTemperature(game, MAX_TEMPERATURE);
+    setOxygenLevel(game, MAX_OXYGEN_LEVEL);
+    maxOutOceans(p2);
+    seatEnacted(parliament, DIVERTED_RESEARCH_ID);
+    const census = (() => {
+      moveToDeckTop(game, CardName.MARTIAN_CENSUS);
+      return game.projectDeck.drawPile.pop() as IProjectCard;
+    })();
+    p1.playedCards.push(census);
+    p1.plants = 16;
+    p2.plants = 0;
+    game.generation = 12;
+  },
+  after: ({game, p1}) => {
+    // THE FINAL GREENERY PLACEMENT (the engine's own loop — the test seam `takeNextFinalGreeneryAction`): blue first.
+    game.phase = Phase.PRODUCTION;
+    p1.clearWaitingFor();
+    for (const seat of game.players) {
+      seat.clearWaitingFor();
+    }
+    game.takeNextFinalGreeneryAction();
+  },
+  expect: ({game, p1}) => {
+    const wf = p1.getWaitingFor();
+    const placing = wf instanceof OrOptions ? wf.options.map((o) => o.constructor.name).join(',') : wf?.constructor.name;
+    if (game.phase !== Phase.PRODUCTION || !(wf instanceof OrOptions) || !placing?.startsWith('SelectOption')) {
+      throw new Error(`finale-diverted: expected blue asked its final greenery as a plain option (the law replaces the tile) — got phase=${game.phase} wf=${placing}`);
+    }
+  },
+});

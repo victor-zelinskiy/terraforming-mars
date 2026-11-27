@@ -3055,6 +3055,16 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   with two equal targets (`surface:bot-attack`), B on the loading curtain (`surface:gamepad-focus-ring`), a declined
   rematch between two humans (`surface:rematch-layer`), a claim re-homed after its host left (`orphaned → bound`),
   Early Colonization's raise, a rival's nomads, Astra Mechanica's return, RX35's pick.
+- **OPEN, SEEN TWICE NOW (CI's autopilot on `6ba4e117ff`, game 539 — the scenario of the board; the box's 2921) — THE
+  FINALE's QUESTION WITH NO VERB.** After the final sitting closed, the finale's plate opened (or#207 «Разместить
+  озеленение»), and 256 ms later the server asked the same question anew (or#208) — the context «Конец партии · RT
+  Завершить свою партию · B Свернуть» stood with no pick and no A, the leak detector named the `or` stranded, the
+  arbiter rebuilt the page at eight seconds (`liveness/stall/unserved/choice/board/stranded`, the last thing in flight
+  `parliament-sitting:enact/enact`). Read: the finale opens its pick on the EDGE of `finalGreeneryActive`, and a renewed
+  question while it stays true gives no edge. Under a law that replaces the greenery (RX35) the open IS the answer —
+  so that road was walked deterministically (`finale-diverted` · `console-finale-diverted.spec`: no conversion without a
+  press, none after a reload, the second conversion reachable through the plate) — green on the build of the field:
+  not this class's road. A guard of the road it is; the class stays open, watched.
 - **THE PILOTS' ROADS TO THE GAME's CARDS, widened.** The browser's own intents rotate over every road the game's cards
   ask (`dealtIntents` — the hand, an action, a project of the list, the TRADE when a fleet dock of the list is in play),
   the album's target goes by the order of the list (a card whose window closes first stands first — Ecological
