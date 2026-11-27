@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {startDeliveryInTheAir, startPressRefusal, startSceneCommands, StartPressSignals, StartSceneCommandState} from '@/client/console/consoleStartUi';
+import {defaultDropPriority, planCommandRun} from '@/client/console/consoleCommandModel';
 
 /**
  * The initial-setup command contract (the 2026-07 polish pass): the bottom
@@ -85,6 +86,15 @@ describe('consoleStartUi (initial-setup command contract)', () => {
     const mid = startSceneCommands(state({hasPrevStep: true, stepComplete: true}));
     expect(labelOf(mid, 'triggerL')).to.eq('Prev step');
     expect(mid.find((c) => c.control === 'triggerR')?.enabled).to.eq(true);
+  });
+
+  it('a bar too narrow for the step keeps its way FORWARD: RT outlasts LT and X (CI\'s bottle, game 445)', () => {
+    const cmds = startSceneCommands(state({hasPrevStep: true, stepComplete: true, focusedPicked: true}));
+    // Every hint the same width — the tie the narrow bar met: one of five has to go, then two.
+    const entries = cmds.map((c) => ({width: 5, keep: c.control === 'confirm' || c.control === 'back', dropPriority: c.priority ?? defaultDropPriority(c.control)}));
+    const keptOf = (budget: number) => planCommandRun(entries, budget / 2, budget / 2).kept.map((i) => cmds[i].control);
+    expect(keptOf(20), 'four of five fit').to.include('triggerR').and.not.include('triggerL');
+    expect(keptOf(15), 'three of five fit').to.deep.eq(['confirm', 'triggerR', 'back']);
   });
 
   it('the summary: A carries the launch verb, RT does not exist', () => {

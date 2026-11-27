@@ -314,7 +314,12 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
     if (s.hasPrevStep) {
       hints.push({control: 'triggerL', label: 'Prev step'});
     }
-    hints.push({control: 'triggerR', label: 'Next step', enabled: s.stepComplete});
+    // THE STEP's WAY FORWARD IS THE LAST HINT TO GO (CI's bottle on `1578c8f4fd`, game 445 — a handheld 1024 px bar):
+    // a bar too narrow for its five hints drops whole low-priority ones, and «След. шаг» ties «Пред. шаг» (one control
+    // family, one width) and went FIRST, being written later — the projects step stood with A, X, LT and B and no word
+    // of how to go on; the player toggled cards until the door bought them. The step's commit outranks the way back
+    // and the look (`priority` 0 — only A and B, always kept, stand above it).
+    hints.push({control: 'triggerR', label: 'Next step', enabled: s.stepComplete, priority: 0});
     hints.push({control: 'back', label: 'Minimize'});
     return hints;
   }
