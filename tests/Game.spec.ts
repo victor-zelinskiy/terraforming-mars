@@ -476,6 +476,26 @@ describe('Game', () => {
     expect(game.getOxygenLevel()).to.eq(12);
   });
 
+  it('the final greenery loop re-entered keeps a seat\'s standing question and its identity (a guard read for CI\'s game 539)', () => {
+    const player1 = new TestPlayer('blue');
+    const player2 = new TestPlayer('red');
+    const game = Game.newInstance('gto', [player1, player2], player1, 'spectatorid');
+    [player1, player2].forEach((p) => {
+      p.popWaitingFor();
+      p.plants = 16;
+    });
+    game.takeNextFinalGreeneryAction();
+    const asked = player1.getWaitingFor();
+    const serial = player1.waitingForSerial;
+    expect(asked, 'blue is asked its final greenery').is.not.undefined;
+    // THE LOOP RE-ENTERED (another seat's answer that ends its own business — the field: red's close of the final
+    // sitting — goes «back in to find someone»): blue still holds the same question, the same identity.
+    game.takeNextFinalGreeneryAction();
+    expect(player1.getWaitingFor(), 'the same question, never a new one').to.eq(asked);
+    expect(player1.waitingForSerial, 'the same identity — the client\'s pick stands on it').to.eq(serial);
+    cast(player2.getWaitingFor(), undefined);
+  });
+
   it('Final greenery placement in order of the current generation', () => {
     const player1 = new TestPlayer('blue');
     const player2 = new TestPlayer('green');

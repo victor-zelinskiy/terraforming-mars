@@ -3064,7 +3064,10 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   question while it stays true gives no edge. Under a law that replaces the greenery (RX35) the open IS the answer —
   so that road was walked deterministically (`finale-diverted` · `console-finale-diverted.spec`: no conversion without a
   press, none after a reload, the second conversion reachable through the plate) — green on the build of the field:
-  not this class's road. A guard of the road it is; the class stays open, watched.
+  not this class's road. Nor is the server's loop re-entered by another seat's answer: it keeps the standing question
+  and its identity (`setWaitingForSafely` queues behind it — `Game.spec` «keeps a seat's standing question»). What is
+  left is the client's: the run's own record `console-foreground-watchdog/expired/lease:mandatory-choice` — a beat of the
+  renewed question claimed the foreground and rendered nothing while the finale's context stood. Watched.
 - **THE PILOTS' ROADS TO THE GAME's CARDS, widened.** The browser's own intents rotate over every road the game's cards
   ask (`dealtIntents` — the hand, an action, a project of the list, the TRADE when a fleet dock of the list is in play),
   the album's target goes by the order of the list (a card whose window closes first stands first — Ecological
