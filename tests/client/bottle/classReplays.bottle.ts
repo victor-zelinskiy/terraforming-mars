@@ -13,6 +13,7 @@ import {bootBottle, ConsoleBottle} from './consoleBottle';
 import {bottleServer} from './bottleNode';
 import {armFault, MonkeyStep, monkeyRng, monkeyWalk, replaySteps} from './monkeyWalk';
 import {watchSurfaceEdges} from '@/client/console/supervisor/surfaceEdges';
+import {CardName} from '@/common/cards/CardName';
 
 describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bottle', function() {
   // A bottle boots a whole application; a budget for that, never a timing.
@@ -800,6 +801,38 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
    * no stage to fly on, NOTHING IS OWED — the hand-over is the next task (`consoleBatchArrivalMotion.runBatchArrival`).
    * (The away spell of the shrunk walk is only the time the hand's own entry needs: plain time names the class too.)
    */
+  /*
+   * A D-PAD PRESS DURING THE HAND's OPENING (the bottle's probe of 2026-11-28, after the replay below went red under the
+   * painted ceiling): → pressed 50 – 600 ms into the album's opening said «consumed», and the cursor never moved — the
+   * router drops navigation while the copies fly (the slots they aim at must not scroll), and the press was nobody's.
+   * The law: the presses of the opening are KEPT and walked, in order, when the album settles.
+   */
+  it('a d-pad press during the hand\'s opening is walked when the album settles — never lost', async () => {
+    const fixture = 'space-lanes-wg';
+    const restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`fz5:${fixture}:world`)());
+    try {
+      const table = await bottleServer().bootFixture(fixture);
+      bottle = await bootBottle(table);
+      await bottle.advance(3_000);
+      type Slot = {classList: {contains(c: string): boolean}, getAttribute(a: string): string | null};
+      const focused = (): string => {
+        const doc = (globalThis as unknown as {window: {document: {querySelectorAll(q: string): Iterable<Slot>}}}).window.document;
+        return [...doc.querySelectorAll('.con-hand__slot')].find((el) => el.classList.contains('con-hand__slot--selected'))?.getAttribute('data-zoom-slot') ?? '';
+      };
+      await bottle.press('Period');
+      await bottle.advance(451);
+      await bottle.press('Enter');
+      await bottle.advance(50);
+      expect(bottle.ready().holds.some((h) => h.startsWith('hand-open')), 'the album is opening').to.equal(true);
+      expect(await bottle.press('ArrowRight')).to.equal('consumed');
+      await bottle.until(() => !bottle!.ready().holds.some((h) => h.startsWith('hand-open')), 5_000, 50);
+      await bottle.advance(1_500);
+      expect(focused(), 'the cursor walked one card on — the press of the opening').to.equal(CardName.WG_PROJECT);
+    } finally {
+      restoreRandom();
+    }
+  });
+
   it('a pick dealt onto a stage that cannot be measured is handed over at once — the pad opens, no ceiling ends the deal', async () => {
     const fixture = 'space-lanes-wg';
     const restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`fz5:${fixture}:world`)());

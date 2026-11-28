@@ -312,7 +312,12 @@ export type PadRouterPort = {
   zoomHandCard: UnwrapRef<HandController['zoomHandCard']>,
 };
 
+/** The d-pad presses a hand's opening keeps for its touchdown — a held stick's repeat is never a walk of the album. */
+const OPENING_NAV_MAX = 4;
+
 export function createPadRouterController(shell: PadRouterPort) {
+  /** The d-pad presses taken during the hand's opening, in order (`handleSectionNav` → `whenHandAlbumPoseChanges`). */
+  let openingNav: Array<NavDirection> = [];
   /**
    * THE FALLBACK LATCH LETS GO WITH ITS SCOPE. `consoleState.fallbackActive` is written where a press falls through
    * to the scope resolver — and until now ONLY there: a press met a layer the console does not own (a native dialog,
@@ -2162,6 +2167,12 @@ export function createPadRouterController(shell: PadRouterPort) {
     // A FILTER episode never blocks input: snap it and navigate at once.
     if (shell.padSection === 'hand' && isHandRevealEpisodeRunning()) {
       if (runningHandRevealKind() !== 'filter') {
+        // …AND THE PRESS IS KEPT FOR THE TOUCHDOWN, never dropped (the bottle's probe of 2026-11-28: a → 50 – 600 ms
+        // into the hand's opening said «consumed» and the cursor never moved — the player's press went nowhere). The
+        // presses of the opening are walked in order when the album settles (`whenHandAlbumPoseChanges`).
+        if (handRevealState.phase === 'opening' && openingNav.length < OPENING_NAV_MAX) {
+          openingNav.push(dir);
+        }
         return;
       }
       finishInstant();
@@ -2218,6 +2229,25 @@ export function createPadRouterController(shell: PadRouterPort) {
     // column-preserving up/down stepping, and keep-selected-visible.
     const hand = shell.surfaces.at<ExposedOf<typeof ConsoleHandSection>>('handSection');
     hand?.move(dir);
+  }
+
+  /**
+   * THE ALBUM's POSE — `settled` once the opening has landed and the cursor arrived (the reading beat, `chrome: 'all'`):
+   * the d-pad presses kept during the opening are walked now, in order, if the hand is still the player's section. An
+   * opening that ends otherwise (B reversed it, the hand closed) drops them — they were meant for that album.
+   */
+  function whenHandAlbumPoseChanges(pose: string): void {
+    if (pose !== 'settled' && pose !== 'docked' && pose !== 'closing') {
+      return;
+    }
+    const kept = openingNav;
+    openingNav = [];
+    if (pose !== 'settled' || shell.padSection !== 'hand') {
+      return;
+    }
+    for (const dir of kept) {
+      handleSectionNav(dir);
+    }
   }
 
   function handleSectionConfirm(): void {
@@ -2647,6 +2677,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     handleSheetIntent,
     handleSectionIntent,
     handleSectionNav,
+    whenHandAlbumPoseChanges,
     handleSectionConfirm,
     handleSectionBack,
     scrollActiveConsole,
