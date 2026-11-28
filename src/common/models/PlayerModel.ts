@@ -309,6 +309,10 @@ export interface PlayerViewModel extends ViewModel {
   // `movedFrom` — the pin is a MOVE (TR14): the cell the city leaves, so the
   // client holds BOTH cells and plays one relocation when the pin lands.
   stagedPlacementPending?: {card: CardName, spaceId: SpaceId, movedFrom?: SpaceId};
+  // Self-only, transient: how many pre-collected answers of the player's last batch the server still holds PARKED
+  // behind another question (`server/inputs/deferredInputBatch.ts`). The client's «re-asked» witness forgets a batch
+  // whose answers have all landed (`preselectWitness.checkPreselectReask`). Absent = none parked.
+  preselectParked?: number;
   // Batches of cards the player just drew via an in-game effect / tile bonus,
   // awaiting the player's "take" acknowledgement in the reveal modal. Empty in
   // the common case. See CardDrawRevealModel.

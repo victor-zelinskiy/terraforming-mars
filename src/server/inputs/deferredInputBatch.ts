@@ -520,7 +520,7 @@ export function clearBatchTail(player: IPlayer): void {
   stagedParkBaselines.delete(player);
 }
 
-/** Test seam: how many pre-collected responses are still waiting for a prompt. */
+/** How many pre-collected responses are still waiting for a prompt (the player view's `preselectParked`; a test seam). */
 export function parkedBatchTailLength(player: IPlayer): number {
   return parkedTails.get(player)?.length ?? 0;
 }

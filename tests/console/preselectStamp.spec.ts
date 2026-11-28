@@ -160,6 +160,48 @@ describe('the «re-asked» witness', () => {
   });
 });
 
+/*
+ * A SPENT BATCH IS FORGOTTEN (CI's autopilot on `8d534049f1`, game 1037, issue-to-be): Focused Organization played in
+ * the opening with its resource collected in the play's batch — it landed; Double Down then copied the prelude, a plain
+ * pick, and the copy asked ITS resource, a new question of the same asker and role. The memory, kept «until the action
+ * menu» (the opening has none), read it as the batch's answer asked again — a red test over a correct game.
+ */
+describe('the «re-asked» witness — a batch whose answers all landed is spent', () => {
+  const FO = CardName.FOCUSED_ORGANIZATION;
+  const foResource: PreselectAddress = {role: 'resource', source: {kind: 'card', card: FO}};
+  const resourceOfFo = (promptId: number) => ({type: 'resource', title: 'x', buttonLabel: 'x', promptId,
+    choiceContext: {source: {kind: 'card', card: FO}, mode: 'reward'}} as unknown as PlayerInputModel);
+  const copyPick = (promptId: number) => ({type: 'card', title: 'x', buttonLabel: 'x', cards: [], min: 1, max: 1, promptId} as unknown as PlayerInputModel);
+  let original: typeof console.warn;
+  beforeEach(() => {
+    resetPreselectWitness();
+    original = console.warn;
+    console.warn = () => undefined;
+  });
+  afterEach(() => {
+    console.warn = original;
+    resetPreselectWitness();
+  });
+
+  it('past its head, nothing of it asked and nothing parked — the next question of the same asker is a new one', () => {
+    notePreselectBatch([{type: 'card', cards: [FO]}, {type: 'resource', resource: 'heat', for: foResource}], 10);
+    expect(checkPreselectReask(copyPick(11), 0), 'Double Down\'s pick: the play\'s answers all landed').deep.eq([]);
+    expect(checkPreselectReask(resourceOfFo(12), 0), 'the copy asks its own resource').deep.eq([]);
+  });
+
+  it('…while an answer is PARKED behind an interloper the memory stands — its own prompt asked again is a report', () => {
+    notePreselectBatch([{type: 'card', cards: [FO]}, {type: 'resource', resource: 'heat', for: foResource}], 10);
+    expect(checkPreselectReask(copyPick(11), 1), 'an interloper, the answer parked').deep.eq([]);
+    expect(checkPreselectReask(resourceOfFo(12), 1)).has.length(1);
+  });
+
+  it('…a refusal in the batch\'s own answer is still a report, and a view still on the head spends nothing', () => {
+    notePreselectBatch([{type: 'card', cards: [FO]}, {type: 'resource', resource: 'heat', for: foResource}], 10);
+    expect(checkPreselectReask(copyPick(10), 0), 'the head\'s own prompt, a view from before the answer').deep.eq([]);
+    expect(checkPreselectReask(resourceOfFo(11), 0), 'dropped and asked again in the batch\'s own answer').has.length(1);
+  });
+});
+
 describe('the «post-commit choice» witness (TR51 — strictly pre-select)', () => {
   const orOf = (card: string, kind: 'card' | 'corporation' = 'card'): PlayerInputModel => ({
     type: 'or', title: 'x', buttonLabel: 'x', options: [{type: 'option', title: 'a', buttonLabel: 'a'}],

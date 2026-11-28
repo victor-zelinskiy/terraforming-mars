@@ -698,7 +698,7 @@ export function submitInput(out: InputResponse): SubmitTicket {
  */
 export function submitBatch(responses: ReadonlyArray<InputResponse>, composedFor?: number): SubmitTicket {
   // The «re-asked» witness remembers what this batch answered (`preselectWitness.ts`).
-  notePreselectBatch(responses);
+  notePreselectBatch(responses, composedFor ?? currentWaitingFor()?.promptId);
   notePromptSubmit();
   return fetchPlayerInput(
     apiUrl(paths.PLAYER_INPUT_BATCH) + '?id=' + currentView().id,
@@ -1916,7 +1916,7 @@ function applyPlayerView(playerView: PlayerViewModel | undefined): void {
     playerView = nextViewSnapshot(r.playerView as PlayerViewModel, playerView);
     // A question the last batch already answered must never stand again (the pre-select law's witness) — and a
     // choice the commit should have collected must never be asked after it («strictly pre-select», TR51).
-    checkPreselectReask(playerView.waitingFor);
+    checkPreselectReask(playerView.waitingFor, playerView.preselectParked ?? 0);
     checkPostCommitChoice(playerView.waitingFor);
     // A player idle again (no prompt / the action menu) ends the decision chain (`promptSequence.ts`).
     notePromptView(playerView.waitingFor);

@@ -28,6 +28,8 @@ import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {AddressableInput, PreselectAddress, promptAddressOf, reaskedBy} from '@/common/inputs/preselectAddress';
 
 let pending: ReadonlyArray<PreselectAddress> = [];
+/** The serial of the prompt the last batch's HEAD answered — a view still standing on it is no news of the batch. */
+let pendingHead: number | undefined;
 
 /** The marker of the warn the e2e harness listens for — ONE spelling. */
 export const REASKED_PRESELECT = 'RE-ASKED PRE-SELECT';
@@ -40,7 +42,8 @@ export const REASKED_PRESELECT = 'RE-ASKED PRE-SELECT';
  * while parked → «RE-ASKED», `deferredInputBatch.stagedParkStale`) and a multi-tile card's SECOND placement carries
  * the very same address as the staged first (Ice Asteroid's two oceans) — a re-ask by address there is a false alarm.
  */
-export function notePreselectBatch(responses: ReadonlyArray<unknown>): void {
+export function notePreselectBatch(responses: ReadonlyArray<unknown>, headPromptId?: number): void {
+  pendingHead = headPromptId;
   const addresses: Array<PreselectAddress> = [];
   for (const response of responses.slice(1)) {
     if (response === null || typeof response !== 'object') {
@@ -74,9 +77,15 @@ function describe(address: PreselectAddress): string {
 
 /**
  * A view arrived: is its prompt a question the last batch already answered?
- * Returns the reports (and warns each once); the memory ends with the action.
+ * Returns the reports (and warns each once); the memory ends with the action —
+ * or as soon as the batch is SPENT: a view past the batch's head that asks none
+ * of its questions while the server holds none of its answers parked
+ * (`parked` — the view's `preselectParked`) says every answer landed. Kept past
+ * that, the memory judged the NEXT question of the same asker and role a
+ * re-ask (CI's autopilot, game 1037: Focused Organization's resource landed in
+ * its play's batch, and Double Down's copy of it asked its own, a new one).
  */
-export function checkPreselectReask(waitingFor: PlayerInputModel | undefined): ReadonlyArray<string> {
+export function checkPreselectReask(waitingFor: PlayerInputModel | undefined, parked = 0): ReadonlyArray<string> {
   if (pending.length === 0 || waitingFor === undefined) {
     return [];
   }
@@ -99,6 +108,9 @@ export function checkPreselectReask(waitingFor: PlayerInputModel | undefined): R
     for (const report of reports) {
       console.warn(`[console-preselect] ${report}`);
     }
+  } else if (parked === 0 && waitingFor.promptId !== undefined && waitingFor.promptId !== pendingHead) {
+    // The batch is spent: past its head, nothing of it asked and nothing of it parked — every answer landed.
+    pending = [];
   }
   return reports;
 }
@@ -106,6 +118,7 @@ export function checkPreselectReask(waitingFor: PlayerInputModel | undefined): R
 /** Test seam / session reset. */
 export function resetPreselectWitness(): void {
   pending = [];
+  pendingHead = undefined;
 }
 
 /*

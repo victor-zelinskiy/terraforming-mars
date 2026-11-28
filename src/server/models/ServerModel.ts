@@ -55,7 +55,7 @@ import {PartyName} from '../../common/turmoil/PartyName';
 import {ConvertPlants} from '../cards/base/standardActions/ConvertPlants';
 import {ConvertHeat} from '../cards/base/standardActions/ConvertHeat';
 import {potentialActions, potentialHydroAdvance} from './potentialActions';
-import {parkedStagedPlacement} from '../inputs/deferredInputBatch';
+import {parkedBatchTailLength, parkedStagedPlacement} from '../inputs/deferredInputBatch';
 import {KELVINISTS_POLICY_3} from '../turmoil/parties/Kelvinists';
 import {armedPlayEffectsOf} from '../cards/armedPlayEffects';
 import {ArmedPlayEffectModel} from '../../common/models/ArmedPlayEffectModel';
@@ -306,6 +306,9 @@ export class Server {
       // A staged cell parked behind an interloper prompt (deferredInputBatch)
       // — the client's honest «committed, one more prompt first» witness.
       stagedPlacementPending: parkedStagedPlacement(player),
+      // …and how many answers of the last batch are still parked (the client's «re-asked» witness forgets a batch
+      // whose answers have all landed).
+      ...(parkedBatchTailLength(player) > 0 ? {preselectParked: parkedBatchTailLength(player)} : {}),
       players: players,
       autopass: player.autopass,
       cardDrawReveals: player.cardDrawReveals.map((r) => ({
