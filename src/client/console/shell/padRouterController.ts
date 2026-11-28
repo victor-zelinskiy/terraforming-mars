@@ -191,6 +191,7 @@ export type PadRouterPort = {
   corpFirstActionOpen: UnwrapRef<PlayedController['corpFirstActionOpen']>,
   cycleHandFilter: UnwrapRef<HandSelectController['cycleHandFilter']>,
   deckPickServing: UnwrapRef<RevealController['deckPickServing']>,
+  deckPickOutgoing: UnwrapRef<RevealController['deckPickOutgoing']>,
   deferFinalGreenery: UnwrapRef<PlacementController['deferFinalGreenery']>,
   deferShellTask: UnwrapRef<MandatoryController['deferShellTask']>,
   draftedCards: UnwrapRef<DraftController['draftedCards']>,
@@ -1016,7 +1017,12 @@ export function createPadRouterController(shell: PadRouterPort) {
     // deliberately swallows everything, so a committed move can never be
     // re-submitted by a stray press.
     if (band.takes('deckPick')) {
-      notePadRung('deckPick');
+      // …AND PAST ITS ANSWER IT IS A BEAT (`deckPickOutgoing` — the picks flying into the dock, the rest tumbling away,
+      // a played card rising out of it): it serves no question — the next one is the function's to name — and it
+      // swallows the press so a committed move is never sent twice. The rung is named as the beat it is: CI's autopilot
+      // on `7752ea0189`, bottle game 566 — a press under the opening's next question, read as «the deck pick took the
+      // start's press» (`pad-MISS:deckPick`, #111), while the start stood behind the pick's last flight.
+      notePadRung(shell.deckPickOutgoing ? 'cinematic' : 'deckPick');
       handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleDeckPick>>('deckPick'), 'deckPick', intent);
       return true;
     }

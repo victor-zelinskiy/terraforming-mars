@@ -3171,6 +3171,33 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   *Open, watched:* #187 / #189 (`board-beat-drain` 35 s with nothing held — one browser game; the hold's diagnosis now
   names the drain's step, `8395cdaf75`), #190 (two Greens reactions in one slot — one browser game). The confirming
   passes on the head: CI's autopilot and freeze gate (dispatched), the box's games 65 – 112.
+- **THE DAY's QUEUE (2026-11-28, afternoon — the box's games 65 – 112 on `7752ea0189`: 47 of 48; CI's autopilot on the
+  same head; the night's e2e):**
+  - **A frame the wheel stands over the door's own frame earns the offer** — the box's game 88: Build Colony's ocean,
+    «Динамический океанский барьер» offered its step; the player opened the wheel on the board while the placement's
+    story held the door, the door stood the Hydronetwork up UNDER the wheel, and «Гидросеть» from it re-entered the
+    kind: the door's frame popped, a fresh one pushed at the same depth with the registry's `serves: []`. The door's
+    signal was `action|depth` — `queue|0` both times — so the screen showing the offer served nothing (STRANDED
+    PROMPT, `stall (unserved)`). The signal carries the kind's EPOCH now (`workspaceFrameEpoch` — every push that is
+    not a re-entry). A class replay on `hydro-terminal` (the server's own road to the offer — `seatAsksHydroBonus`):
+    RED without (the new frame `serves []`), GREEN with; the suite 44 of 44 (`153a8c16e4`).
+  - **One page of a browser paints — the one in front** (#197, the night's e2e on `8395cdaf75`, red on the head too):
+    Water Export's CHOOSER stood a minute on «enact / support» behind the observer's newer page — two flights in the
+    air, the hold re-armed. The question was named by the spec's own wait, which now says WHAT still moves
+    (`waitSittingAtRest` → the motion, the flights, the holds; `__conReady().sitting` — the director's stage, beat,
+    play, run and pauses; `.paint` — the frame witness's word): «the page gave the motion 0 of 1004 ms», on a page
+    reporting `visible`. A hold's ceiling counts painted time (`4c867dbc20`) — a motion nobody looks at waits to be
+    looked at; the old wall ceiling had ended the stage by force. Proven on the box: the same build with the wall
+    ceiling passes, the head fails; the law stays and the spec brings the client a step drives or reads to the front
+    (`bringToFront` — the pattern of every two-client spec; `862a61cc78`, 2 of 2 on the box).
+  - **A deck pick past its answer is a beat, not a rung** (#111 reopened — CI's bottle game 566): a press under the
+    opening's next question while the pick's last flight still stood was swallowed by the pick by design (a committed
+    move is never sent twice) and counted `pad-MISS:deckPick`. The pad names the rung by what it is
+    (`deckPickOutgoing` → `cinematic`, a beat of the game); the routing is unchanged. Game 566 is deterministic: two
+    runs before, `pad-MISS:deckPick` ×1 each; after, the same press reads `pad-beat:cinematic`.
+  - The bottle's rival never terraformed: its standard project was answered with `megaCredits` (the payment's key is
+    `megacredits`) and refused every time — the two-seat tables ran long for it. Fixed with the helper that brings the
+    Hydronetwork's offer onto the wire.
 - **THE CARDS AXIS TO ITS LAST CARD (stage 6, 2026-11-28 — the owner: «довел до 100% покрытия перед передачей»).**
   The deal's `missing` windows took the axis from 512 to 595 of 673 (`autopilotCardsUnplayed.json`); the residue of 78
   was the cards of a REQUIREMENT no dealt game meets — a ruling party or two delegates on its resolution, seven science
