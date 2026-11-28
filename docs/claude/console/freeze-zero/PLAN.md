@@ -632,6 +632,88 @@ per commit and per world produced by CI (`kernel-walked --gate`, the cards with 
 gates defect-tier records; ⑧ the Autopilot on a schedule, and a lane that plays as a player (a gamepad, the TV profile,
 motion ×1); ⑨ the pilot-rule ledger; ⑩ a pass asserts the product booted as it ships (the locale — A30).
 
+**STAGE 9, THE FIRST TWO CLASSES — ROOTS BY RED REPLAY, EACH ATTACKED BY A SKEPTIC (2026-11-28).** The two families
+handed to the program — the question nobody serves (#119 #170 #171 #172 #175 #177 #207) and the screen that takes the
+pad and cannot be answered (#212, game 632) — were each given to an investigator (the road from the field's walk, the
+path in the code, a replay in the bottle that is RED on today's code) and then to a skeptic told to refute it (re-run
+the replay, compare it press by press with the walk, find the road the law would not close). Reports beside the
+audit's: `R1-parliament-unanswerable`, `R2-stranded-after-refused-submit` and their `-attack`.
+
+**① THE QUESTION NOBODY SERVES AFTER A SUBMIT THAT DID NOT LAND — «Завершить свою партию».** Games 630 and 621 of CI's
+pass (and 648 on the pin) are ONE road and the same press: the finale's RT hold, whose submit did not land (`lost` in
+630; a 400 `#stale-prompt` in 621 — the hand-over's «no direct link, 165 s earlier» was a misreading: a 400 prints no
+`[net]` line). *The root:* `placementController.finishFinalGreenery` drops the board pick and raises
+`finalGreeneryCommitting` for the press and declares no unwind for it — the two unwinds beside it (`task-space-commit`,
+`final-offer-commit`, each a cure of this very family) are keyed on a variable only their own press sets. The latch was
+the SESSION's, and its one release rode «a view was applied» — an edge that an unmade move never brings: the view
+re-fetched after it is the same view, `nextViewSnapshot` hands back the previous object (against its own header: «the
+root identity always changes»), and a plain 400 / a 5xx re-fetch nothing. The finale then held its own question down:
+the bar's RT drawn disabled, B and the plate's A leading back to the same stage, the owner function naming a hold
+(«scene: finale») that has no end — which is why the one-owner law read MISS 0 through both games. *The skeptic's
+experiment* (the product's own `?patch=0` — an identical view becomes a new root object, nothing else changes): the
+faults that re-fetch heal, the two that do not stay red — the latch IS the cause. And what the investigator missed: **a
+merely LATE answer, no fault at all, files `stranded-prompt/choice` at +1.5 s of the flight** — the leak detector keeps
+its own list of «why a question may stand with no surface», with no row «its answer is on the wire».
+
+*The law — A LATCH OF A PRESS IS THE SUBMIT's* (`session/pressState.ts`): «a commit is on its way», raised before the
+answer exists, is bound to the submit its press makes (the transport announces every ticket synchronously) and cannot
+outlive it — the funnel did not take it: it falls at once; the submit ended without the move (`refused` · `failed` ·
+`silent`): it falls at that end, and the level that re-opens the surface sees it down; `applied`: it falls; `staged` ·
+`abandoned` (the move was made, its view comes by another road): it stays the module's; raised with no submit in the
+same task: lowered and said (`[invariant] press-state:<label>`). `finalGreeneryCommitting` is one. *And the generic row
+the judges lacked:* a question whose answer is on the wire is HELD BY ITS SUBMIT (`submitTicket.submitInFlight` —
+bounded by the machine's own bounds; `pick-answered`, kept by hand, was its first instance).
+
+*Red → green:* `tests/client/bottle/replayStrandedAfterRefusedSubmit.bottle.ts` — the control (the cell's commit, the
+press that had its unwind) green before and after; the finish under `network` · `stale` · `refused` · `error500` ·
+`silent` RED ×5 on the code as it stood (two independent runs: the three classes of game 630's file, class for class,
+and one rebuild) and GREEN ×5 with the law. *Each half is needed:* with the detector's row taken out the `silent` row is
+red again (`stranded-prompt/choice` filed inside the minute). Guards: `tests/console/pressState.spec.ts` (8 — every end
+of a submit), `tests/console/pressArmGuard.spec.ts` (the form, by the AST: a function that raises a latch and makes a
+submit declares it `pressState`, or stands on a list with why — one row today; the list only shrinks).
+
+*What this does NOT close — said by the skeptic, kept as the class's open rows:* (a) **the judges do not read the ONE
+function** — `promptHeldReason` (the leak detector), the mandatory gate's rows, the bar's finale rung and the finale's
+stage each keep their own list (REVIEW § 2 · L15), and `servingOwnerOf` names holds that are not live bounded scopes
+(`finalePromptOwned`): stage 2's «one opinion», still owed — the family's own law is «for every applied view that asks
+the viewer the function names a surface that renders and accepts, or a hold that is a live scope with a bound — and
+every judge and every door reads THAT function»; (b) **a teardown that is not a latch** — a frame that left before its
+answer (`handSelectController.leaveHandAfterAnswer`), the World Government panel closed before its submit
+(`consoleGovScaleFocus.beginGovScaleClose` — ended on a refusal only by its private 5 s safety): by code, not replayed;
+(c) **the road with no submit at all** — the box's game 3014 (B on a `parliament:committed` holding a `card` question →
+the board, no plate; the support session's #200 family); (d) the table «every press × every fault of the wire × a late
+answer» as the semantic guard. Each is a row of stage 9's worklist, not of this commit.
+
+**② THE SCREEN THAT TAKES THE PAD AND CANNOT BE ANSWERED — game 632, «Парламент · A Выполняется…».** *The root:* **one
+surface, two words.** The bar and the pad of the Parliament are driven by the section's STAGE (`parliamentFlow.stage`,
+a module-level record reset only when the component unmounts); the arbiter, the beat judge, the leak detector, the
+mandatory gate and the one-owner measure read the FRAME's phase. They are the same span — except during a LEAVE:
+«Nationalist Movement» played from the hand hosts the Parliament for its outcome (the rally of the neutral delegates),
+the rally ends and leaves `stage === 'rally'` standing (the shell is trusted to take the surface down), the hosted step
+pops and the SAME instance stays mounted for its dissolve — and the chairman's gate (its question rode the play's own
+answer) puts its plate on the bar in that very flush. A on «Открыть Парламент» inside the leave pushes a FRESH frame
+`parliament:browse`; the re-show cancels the fade and folds nothing of the section's flow. From then on the frame says
+«browse — reversible, accepts input», the stage says «rally — a beat in flight», A and B are TAKEN by the section and
+answered with nothing, the bar is a status, the gate's own door (edge-triggered, browse-only, refused while hosted)
+never opens — and no judge has a term for it: `accepting` is the frame's phase, a taken press is not a dropped one, B
+is judged only on a `committed` frame. Not one line in thirty-five minutes. The class the journal closed on 2026-11-14
+(«a second A inside the round trip of the chairman's quest») read the same word from the same function for another
+reason; its guard cannot name this one — no hold stands. *Red:* `tests/client/bottle/replayUnanswerableParliament
+.bottle.ts` — the walk's own door (the plate) RED, the wheel's door RED, the same A one second later (the section
+gone) the green control; and in a real browser — game 632 itself, by one command (§ «STAGE M, STEP 2»).
+
+*The law, two halves (the cure is the next commit — the replay lands with it):* **impossible** — a surface's flow stage
+is state of its FRAME's scope and ends with the frame: a component that outlives its frame (a leave) holds no stage, and
+a door asks the fourth home of a workspace («in its leave») as it asks the plate, the park and «aside for the board»;
+**self-announcing** — the bar is the pad's own word: *the server asks, nothing is in flight, and the bar offers no
+enabled verb* is a beat that the arbiter judges like any other, and an invariant in the supervisor's tick
+(`status-without-beat` — a status-only bar over a frame that reports no beat) names the class the moment it stands, in
+every unit test and every e2e spec. Siblings by the same construction: the card's WALK (`endWalkFlow` leaves `stage ===
+'walk'`), eight stages of `parliamentCommandsOf` that answer with a sole disabled «Выполняется…», each ended by a
+callback and none by a scope; of the same kind, not walked — the colonies hosted in the hand, «Выполняется…» off
+`fleetDockUi.answered` / `colonyActAnswered` / `cardDiscardTransaction.active`, the composers' status past the press,
+the start's `pressBlocked`.
+
 **STAGE 1 — EXIT REACHED 2026-11-20 04:19 UTC.** The stage's number is met on ONE commit (`ab6ad53eba`): the
 perturbation matrix — CPU ×4 · ×6, the net at 400 · 1500 ms, a reload, two windows, a hidden tab, plain — × 3 seeds ×
 606 tables in a real browser, **0 defect records in each of the 24 cells** (§4, the matrix's row; fifteen cells on

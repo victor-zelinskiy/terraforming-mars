@@ -7,6 +7,7 @@ import type {UnwrapRef} from 'vue';
 import {ExposedOf} from '@/client/components/exposedOf';
 import {computed, nextTick, ref} from 'vue';
 import {scopedState} from '@/client/console/session/scopedState';
+import {pressState} from '@/client/console/session/pressState';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
 import {PlacementEffect, SelectSpaceModel} from '@/common/models/PlayerInputModel';
@@ -158,8 +159,16 @@ export function createPlacementController(shell: PlacementPort) {
   /** …and the board COMMITTED it. `waitingFor` still holds the finale
    *  prompt for the whole round-trip (the server has not answered yet), so
    *  without this the screen re-mounts the instant the pick is released and
-   *  BLINKS over the greenery's landing animation. */
-  const finalGreeneryCommitting = scopedState('final-greenery-committing', false);
+   *  BLINKS over the greenery's landing animation.
+   *
+   *  A LATCH OF A PRESS — IT IS ITS SUBMIT's (`session/pressState.ts`). Three presses raise it (the cell's commit, the
+   *  exchange, «Завершить свою партию»). As a latch of the SESSION, released by «the next applied view», it stood for
+   *  good under a press that did not land: the move was not made, the re-fetched view was the same view, no edge came
+   *  — the finale held its own question down, the plate's lease expired over nothing, the ladder was spent and the
+   *  page rebuilt (CI's games 621 · 630 · 648 — the family of #119; two of the three presses had an unwind declared by
+   *  hand, the third was not on the list). Bound to its submit it falls with it by every road that leaves the move
+   *  unmade, and `finalGreeneryActive` re-opens the pick on the same question — the finale's own door, a level. */
+  const finalGreeneryCommitting = pressState('final-greenery-committing', false);
   /** The nested space pick on the wire (its pick, whether the finale's, the question it answered) — the unwind's. */
   let taskSpaceCommit: {pending: {index: number, spacePrompt: PlayerInputModel}, finale: boolean, promptId: number | undefined} | undefined;
   /** The finale's EXCHANGE on the wire (RX35's offer — no cell): the question it answered, for the unwind. */

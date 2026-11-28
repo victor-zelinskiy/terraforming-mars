@@ -51,6 +51,7 @@ import {StartServes, startServesSomething} from '@/client/console/startServing';
 import {ownershipDigest, QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
 import {noteOwnerEdgeLook, notePromptFlagsLook, noteServingOwnerLook} from '@/client/console/servingOwnerMeasure';
 import {invariantBroken} from '@/client/diagnostics/invariant';
+import {submitInFlight} from '@/client/console/session/pressState';
 
 /** Any of these rendered = SOME surface is serving the prompt. */
 const SERVING_SURFACES: ReadonlyArray<string> = [
@@ -435,6 +436,16 @@ function promptHeldReason(view: PlayerViewModel, task: ConsoleTask | undefined, 
   // консольном режиме» was this guard reading the early close as a demand.
   if (wf.optional === true) {
     return 'optional';
+  }
+  // THE PLAYER's ANSWER IS ON THE WIRE — the question is HELD BY ITS SUBMIT (`pressState.submitInFlight`). A press
+  // may take its own surface down for the flight («Завершить свою партию» drops the finale's pick; a pick's album
+  // closes): until the submit ends the view still carries the answered question, nothing else can be answered (the
+  // funnel is busy), and the wait is the submit machine's — bounded by its own silence and presentation bounds, ended
+  // by every road. The ONE generic row behind the per-press ones kept here by hand (`pick-answered` below is its first
+  // instance): without it a merely LATE answer — no fault at all — filed `stranded-prompt/choice` at +1.5 s of the
+  // flight, a defect line over a healthy game (FREEZE ZERO, the family of #119 — the skeptic's probe, 2026-11-28).
+  if (submitInFlight()) {
+    return 'submit';
   }
   // The Government Support scale-focus choreography intentionally shows NO surface for a beat — the panel closes
   // (`closing`, WGT prompt still live) then the board scale animates while the next modal is held (`holding`).
