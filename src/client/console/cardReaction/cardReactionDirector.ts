@@ -184,6 +184,13 @@ const claimedSeqs = new Set<number>();
 let attached: Array<Attached> = [];
 /** Every reactor brought forward and not yet let go — a cut settles the ones lifted IN THEIR PLACE (never left raised). */
 const liveRisen = new Map<string, Risen>();
+/**
+ * THE SEATS A RISE HAS TAKEN AND NOT YET REGISTERED — its seat and its rise are awaited before `liveRisen` holds it, and
+ * the free-slot reading counted only the registered ones: two groups that lost their place (a party has no face — CI's
+ * browser on `9db45debcb`, game 565, issue #190: «stacked-faces: Greens+Greens … overlap 100 %») took the same last free
+ * slot in the same beat. A seat is claimed in the very call that picks it.
+ */
+const seatsClaimed = new Set<RectLike>();
 /** Host flights (ATTACHED) whose faces stand right now — the stage is theirs; the chain and the rivals wait (P82 · H5/H7). */
 let attachedLive = 0;
 
@@ -711,6 +718,17 @@ async function rise(group: CardReactionGroup, slot: number, view: PlayerViewMode
     return {group, key, face: undefined, via: 'none'};
   }
   const seat = opts.slots[slot % opts.slots.length];
+  seatsClaimed.add(seat);
+  try {
+    return await riseAtSeat(group, key, seat, view, opts, cutMeanwhile, specs);
+  } finally {
+    seatsClaimed.delete(seat);
+  }
+}
+
+/** The stage half of `rise`: the reactor seated in `seat` (claimed by the caller for the whole of it) and lifted. */
+async function riseAtSeat(group: CardReactionGroup, key: string, seat: RectLike, view: PlayerViewModel | undefined, opts: RiseOpts,
+  cutMeanwhile: () => boolean, specs: ReadonlyArray<ResourceTransferSpec>): Promise<Risen> {
   const face: ReactorFace = {key, name: group.card, seq: group.record.seq, kind: group.record.kind, card: opts.model ?? liveModelOf(view, group.card), seat, caption: opts.caption, cause: opts.cause};
   const seated = await seatReactor(face);
   if (seated === undefined) {
@@ -768,7 +786,7 @@ async function settleStrandedLifts(card: CardName): Promise<void> {
  * groups the first slots); none left → -1 (the group rises nowhere and is named, the overflow's own reading).
  */
 function freeStageSlot(slots: ReadonlyArray<RectLike>): number {
-  const taken = new Set([...liveRisen.values()].map((r) => r.seat).filter((s) => s !== undefined));
+  const taken = new Set([...[...liveRisen.values()].map((r) => r.seat).filter((s) => s !== undefined), ...seatsClaimed]);
   for (let i = slots.length - 1; i >= 0; i--) {
     if (!taken.has(slots[i])) {
       return i;
@@ -1870,6 +1888,7 @@ export function cutCardReactions(reason = 'cut'): void {
     }
   }
   liveRisen.clear();
+  seatsClaimed.clear();
   attachedLive = 0;
   killReactorTweens();
   unseatAllReactors();
