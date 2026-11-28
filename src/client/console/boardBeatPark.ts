@@ -706,7 +706,17 @@ export function releaseBoardScaleForScene(): number {
   if (held === undefined && boardBeatParkState.heldClaims === undefined) {
     return 0;
   }
+  // A DRAIN IN FLIGHT IS CUT HERE — and a drain cut is a drain ENDED (CI's autopilot, browser game 1040, #187 / #189):
+  // its timers are the settle and the batch's release, and nothing else ends it, so `draining` stood 35 s with nothing
+  // under it (no values, no member, no batch) until the hold's ceiling, the feed starving behind it. The scene tells
+  // the values; a parked batch stays parked and the next drain lets it go (`endDrainSafety` re-drives one if anything
+  // is still owed).
+  const drainCut = boardBeatParkState.draining;
   clearDrainTimers();
+  if (drainCut) {
+    boardBeatParkState.draining = false;
+    boardBeatParkState.batchHeldByDrain = false;
+  }
   if (held !== undefined) {
     applyScaleAccents(changedGlobalParams(held, liveParamsSource?.()));
   }

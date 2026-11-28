@@ -21,7 +21,7 @@ import {
   BOARD_BEAT_PARK_SAFETY_MS, BOARD_BEAT_SCALE_MS, BOARD_BEAT_SETTLE_MS,
   boardBeatDisplayClaims, boardBeatDisplayParams, boardBeatParkPending,
   boardBeatParkState, boardBeatParksReveal, boardBeatStoryPending, boardStoryHeldByPlayer, boardStoryWaitsUnderACover,
-  changedGlobalParams, drainBoardBeatsIfDue,
+  changedGlobalParams, drainBoardBeatsIfDue, holdBoardScaleForScene, releaseBoardScaleForScene,
   noteBoardBeatDrainGated, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatStoryMember,
   registerBoardCoverReasons, registerBoardStoryWaiter, registerBoardWatchableProbe, releaseBoardBeatPark,
   resetBoardBeatPark,
@@ -360,6 +360,34 @@ describe('boardBeatPark', function() {
     await delay(consoleMotionMs(BOARD_BEAT_SETTLE_MS) + consoleMotionMs(BOARD_BEAT_SCALE_MS) + 120);
     expect(boardBeatParkState.heldParams).to.equal(undefined);
     expect(boardBeatParkState.draining).to.equal(false);
+  });
+
+  /*
+   * #187 / #189 (CI's autopilot, browser game 1040): `draining` stood 35 s with nothing under it — no values held, no
+   * member busy, no batch, no story — until the hold's ceiling. The terraformed scene took the values mid-settle
+   * (`releaseBoardScaleForScene`): it cancelled the drain's timers, the settle never ran, and nothing else ends a drain.
+   */
+  it('the SCENE taking the values mid-settle ends the drain it cut — the batch waits for the next drain, never the ceiling', async () => {
+    watchable = false;
+    noteBoardScaleAdvance(gameWith({venusScaleLevel: 6}), gameWith({venusScaleLevel: 8}));
+    drawnCardsState.events.push(venusEntry());
+    const venus = {type: 'globalParameter', parameter: 'venus'} as const;
+    watchable = true;
+    drainBoardBeatsIfDue();
+    expect(boardBeatParkState.draining, 'the drain is in its settle').to.equal(true);
+    // The terraformed scene stands up over the board and plays the scales on its own stage.
+    holdBoardScaleForScene(gameWith({venusScaleLevel: 8}), gameWith({venusScaleLevel: 8}));
+    expect(releaseBoardScaleForScene()).to.be.greaterThan(0);
+    expect(boardBeatParkState.draining, 'the drain the scene cut is over').to.equal(false);
+    expect(boardBeatParkState.batchHeldByDrain).to.equal(false);
+    // The parked batch is the ordinary drain's: the next one lets it go (re-driven by the park's own heartbeat, or
+    // asked here — idempotent), within its settle and its window, never the 35 s ceiling.
+    await delay(consoleMotionMs(BOARD_BEAT_SCALE_MS) + 60);
+    drainBoardBeatsIfDue();
+    await delay(consoleMotionMs(BOARD_BEAT_SETTLE_MS) + consoleMotionMs(BOARD_BEAT_SCALE_MS) + 120);
+    expect(boardBeatParkState.scaleStory, 'the scene\'s window ends by itself').to.equal(false);
+    expect(boardBeatParksReveal(venus as never), 'a drain let the batch go').to.equal(false);
+    expect(boardBeatParkState.draining, 'and ended').to.equal(false);
   });
 
   it('a drain with NO batch still holds through the glide window only', async () => {
