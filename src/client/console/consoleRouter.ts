@@ -19,7 +19,7 @@ import {reactive} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {AlbumFilter, HandTagFilter} from '@/client/components/console/consoleHandFilter';
 import {loadingScreenState, sceneTransitionInputLocked} from '@/client/console/loadingScreenState';
-import {recordInputTrail, recordVerbAbsorbed, recordVerbPress, takeUnreceivedPress} from '@/client/console/inputEcho';
+import {pressPictureNow, recordInputTrail, recordVerbAbsorbed, recordVerbPress, takeUnreceivedPress} from '@/client/console/inputEcho';
 import {beginInputDispatch, endInputDispatch, noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 import {
   registerWorkspaceTaskSetAside,
@@ -336,11 +336,14 @@ function dispatchConsoleIntentInner(intent: GamepadIntent): DispatchOutcome {
     observe(intent);
   }
   const handler = handlers[handlers.length - 1];
+  // (A B is judged by what it does: the picture it finds, read BEFORE its handler — `inputEcho.backUnmoved`.)
+  const back = intent.kind === 'press' && intent.button === 'back';
+  const before = back ? pressPictureNow() : undefined;
   const taken = handler !== undefined ? handler(intent) : false;
   // …and a press the shell CONSUMED for a surface that was not mounted to receive it was taken by nobody.
   const received = taken && takeUnreceivedPress() === undefined;
   if (verb) {
-    recordVerbPress(received, intent.kind === 'press' && intent.button === 'back');
+    recordVerbPress(received, back, before);
   }
   return {taken, received};
 }

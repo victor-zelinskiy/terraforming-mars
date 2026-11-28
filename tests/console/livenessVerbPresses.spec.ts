@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {dispatchConsoleIntent, registerConsoleIntentHandler} from '@/client/console/consoleRouter';
-import {inputEchoSnapshot, inputTrailLine, noteUnreceivedPress, recordInputTrail, resetInputEchoForTest} from '@/client/console/inputEcho';
+import {inputEchoSnapshot, inputTrailLine, noteUnreceivedPress, recordInputTrail, resetInputEchoForTest, setPressPictureProbe} from '@/client/console/inputEcho';
+import {nextTick} from 'vue';
 import {noteInputAbsorbed} from '@/client/console/inputAbsorb';
 
 /**
@@ -47,6 +48,39 @@ describe('liveness · the presses it counts', () => {
       expect(echo.backTaken).to.equal(1);
     } finally {
       off();
+    }
+  });
+
+  /*
+   * A TAKEN B IS JUDGED BY WHAT IT DID (the box's game 45, 2026-11-28): a colony step past its commit, the player taking
+   * a colony with A and letting it go with «B Назад» inside the second — the 1 Hz look landed on the same state every
+   * time and called three working B presses «no effect». The picture the B found against the picture after its render.
+   */
+  it('a taken B that moved the picture is no dead press; one that moved nothing is', async () => {
+    resetInputEchoForTest();
+    let picture = 'colony picked';
+    setPressPictureProbe(() => picture);
+    const off = registerConsoleIntentHandler((intent) => {
+      if (intent.kind === 'press' && intent.button === 'back' && picture === 'colony picked') {
+        picture = 'colony let go';
+      }
+      return true;
+    });
+    try {
+      dispatchConsoleIntent({kind: 'press', button: 'back'});
+      await nextTick();
+      expect(inputEchoSnapshot().backTaken).to.equal(1);
+      expect(inputEchoSnapshot().backUnmoved, 'the B let the pick go — it moved the picture').to.equal(0);
+      dispatchConsoleIntent({kind: 'press', button: 'back'});
+      await nextTick();
+      expect(inputEchoSnapshot().backTaken).to.equal(2);
+      expect(inputEchoSnapshot().backUnmoved, 'the second B found nothing to undo — a dead press').to.equal(1);
+      setPressPictureProbe(undefined);
+      dispatchConsoleIntent({kind: 'press', button: 'back'});
+      expect(inputEchoSnapshot().backUnmoved, 'with no probe every taken B counts, as before').to.equal(2);
+    } finally {
+      off();
+      setPressPictureProbe(undefined);
     }
   });
 

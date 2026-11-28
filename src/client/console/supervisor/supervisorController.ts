@@ -44,7 +44,7 @@ import {unanswerableReason} from '@/common/inputs/promptAnswerable';
 import {captureDiagEvidence, setDiagEvidenceProvider, withDiagEvidence} from '@/client/diagnostics/diagnosticsCapture';
 import {DiagEvidence} from '@/common/diagnostics/DiagnosticModel';
 import {buildStallEvidence, stallHolder, StallHolderFacts} from '@/client/console/supervisor/stallEvidence';
-import {inputEchoSnapshot} from '@/client/console/inputEcho';
+import {inputEchoSnapshot, setPressPictureProbe} from '@/client/console/inputEcho';
 import {ANIMATION_STALL_GRACE_MS} from '@/client/console/consoleForegroundWatchdog';
 import {ConsoleRevealMode} from '@/client/components/console/consoleRevealOverlayTypes';
 import {closePhaseRoot, closeWorkspaceRoot, deadLiveFrames, pruneOffStageDeadFrames, collapseWorkspaceStack, stackYieldedToBoard, frameServing, goBoardHome, popWorkspaceFrame, workspaceFrameHasNested, workspaceStackTop, workspaceFrameAnchor, workspaceFrameKnown, workspaceFrameAnywhere, workspaceFrameParked, workspaceStackCollapsed, workspaceStackState, workspaceFrameOffStage, WorkspaceFrameKind, workspaceHostForStep, workspaceVerbTrail} from '@/client/console/consoleWorkspaceStack';
@@ -624,7 +624,9 @@ export function createSupervisorController(shell: SupervisorPort) {
       // …and a B a handler TOOK on a frame past its commit, the server asking the player and nothing in flight: B
       // collapses such a frame by contract (`backVerbFor('committed')`), so a taken B that moved nothing is a handler
       // swallowing the verb over a wedged flow (the chairman quest's leaked beat, the owner's field lock of 2026-11-07).
-      backTaken: inputEchoSnapshot().backTaken,
+      // (…judged by the press itself — the picture it found against the picture after its render, `backUnmoved`: a
+      // quick B that let a pick go is no dead one, whatever the 1 Hz look happens to land on.)
+      backTaken: inputEchoSnapshot().backUnmoved,
       // …and an A / B a DELIBERATE GATE swallowed WITH NOTHING DECLARED IN FLIGHT (`quietAbsorbed`).
       absorbed: quietAbsorbed(),
       backJudged: backOwedOnStandingFrame(),
@@ -1145,8 +1147,23 @@ export function createSupervisorController(shell: SupervisorPort) {
     return cardReactionState.phase !== 'idle' ? {kind: 'motion', what: `a card reaction plays first (${cardReactionState.phase})`} : undefined;
   }
 
+  /** The picture a B is judged against (`inputEcho.setPressPictureProbe`): the question, the stack, the bar, the focus. */
+  function pressPicture(): string {
+    const wf = shell.playerView.waitingFor;
+    const focused = document.querySelector('[class*="--focused"]');
+    return [
+      wf === undefined ? 'none' : `${wf.type}#${wf.promptId ?? ''}`,
+      workspaceStackState.frames.map((f) => f.kind + ':' + f.phase).join(';'),
+      `${consoleState.section}/${consoleState.sheet ?? ''}`,
+      (document.querySelector('.con-cmdbar')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 160),
+      focused === null ? '' : `${focused.className.toString().slice(0, 40)}:${(focused.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40)}`,
+    ].join('|');
+  }
+
   function registerLivenessRungs(): void {
+    setPressPictureProbe(pressPicture);
     livenessRungStops.value = [
+      () => setPressPictureProbe(undefined),
       setStartHostedStepHolder(startHostedStepHold),
       registerWaitSource('shell', () => shellWaitNodes()),
       // …and the registries every presentation wait goes through — holds, ledger stories, the park — BY CONSTRUCTION (Э4).

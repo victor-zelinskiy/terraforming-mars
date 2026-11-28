@@ -65,6 +65,7 @@ const PAGE_LIFETIME: Readonly<Record<string, Readonly<Record<string, string>>>> 
   'src/client/console/inputEcho.ts': {
     trail: 'the device\'s own last presses — evidence that must outlive the session it is about (a stall right after a rematch is read with the presses before it)',
     trailCount: 'how many presses the router ever saw — a count that only grows; its readers compare it with their own last look',
+    pressPicture: 'an injected probe (this module stands below the supervisor): registered by the console\'s supervisor at its start and withdrawn at its stop — the supervisor\'s own life is what reaches it',
   },
   'src/client/console/parliament/startHostedHold.ts': {
     holder: 'an injected answer (this module stands below the supervisor): registered by the console\'s supervisor at its start and withdrawn at its stop — the supervisor\'s own life is what reaches it',

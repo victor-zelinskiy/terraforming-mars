@@ -23,6 +23,7 @@
  * including pre-game menus. The in-game aggregate probe (`window.__conReady`,
  * `e2eReadiness.ts`) folds this snapshot in.
  */
+import {nextTick} from 'vue';
 
 /**
  * `absorbed` — the console TOOK the press on purpose and did nothing with it (a deliberate gate — the decision's settle,
@@ -55,6 +56,15 @@ export type InputEchoSnapshot = {
    */
   backTaken: number;
   /**
+   * …of those, the ones that CHANGED NOTHING, judged by the press itself: the picture the B found (read before its
+   * handler) against the picture after the render that answers it (`setPressPictureProbe`). The arbiter's 1 Hz look
+   * cannot tell a dead B from a quick one — the box's game 45 (2026-11-28): a colony step past its commit, the player
+   * taking a colony with A and letting it go with «B Назад» inside the second, every look landing on the same state:
+   * «stall (presses-no-effect) … holder: deaf», and eight rungs of the ladder over a screen that answered every press.
+   * Without a probe every taken B counts, as before.
+   */
+  backUnmoved: number;
+  /**
    * …and the A / B presses a DELIBERATE GATE swallowed (`inputAbsorb.ts` — the router's own bracket says which). A gate
    * is a transient by its nature: it stands over something in flight (a batch landing, a take's turn, a settle
    * window). The arbiter counts these toward «presses with no effect» on ANY screen: while the gate's motion plays the
@@ -81,6 +91,7 @@ const state: InputEchoSnapshot = {
   verbPresses: 0,
   verbDropped: 0,
   backTaken: 0,
+  backUnmoved: 0,
   verbAbsorbed: 0,
   consumed: 0,
   system: 0,
@@ -127,13 +138,49 @@ export function takeUnreceivedPress(): string | undefined {
   return by;
 }
 
-/** A/B reached the console router (any device) — see `verbPresses`; `taken` = a handler consumed it. */
-export function recordVerbPress(taken: boolean, back = false): void {
+/** The picture a press is judged against (the supervisor's — the stack, the bar, the focus); `undefined` at rest. */
+let pressPicture: (() => string) | undefined;
+
+/** The supervisor registers the picture probe at its start and withdraws it at its stop (`undefined`). */
+export function setPressPictureProbe(probe: (() => string) | undefined): void {
+  pressPicture = probe;
+}
+
+/** The picture NOW — read by the router BEFORE a B's handler runs (`undefined` without a probe). */
+export function pressPictureNow(): string | undefined {
+  try {
+    return pressPicture?.();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A/B reached the console router (any device) — see `verbPresses`; `taken` = a handler consumed it. `before` — the
+ * picture a taken B found (`pressPictureNow`, read before its handler): the B is judged after the render that answers it.
+ */
+export function recordVerbPress(taken: boolean, back = false, before?: string): void {
   state.verbPresses++;
   if (!taken) {
     state.verbDropped++;
   } else if (back) {
     state.backTaken++;
+    const probe = pressPicture;
+    if (before === undefined || probe === undefined) {
+      state.backUnmoved++;
+      return;
+    }
+    void nextTick(() => {
+      let after: string | undefined;
+      try {
+        after = probe();
+      } catch {
+        after = undefined;
+      }
+      if (after === before) {
+        state.backUnmoved++;
+      }
+    });
   }
 }
 
@@ -203,6 +250,7 @@ export function resetInputEchoForTest(): void {
   state.verbPresses = 0;
   state.verbDropped = 0;
   state.backTaken = 0;
+  state.backUnmoved = 0;
   state.consumed = 0;
   state.system = 0;
   state.unconsumed = 0;
