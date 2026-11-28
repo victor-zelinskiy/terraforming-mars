@@ -833,6 +833,35 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     }
   });
 
+  /*
+   * `wait-graph/overdue/claim:card-actions` — the freeze gate's seed of the day, `d20261128` · `habitat-science-pluto2`
+   * (issue #196; shrunk 65 → 8 steps). Habitat Science's ledger drew for Pluto and asked the discard; the claim of the
+   * action stood `awaiting` with its answer in, and its node called the wait «the server's answer — 20 s» while the
+   * server asked the PLAYER a question the hand served. The law: a claim whose question stands for the player waits on
+   * that question's node (never the action menu — that is the claim's own end), and a claim whose host the player set
+   * aside waits for their return.
+   */
+  it('a claim whose answer the player owes waits on the question — no bound of its own over the player\'s discard', async () => {
+    const fixture = 'habitat-science-pluto2';
+    const restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`d20261128:${fixture}:world`)());
+    try {
+      const table = await bottleServer().bootFixture(fixture);
+      bottle = await bootBottle(table, {query: 'coverage=1'});
+      await bottle.advance(3_000);
+      const steps: ReadonlyArray<MonkeyStep> = [
+        {do: 'press', key: 'Period', pauseMs: 166}, {do: 'press', key: 'ArrowUp', pauseMs: 291}, {do: 'press', key: 'Enter', pauseMs: 349},
+        {do: 'press', key: 'Enter', pauseMs: 1_314}, {do: 'press', key: 'ArrowLeft', pauseMs: 1_005}, {do: 'press', key: 'ArrowRight', pauseMs: 1_992},
+        {do: 'press', key: 'ArrowDown', pauseMs: 1_646}, {do: 'press', key: 'Enter', pauseMs: 255},
+      ];
+      bottle = await replaySteps(bottle, table.seats.length, steps);
+      // Past the claim's old bound (20 s) and the graph's look: the discard stands for the player, nothing is overdue.
+      await bottle.advance(30_000);
+      expect(classes().filter((cls) => cls.startsWith('wait-graph/overdue/claim')), 'no claim overdue over the player\'s question').to.deep.equal([]);
+    } finally {
+      restoreRandom();
+    }
+  });
+
   it('a pick dealt onto a stage that cannot be measured is handed over at once — the pad opens, no ceiling ends the deal', async () => {
     const fixture = 'space-lanes-wg';
     const restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`fz5:${fixture}:world`)());

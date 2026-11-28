@@ -111,6 +111,11 @@ export const LAYOUT_BLIND: ReadonlyArray<{cls: RegExp, why: string}> = [
   // same seeds never.)
   {cls: /^invariant\/broken\/console-start:summary-tiles-unmeasured$/, why: '«the start\'s summary tiles are measured» — a 0×0 rect is no measure'},
   {cls: /^wait-graph\/ceiling\/board-card-bonus:hover$/, why: '«the end of the lift rise» of the board card bonus — a GSAP rise the wait counts in painted frames (61, `ConsoleBoardCardBonusLayer.waitForHover`); the bottle\'s frames and the motion\'s clock part (one game in 48)'},
+  // (2026-11-28 — the freeze gate's seed of the day, `d20261128:habitat-science-pluto2` (issues #194 / #195): the same
+  // take — Habitat Science's ledger, Luna and Pluto twice, the sealed places and their turns — walked in a real browser
+  // on the box (`console-draw-one-batch-sealed-ledger`, twice): not one line.)
+  {cls: /^wait-graph\/ceiling\/reveal:place-standing$/, why: '«the place standing painted and still» needs the place\'s rect WIDER than 2 px across two probes (`ConsoleRevealOverlay.waitPlaceStanding`) — a 0×0 rect never stands'},
+  {cls: /^wait-graph\/ceiling\/reveal:seal-gone$/, why: '«the break of the settlement seal» is started by the discard\'s TOUCHDOWN on the sealed place — a flight to a measured place, which a 0×0 rect never receives'},
 ];
 
 export type BottleLiveness = {

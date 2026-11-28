@@ -1075,13 +1075,32 @@ export function createSupervisorController(shell: SupervisorPort) {
       // bound is the transport's (its minute of silence) — a private twenty seconds over it read `overdue` under a
       // server that was merely slow to the transport's own measure (FREEZE ZERO, stage 4 — the fault pass).
       const onTheWire = awaiting && !answered && transportState.requestInProgress && !transportState.responseArrived;
+      // …and an answer the claim awaits that is the PLAYER's to give: nothing on the wire, the server asking the seat a
+      // question of its own — the claim's next view comes after that answer, and the question's node carries the wait
+      // (the freeze gate's seed of the day, `d20261128:habitat-science-pluto2` — issue #196: Habitat Science's ledger
+      // drew for Pluto and asked the discard, the player looked away, and at twenty seconds the graph filed
+      // `wait-graph/overdue/claim:card-actions … [draw] awaiting` over a question standing for the player).
+      // (Never where the question itself waits on this claim — `claimHoldsQuestion`: the two would wait on each other.)
+      // (…whether or not the press's own answer is IN: a claim whose answer arrived carrying that question presents the
+      // rest of its outcome after the player's answer — the draw's take, then the discard of the same ledger.)
+      // (…and never the action MENU: the server back at the turn's menu says the action is over — what the claim owes
+      // then is its own presentation, the motion below.)
+      const askedOfThePlayer = awaiting && !onTheWire && !transportState.requestInProgress && questionId !== undefined &&
+        task?.kind !== 'actionMenu' && !shell.taskHeldForWorkspace;
+      // …and a claim whose HOST the player set aside («Свернуть» — the board's plate «A Открыть» brings it back): the
+      // question it holds waits for that return, the player's wait, and a player's wait has no bound (the same seed:
+      // the player left the discard for the board, and the bound ran over the plate).
+      const hostAside = awaiting && !answered && !onTheWire && workspaceOutcomeState.host !== undefined &&
+        workspaceFrameParked(workspaceOutcomeState.host);
       out.push({
         id: `claim:${workspaceOutcomeState.host}`, family: 'claim', owner: 'consoleWorkspaceOutcome',
-        targets: hostGone ? [{kind: 'node', id: `surface:${workspaceOutcomeState.host}`}] :
-          answered ? [{kind: 'motion', what: 'the claimed outcome presents (or the reconciler lets it go)'}] :
-            onTheWire ? [{kind: 'node', id: 'transport:submit'}] :
-              awaiting ? [{kind: 'server', what: 'the claimed answer'}] : [{kind: 'player', what: 'take the claimed outcome'}],
-        ...(awaiting && !onTheWire ? {boundMs: 20_000} : {}), recovery: 'workspace-outcome',
+        targets: hostAside ? [{kind: 'player', what: `bring the ${workspaceOutcomeState.host} back (its plate)`}] :
+          hostGone ? [{kind: 'node', id: `surface:${workspaceOutcomeState.host}`}] :
+            askedOfThePlayer ? [{kind: 'node', id: questionId}] :
+              answered ? [{kind: 'motion', what: 'the claimed outcome presents (or the reconciler lets it go)'}] :
+                onTheWire ? [{kind: 'node', id: 'transport:submit'}] :
+                  awaiting ? [{kind: 'server', what: 'the claimed answer'}] : [{kind: 'player', what: 'take the claimed outcome'}],
+        ...(awaiting && !onTheWire && !askedOfThePlayer && !hostAside ? {boundMs: 20_000} : {}), recovery: 'workspace-outcome',
         detail: `${workspaceOutcomeState.sourceCard} [${workspaceOutcomeState.kinds.join(',')}] ${workspaceOutcomeState.stage}`,
       });
     }
