@@ -9122,10 +9122,16 @@ async function startReactorFace(card: CardName, wait: boolean): Promise<HTMLElem
   if (!wait) {
     return startVisibleFace(card);
   }
+  // THE WAIT IS OVER WITH ITS SCENE (#199 — CI's autopilot, game 599: the opening minimized while Poseidon's reaction
+  // waited for the corporation's face here; the wait ran to its ceiling over a scene that was gone). No face can come
+  // from a start that is not mounted: the wait ends abandoned — no line — and the reactor rises at the stage, as for any
+  // place that shows no face (`cardReactionDirector` · `place-faceless`).
+  const sceneGone = (): boolean => sceneRoot() === undefined;
   const {face} = await awaitArrivingFace({
     find: () => startVisibleFace(card),
     live: () => embedSourceIncoming.value === card || reactorPlaceArriving(card),
-    over: () => false,
+    over: sceneGone,
+    abandoned: sceneGone,
     budgetMs: START_REACTOR_FACE_WAIT_MS,
     ceilingMs: START_REACTOR_FACE_CEILING_MS,
     node: {id: 'start:reactor-face', owner: 'ConsoleStartScene', what: 'the corporation\'s face standing in the start'},

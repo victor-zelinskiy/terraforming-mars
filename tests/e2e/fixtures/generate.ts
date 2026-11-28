@@ -980,6 +980,45 @@ plutoSettlementsTable('pluto-settlements-empty-hand', {cubes: 2, track: 3, forei
   write('first-action-philares-opening', game);
 }
 
+// ── first-action-poseidon-opening: POSEIDON's FIRST ACTION AT THE OPENING — generation 1, «build a colony» owed (the
+//    menu «the first action | pass»), Colonies on: the colony the first action builds raises Poseidon's own reaction
+//    (+1 M€ production), whose reactor is the corporation's face IN THE START (#199 — CI's autopilot on `983c3b60d0`,
+//    game 599: the player minimized the start while the reaction waited for that face, and the wait ran to its ceiling
+//    over a scene that was gone: the colony's ocean took the screen to the board). ──
+{
+  // (Two seats: a solo Colonies table asks to remove colonies between the research and the corporation's play.)
+  const [game, player, red] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, customCorporationsList: [CardName.POSEIDON, CardName.CREDICOR], startingCorporations: 1,
+  });
+  answerStartFlow(game, [player, red]);
+  red.pendingInitialActions = [];
+  if (game.activePlayer.id !== player.id) {
+    throw new Error('the first-action-poseidon-opening fixture expected Poseidon to open the generation');
+  }
+  // EUROPA FIRST (the game's own road in game 599): its build places an ocean — the opening yields the screen to the
+  // board for it, while Poseidon's reaction to the very colony is still waiting for the corporation's face in the start.
+  const opened = (colony: IColony): IColony => {
+    colony.isActive = true;
+    colony.colonies = [];
+    return colony;
+  };
+  game.colonies = [opened(new Europa()), opened(new Luna()), opened(new Callisto())];
+  const corp = player.playedCards.corporations()[0];
+  if (corp?.name !== CardName.POSEIDON || corp.initialAction === undefined) {
+    throw new Error(`the first-action-poseidon-opening fixture expected Poseidon with its first action — got ${corp?.name}`);
+  }
+  player.megaCredits = 40;
+  player.pendingInitialActions = [corp];
+  player.popWaitingFor();
+  player.takeAction();
+  runAllActions(game);
+  const menu = player.getWaitingFor();
+  if (game.generation !== 1 || !(menu instanceof OrOptions) || menu.options.length !== 2) {
+    throw new Error(`the first-action-poseidon-opening fixture expected generation 1 and the menu «first action | pass» — got generation ${game.generation}, ${menu?.constructor.name}`);
+  }
+  write('first-action-poseidon-opening', game);
+}
+
 // ── rail-reward-action: a solo action phase with TWO plain resource-paying
 //    blue actions in the tableau — Electro Catapult (spend 1 plant / 1 steel
 //    → +7 M€: a STOCK reward with a choice) and Space Mirrors (7 M€ → +1

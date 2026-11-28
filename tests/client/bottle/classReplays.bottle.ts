@@ -608,6 +608,44 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
   });
 
   /*
+   * `wait-graph/ceiling/start:reactor-face` (#199 — CI's autopilot on `983c3b60d0`, browser game 599): Poseidon's first
+   * action built its colony inside the opening, and Poseidon's own reaction (+1 M€ production) rose IN THE START — its
+   * reactor is the corporation's face there, waited for while the ceremony brings it. The colony's ocean took the screen
+   * to the board meanwhile: the scene unmounted, and the wait for a face of a scene that was gone ran to its ceiling —
+   * a defect line,
+   * «scene unmounted», for a face that could never come. The law: the wait is over with its scene (`over` / `abandoned`
+   * — no face, no line); the reactor rises at the stage, as for any place that shows no face (`place-faceless`).
+   * (The bottle never sees the face — jsdom has no layout — so a wait that ran is ALWAYS a line here: one about a scene
+   * that is gone is the class.)
+   */
+  it('a reaction waiting for its face in the opening when the opening leaves the screen: the wait ends with the scene — no ceiling over a scene that is gone', async () => {
+    const table = await bottleServer().bootFixture('first-action-poseidon-opening');
+    bottle = await bootBottle(table);
+    await bottle.advance(3_000);
+    expect(bottle.bar(), 'the opening stands on Poseidon\'s first action').to.match(/^A ?Take first action/);
+    await bottle.press('Enter');
+    await bottle.advance(1_500);
+    expect(bottle.frames(), 'the colony step inside the opening').to.deep.equal(['start:committed', 'colonies:committed']);
+    await bottle.press('Enter');
+    await bottle.advance(1_000);
+    expect(bottle.bar(), 'Europa, the first tile').to.match(/^A ?Build/);
+    await bottle.press('Enter');
+    await bottle.until(() => bottle?.ready().reaction.phase === 'rising', 3_000, 50);
+    expect(bottle.ready().reaction.phase, 'Poseidon\'s reaction rises in the opening').to.equal('rising');
+    await bottle.advance(400);
+    // THE SCENE LEAVES while the reaction waits for its face — by the minimize's own verb (in the field: B, or the
+    // board taking the screen for the colony's ocean; on the manual clock the pad's press lands inside the rise's beat).
+    bottle.pageModules.consoleWorkspaceStack.collapseWorkspaceStack();
+    await bottle.advance(200);
+    expect(bottle.frames(), 'the opening is minimized — its scene is gone').to.deep.equal([]);
+    await bottle.advance(10_000);
+    const gone = bottle.lines().filter((line) => line.includes('ceiling start:reactor-face') && line.includes('scene unmounted'));
+    expect(gone, 'no wait for a face of a scene that is gone').to.deep.equal([]);
+    expect(bottle.ready().reaction.phase, 'the reaction played to its end').to.equal('idle');
+    expect(classes(), 'nothing is filed').to.deep.equal([]);
+  });
+
+  /*
    * `liveness/stall/unserved` (holder: stranded) — the box's day-2 pass, game 88 (2026-11-28): Build Colony put an
    * ocean down, «Динамический океанский барьер» offered its free Hydronetwork step. While the placement's own story
    * still held the door the player opened the wheel on the board; the door then stood the Hydronetwork up UNDER the
