@@ -20,7 +20,8 @@
  *   reaches what stands behind them) · TM_BOTTLE_MONKEY_MODE (`guided` — the walk presses what the command bar offers: far deeper into
  *   the flows than the blind stream; its own seeded stream) · TM_BOTTLE_MONKEY_RELOAD (`<n>` — a reload of the page on average once in n presses, its own
  *   seeded stream: the restore road walked on every table) · TM_BOTTLE_MONKEY_SHRINK (`<regex over class keys>` — a walk that
- *   names a matching class is cut down to the steps that make it: `shrink.ts`) · TM_BOTTLE_MONKEY_SHARD (`k/n`) · TM_BOTTLE_MONKEY_OUT (default `.e2e-remote/bottle-monkey` — beside the box monkey's).
+ *   names a matching class is cut down to the steps that make it: `shrink.ts`) · TM_BOTTLE_MONKEY_SHARD (`k/n`) · TM_BOTTLE_MONKEY_OUT (default `.e2e-remote/bottle-monkey` — beside the box monkey's)
+ *   · TM_BOTTLE_MONKEY_DEBUG (`1` — every page line of each walk, and its steps as JSON for a replay).
  */
 import {bootBottle, ConsoleBottle, disposeLiveBottle} from './consoleBottle';
 import {bottleServer, nodeProcess, nodeRequire} from './bottleNode';
@@ -138,6 +139,14 @@ describe('THE MONKEY IN THE BOTTLE — the box monkey\'s walk, on the laptop, on
         await bottle.advance(3_000);
         const walked = await monkeyWalk(bottle, table.seats.length, seed, PRESSES, {reloadEvery: RELOAD_EVERY, awayEvery: AWAY_EVERY, faultEvery: FAULT_EVERY, mode: MODE});
         bottle = walked.bottle;
+        // THE READING AID (`TM_BOTTLE_MONKEY_DEBUG=1` — the autopilot's own): every warn / error line of the page in
+        // order, and the walk's steps as JSON — the steps replay the walk exactly (`replaySteps`, one at a time with a
+        // probe between: how the seed of the day's `habitat-science-pluto2` claim was read, 2026-11-28).
+        if (env.TM_BOTTLE_MONKEY_DEBUG === '1') {
+          const all = bottle.lines();
+          console.log(['      ── LINES', ...all.map((l) => '        ' + l.replace(/\s+/g, ' ').slice(0, 900))].join(String.fromCharCode(10)));
+          console.log('      ── STEPS ' + walked.steps.map((step) => JSON.stringify(step)).join(' ').slice(0, 20000));
+        }
         log = walked.log;
         steps = walked.steps;
         seats = table.seats.length;
