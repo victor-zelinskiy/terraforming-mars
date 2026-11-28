@@ -536,7 +536,9 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
     // (…and EVERY layout that steps by LB / RB — a payment's lanes «LB −1 · RB +1 · X Pay», a split of resources «LB/RB
     // Distribute · X Collect» (CI's bottle on `1d740f2ea5`, two doors): the commit is whichever verb is lit — A, or X
     // when X is the layout's own answer (Pay · Collect · Save · Confirm), never X «Inspect».)
-    const commitX = offeredNow.some((o) => o.key === 'KeyX' && /^(Pay|Collect|Save|Confirm|Take|Accept)/.test(o.label));
+    // (…and «Apply» — the hazard thresholds of Butterfly Effect, `aresGlobalParameters`: «LB −1 · RB +1 · X Apply», the
+    // bottle's game 11 of the night pass stepped the stick over it until the door applied them.)
+    const commitX = offeredNow.some((o) => o.key === 'KeyX' && /^(Pay|Collect|Save|Confirm|Take|Accept|Apply)/.test(o.label));
     if ((/Distribute\s*−1\s*\/\s*\+1/.test(bottle.bar()) || /LB\s*−1\s*RB\s*\+1/.test(bottle.bar().replace(/\s+/g, ' '))) &&
         !sees('dialog.con-zoom[open]') && !sees('.con-quick')) {
       const key: BottleKey = offeredNow.some((o) => o.key === 'Enter') ? 'Enter' : commitX ? 'KeyX' : (['Period', 'KeyE', 'ArrowDown'] as const)[standing.presses % 3];
