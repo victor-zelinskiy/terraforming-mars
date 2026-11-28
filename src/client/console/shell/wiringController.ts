@@ -29,7 +29,7 @@ import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection
 import ConsoleHandSection from '@/client/components/console/ConsoleHandSection.vue';
 import {endFinaleSession} from '@/client/console/finalGreenery/finalGreenerySession';
 import {boardSceneSettling} from '@/client/console/rewardPayoutQuiet';
-import {closeWorkspaceRoot, offStageDeadFrames, pruneOffStageDeadFrames, registerAnchorDropListener, registerFrameAnchorDead, registerFrameBeatExpired, stackYieldedToBoard, enterWorkspace, goBoardHome, leaveWorkspace, setWorkspaceFramePhase, workspaceFrameRenders, workspaceStackTop, workspaceFrameHost, workspaceFrameKnown, workspaceStackCollapsed, workspaceStackState, workspaceFrameSelector, workspaceLastVerb, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, offStageDeadFrames, pruneOffStageDeadFrames, registerAnchorDropListener, registerFrameAnchorDead, registerOffStageAnchorDead, registerFrameBeatExpired, stackYieldedToBoard, enterWorkspace, goBoardHome, leaveWorkspace, setWorkspaceFramePhase, workspaceFrameRenders, workspaceStackTop, workspaceFrameHost, workspaceFrameKnown, workspaceStackCollapsed, workspaceStackState, workspaceFrameSelector, workspaceLastVerb, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {setAsideRecord, takeUpQuestion} from '@/client/console/setAside';
 import {installConsoleReadinessProbe, registerReadinessDecisionDiag} from '@/client/console/e2eReadiness';
 import {installFlowCoverageProbe} from '@/client/console/flowCoverageProbe';
@@ -41,6 +41,7 @@ import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive, resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {setHandRevealHooks} from '@/client/console/handDock/handRevealDirector';
 import {Phase} from '@/common/Phase';
+import {generationPhaseOf} from '@/common/game/generationPhase';
 import {colonyTradeState, isColonyTradeInputLocked, colonyTradeDiagnostics} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {conWsPresence, installConWsPresenceBridge} from '@/client/console/conWsPresenceBridge';
 import {installRowLeaveRects} from '@/client/console/surfaceMotion/rowLeaveRect';
@@ -303,10 +304,24 @@ export function createWiringController(shell: WiringPort) {
     return dead;
   });
 
+  /**
+   * THE TURN IS OVER FOR THE VIEWER — they passed, or the game has left the action phase: a frame anchored «while the
+   * player has a turn» (`always` — a browse layer, an action's composer) that the player PARKED has nothing to come
+   * back to. CI's browser on `9db45debcb`, game 577 (issues #180 / #191): «Действия карт» parked past its commit (the
+   * LT wheel opened over Martian Census's outcome), the player passed; the sitting then asked its winner's free colony,
+   * the plate's A restored the parked action — and the colony step stood nested in a card action that served nothing,
+   * no A, no B, until the doors answered it.
+   */
+  const turnAnchorsDead = computed((): boolean => {
+    // (The generation's phase, never the engine's flag: a borrowed SOLAR — World Government Advisor — is mid-action.)
+    return viewerHasPassed(shell.playerView) || generationPhaseOf(shell.playerView.game) !== Phase.ACTION;
+  });
+
   /** Off-stage frames (parked / aside for the board) whose phase is over — the prune watcher's key. Reads the phase
-   *  facts THROUGH `deadPhaseAnchors` (a reactive edge), never only through the stack's registered predicate. */
+   *  facts THROUGH `deadPhaseAnchors` and `turnAnchorsDead` (reactive edges), never only through the stack's
+   *  registered predicate. */
   const offStageDeadAnchorKey = computed((): string => {
-    return deadPhaseAnchors.value.length === 0 ? '' : offStageDeadFrames().join(',');
+    return deadPhaseAnchors.value.length === 0 && !turnAnchorsDead.value ? '' : offStageDeadFrames().join(',');
   });
 
   /** Every tile placed this turn — L3 = Показать на карте (ALL cells pulse). */
@@ -769,6 +784,8 @@ export function createWiringController(shell: WiringPort) {
     registerScreenCureExecutor((plan) => shell.runScreenDirectorCure(plan));
     // THE ANCHOR RULE: the stack's return doors and prunes ask the shell which phases are over, and name what they drop.
     registerFrameAnchorDead((anchor) => shell.frameAnchorIsDead(anchor));
+    // …and what only an OFF-STAGE frame dies of: a frame of the turn, parked, once the viewer's turn is over.
+    registerOffStageAnchorDead((anchor) => anchor.type === 'always' && turnAnchorsDead.value);
     // A frame's beat past its own bound (the frame machine's structural net — the arbiter cuts a quiet beat much sooner):
     // the same teardown the arbiter's rung runs.
     registerFrameBeatExpired((kind, phase) => shell.forceRecoverStuckWorkspace(kind, `[workspace-stall] beat «${kind}:${phase}» torn down at the frame's own bound`));
@@ -783,7 +800,10 @@ export function createWiringController(shell: WiringPort) {
       // inside the start, the opening minimized in the answer's beat, «dropped start, colonies (parked)» said as news.)
       const passedOpening = home === 'parked' && kinds[0] === 'start' &&
         (viewerHasPassed(shell.playerView) || !firstActionOwed(shell.playerView));
-      if (!passedOpening) {
+      // (…and a parked frame of the TURN dropped because the turn is over — the pass, the phase's end — is that end's own
+      // consequence: `turnAnchorsDead`, issues #180 / #191.)
+      const passedTurn = home === 'parked' && kinds[0] !== 'start' && turnAnchorsDead.value;
+      if (!passedOpening && !passedTurn) {
         console.warn(`[workspace-anchor] dropped ${kinds.join(', ')} (${home}) — its phase is over; it does not come back`);
       }
       // «PARKED ⇒ SET ASIDE» HAS ANOTHER HALF: a record that stood for a parked CHAIN ends with the chain. The park's
@@ -1420,6 +1440,7 @@ ${ownerEdge.facts}`;
     registerScreenShadowContext(undefined);
     registerScreenCureExecutor(undefined);
     registerFrameAnchorDead(undefined);
+    registerOffStageAnchorDead(undefined);
     registerFrameBeatExpired(undefined);
     registerAnchorDropListener(undefined);
     registerReadinessDecisionDiag(undefined);

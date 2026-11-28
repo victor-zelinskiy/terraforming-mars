@@ -7,6 +7,7 @@ import {
   pruneOffStageDeadFrames,
   registerAnchorDropListener,
   registerFrameAnchorDead,
+  registerOffStageAnchorDead,
   stackYieldedToBoard,
   yieldStackToBoard,
   resumeStackFromBoard,
@@ -1426,6 +1427,30 @@ describe('a frame lives only while its anchor holds — in every home, at every 
     collapseWorkspaceStack();
     closePhaseRoot('draft');
     expect(workspaceStackState.parked).deep.eq([]);
+  });
+
+  /*
+   * A PARKED FRAME OF THE TURN, THE TURN OVER (CI's browser game 577 — issues #180 / #191): «Действия карт» parked past
+   * its commit, the player passed, and the plate of the sitting's colony restored it — the colony nested in a card action
+   * that served nothing. What only an off-stage frame dies of: a LIVE frame of the same anchor is the player looking.
+   */
+  it('a PARKED frame of the turn dies once the turn is over — a LIVE one of the same anchor never does', () => {
+    let turnOver = false;
+    registerOffStageAnchorDead((anchor) => anchor.type === 'always' && turnOver);
+    try {
+      pushWorkspaceFrame({kind: 'card-actions', subject: '', stage: '', phase: 'committed', serves: [], anchor: {type: 'always'}});
+      collapseWorkspaceStack();
+      expect(pruneOffStageDeadFrames(), 'the turn goes on').deep.eq([]);
+      turnOver = true;
+      expect(pruneOffStageDeadFrames(), 'the player passed — nothing to come back to').deep.eq(['card-actions']);
+      expect(workspaceStackState.parked).deep.eq([]);
+      restoreWorkspaceStack();
+      expect(workspaceStackState.frames, 'the plate restores nothing of it').deep.eq([]);
+      enterWorkspace('hand');
+      expect(deadLiveFrames(), 'the hand browsed after the pass is the player looking').deep.eq([]);
+    } finally {
+      registerOffStageAnchorDead(undefined);
+    }
   });
 
   it('a LIVE frame of a phase that is over is named (the shell\'s backstop and the liveness arbiter read it); a flow\'s anchor is never judged', () => {
