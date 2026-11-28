@@ -321,6 +321,18 @@ export function sittingMotionActive(): boolean {
   return stagePlaying !== '' || (run !== undefined && !run.finished);
 }
 
+/**
+ * WHERE THE DIRECTOR STANDS — diagnostics only (`__conReady().sitting`): the stage it plays and its beat, the play's own
+ * stage (a CUT one is gone), the run's beat and whether it is at rest, and how many pauses between beats are pending. A
+ * stage that never comes to rest is read by it — which beat, or which pause between two.
+ */
+export function sittingDirectorDiag(): {stage: string, beat: string, play: string, run: string, gaps: number} {
+  return {
+    stage: stagePlaying, beat: sittingMotion.beat, play: play === undefined ? '' : `${play.stage}${play.killed ? '/killed' : ''}`,
+    run: run === undefined ? '' : `${run.stage}${run.finished ? '/finished' : ''}`, gaps: pendingGaps.size,
+  };
+}
+
 /** The label the hold carries — the e2e reads the registry by it. */
 export function sittingHoldLabel(stage: SittingStage, beat = ''): string {
   return beat === '' ? `parliament-sitting:${stage}` : `parliament-sitting:${stage}/${beat}`;

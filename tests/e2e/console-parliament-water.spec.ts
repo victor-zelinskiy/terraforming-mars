@@ -258,9 +258,16 @@ test.describe(`Water Export · ${PRESET.id}`, () => {
     await armProbe(page, oceanId);
     await armProbe(redPage, oceanId);
 
+    // ONE PAGE OF A BROWSER PAINTS — the one in front (CI #197: the chooser's sitting stood a minute on «enact /
+    // support» behind red's newer page, «the page gave the motion 0 of 1004 ms»). A motion on a page nobody looks at
+    // waits to be looked at (a hold's ceiling counts the painted time — `animationHold.whenPaintedCeilingDue`), so the
+    // client a step drives or reads is brought to the front first, the way the player's own screen is in front of them.
     // ── THE PASS carries the whole sitting — up to the law's question; on red's client it comes up by the socket.
+    await page.bringToFront();
     await enterSittingByPass(page, request, playerId);
+    await redPage.bringToFront();
     await enterSittingAs(redPage);
+    await page.bringToFront();
 
     // ── ① THE SEATS ARE PAID FIRST: 2 M€ per influence, influence 2 → +4.
     await expect.poll(async () => {
@@ -284,7 +291,9 @@ test.describe(`Water Export · ${PRESET.id}`, () => {
 
     // ── ③ THE DOOR: the sitting names the step and A takes the player to the board — the pick is theirs.
     await waitSittingAtRest(page, 60_000);
+    await redPage.bringToFront();
     await waitSittingAtRest(redPage, 60_000); // the observer's walk stands on its wait for this seat
+    await page.bringToFront();
     // The crumb's tail names what the board step DOES — a removal, never a «placement» (the door and the pose are the tile's).
     await expect.poll(() => crumbText(page), {message: 'the tail reads СНЯТИЕ', timeout: 10_000}).toMatch(/СНЯТИЕ|Removal/i);
     await shoot(page, '02-removal-step');
@@ -323,6 +332,13 @@ test.describe(`Water Export · ${PRESET.id}`, () => {
     if (firstDepart !== undefined && !writeFrameAt(cast.frames, firstDepart.wall + 120, '04-tile-leaving')) {
       console.log(`[water] no screencast frame within 250 ms of the lift (${cast.frames.length} frames recorded)`);
     }
+    // The chooser's bare hex is read while ITS page is the one painted…
+    if (chooserSaw) {
+      await expect.poll(async () => (await readProbe(page)).samples.some((s) => !s.depart && !s.cellOcean && s.oceans.includes('0')), {timeout: 30_000,
+        message: 'the bare hex and the HUD readout 0 after the lift'}).toBe(true);
+    }
+    // …then the observer is looked at: its sitting, stepped aside for the board, tells the same departure.
+    await redPage.bringToFront();
     const observerSaw = await sawDeparture(redPage, 60_000);
     if (!chooserSaw || !observerSaw) {
       // A red run names its frames: both clients' state transitions and the observer's wire.
@@ -333,12 +349,11 @@ test.describe(`Water Export · ${PRESET.id}`, () => {
     }
     expect(chooserSaw, 'the chooser saw the departure proxy').toBe(true);
     expect(observerSaw, 'the OBSERVER saw the departure proxy too — from its own sitting, which stepped aside for the board').toBe(true);
-    await expect.poll(async () => (await readProbe(page)).samples.some((s) => !s.depart && !s.cellOcean && s.oceans.includes('0')), {timeout: 30_000,
-      message: 'the bare hex and the HUD readout 0 after the lift'}).toBe(true);
     await expect.poll(async () => (await readProbe(redPage)).samples.some((s) => !s.depart && !s.cellOcean), {timeout: 60_000,
       message: 'the observer\'s cell is bare after the lift'}).toBe(true);
     expectVisibleDeparture((await readProbe(page)).samples, 'the chooser');
     expectVisibleDeparture((await readProbe(redPage)).samples, 'the observer');
+    await page.bringToFront();
     await shoot(page, '05-bare-hex');
 
     const after = await wireOf(request, playerId);

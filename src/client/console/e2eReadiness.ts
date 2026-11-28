@@ -36,6 +36,8 @@ import {notificationsSettled} from '@/client/components/notifications/notificati
 import {InputEchoSnapshot, inputEchoSnapshot} from '@/client/console/inputEcho';
 import {activeInputAbsorbers} from '@/client/console/inputAbsorb';
 import {parliamentRewardDiag} from '@/client/console/parliament/parliamentRewardBeat';
+import {sittingDirectorDiag} from '@/client/console/parliament/sittingDirector';
+import {pageStarvedNow} from '@/client/console/kernel/frameWitness';
 import {boardCardBonusDiag} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {colonyTrackWaveDiag} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {railRewardDiag} from '@/client/console/resourceTransfer/railReward';
@@ -65,6 +67,10 @@ export type ConsoleReadinessSnapshot = {
   notificationsSettled: boolean;
   /** The parliament's reward ledger — what the sitting still owes and what it did with each record (Turmoil Redux). */
   parliamentReward: ReturnType<typeof parliamentRewardDiag>;
+  /** The sitting director's position — its stage, beat, play, run, and the pauses between beats still pending. */
+  sitting: ReturnType<typeof sittingDirectorDiag>;
+  /** Is the page painting — '' when it is, else the frame witness's own reason (a hidden tab, a starved compositor). */
+  paint: string;
   /** The board-card-bonus scene (cover lifts) — its phase, its source and why its last scene ended. */
   cardBonus: ReturnType<typeof boardCardBonusDiag>;
   /** A law's WAVE over every colony track (Turmoil Redux, Unity Budget) — on stage, and how the last one ended. */
@@ -126,6 +132,8 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
     wsYielded: stackYieldedToBoard(),
     notificationsSettled: notificationsSettled(),
     parliamentReward: parliamentRewardDiag(),
+    sitting: sittingDirectorDiag(),
+    paint: pageStarvedNow() ?? '',
     cardBonus: boardCardBonusDiag(),
     colonyTrackWave: colonyTrackWaveDiag(),
     railReward: railRewardDiag(),

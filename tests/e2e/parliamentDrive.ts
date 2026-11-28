@@ -681,19 +681,33 @@ export async function waitSittingAtRest(page: Page, timeout = 15_000, quietMs = 
   await page.evaluate(() => {
     (window as unknown as {__sitQuietSince?: number}).__sitQuietSince = undefined;
   });
+  // The poll's value is WHAT STILL MOVES ('' at rest) — a red run names the motion, the flight or the hold that never
+  // let go, never a bare `false` (CI #197: the observer's sitting stood a minute with nothing on the screen moving).
   await expect.poll(async () => page.evaluate((quiet) => {
-    const w = window as unknown as {__conReady?: () => {holds: Array<string>}, __sitQuietSince?: number};
-    const rest = (document.querySelector('.con-parl')?.getAttribute('data-sitting-motion') ?? '') === '' &&
-      Array.from(document.querySelectorAll('[data-parl-flight]')).filter((el) => !(el.getAttribute('data-parl-flight') ?? '').startsWith('sit-park')).length === 0 &&
-      document.querySelectorAll('.con-transfer__chip').length === 0 &&
-      (w.__conReady?.().holds ?? []).every((h) => !h.startsWith('parliament-sitting') && !h.startsWith('resource-transfer'));
-    if (!rest) {
+    type Sitting = {stage: string, beat: string, play: string, run: string, gaps: number};
+    const w = window as unknown as {__conReady?: () => {holds: Array<string>, sitting?: Sitting, paint?: string}, __sitQuietSince?: number};
+    const motion = document.querySelector('.con-parl')?.getAttribute('data-sitting-motion') ?? '';
+    const director = w.__conReady?.().sitting;
+    const where = director === undefined ? '' :
+      ` (beat «${director.beat}», play «${director.play}», run «${director.run}», ${director.gaps} pause(s) pending, page ${document.visibilityState}` +
+      `${(w.__conReady?.().paint ?? '') === '' ? '' : `, starved: ${w.__conReady?.().paint}`})`;
+    const flights = Array.from(document.querySelectorAll('[data-parl-flight]')).map((el) => el.getAttribute('data-parl-flight') ?? '')
+      .filter((flight) => !flight.startsWith('sit-park'));
+    const chips = document.querySelectorAll('.con-transfer__chip').length;
+    const holds = (w.__conReady?.().holds ?? []).filter((h) => h.startsWith('parliament-sitting') || h.startsWith('resource-transfer'));
+    const moving = [
+      motion === '' ? '' : `motion ${motion}${where}`,
+      flights.length === 0 ? '' : `flights ${flights.join(',')}`,
+      chips === 0 ? '' : `transfer chips ${chips}`,
+      holds.length === 0 ? '' : `holds ${holds.join(',')}`,
+    ].filter((part) => part !== '').join(' · ');
+    if (moving !== '') {
       w.__sitQuietSince = undefined;
-      return false;
+      return moving;
     }
     w.__sitQuietSince = w.__sitQuietSince ?? Date.now();
-    return Date.now() - w.__sitQuietSince >= quiet;
-  }, quietMs), {timeout, intervals: [50]}).toBe(true);
+    return Date.now() - w.__sitQuietSince >= quiet ? '' : 'settling';
+  }, quietMs), {timeout, intervals: [50], message: 'the sitting comes to rest (the value: what still moves)'}).toBe('');
 }
 
 /**
