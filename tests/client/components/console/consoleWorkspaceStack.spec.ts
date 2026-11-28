@@ -1453,6 +1453,28 @@ describe('a frame lives only while its anchor holds — in every home, at every 
     }
   });
 
+  /*
+   * …BUT A FRAME WHOSE PARK OWNS ITS FLOW IS THE SERVER's STEP, NOT THE TURN's (#201 / #203 — CI's autopilot on
+   * `74910b95e2`, the bottle's game 657): the sitting's law asked the viewer «add 3 microbes to one of your cards» in the
+   * Parliament the player had walked into (anchor `always`); B parked it — and the turn rule dropped the park at once
+   * (the phase was the Parliament's, not the action's): the question stood with no host and no door.
+   */
+  it('a PARKED frame whose park owns its flow (the Parliament, the Hydronetwork) outlives the turn — the server\'s step is in it', () => {
+    registerOffStageAnchorDead((anchor) => anchor.type === 'always');
+    try {
+      enterWorkspace('parliament');
+      collapseWorkspaceStack();
+      expect(pruneOffStageDeadFrames(), 'the sitting set aside is still the sitting').deep.eq([]);
+      expect(workspaceStackState.parked.map((f) => f.kind)).deep.eq(['parliament']);
+      goBoardHome();
+      enterWorkspace('card-actions');
+      collapseWorkspaceStack();
+      expect(pruneOffStageDeadFrames(), 'a frame of the turn still goes').deep.eq(['card-actions']);
+    } finally {
+      registerOffStageAnchorDead(undefined);
+    }
+  });
+
   it('a LIVE frame of a phase that is over is named (the shell\'s backstop and the liveness arbiter read it); a flow\'s anchor is never judged', () => {
     enterWorkspace('parliament', {anchor: SITTING});
     expect(deadLiveFrames()).deep.eq([]);

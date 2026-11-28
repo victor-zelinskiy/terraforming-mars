@@ -1948,8 +1948,15 @@ export function registerOffStageAnchorDead(predicate: ((anchor: FrameAnchor) => 
   offStageAnchorDead = predicate ?? (() => false);
 }
 
-function offStageDead(anchor: FrameAnchor): boolean {
-  return anchorDead(anchor) || offStageAnchorDead(anchor);
+/**
+ * An off-stage frame's phase is over. The registered rule (a frame of the TURN, the turn over) never takes a kind whose
+ * PARK OWNS ITS FLOW (`parkOwnsFlow` — the Parliament's sitting, the Hydronetwork mid-resolution): its park holds the
+ * SERVER's step, not the player's turn (#201 / #203 — the bottle's game 657: the sitting's law asked a pick in the
+ * Parliament the player had walked into, B parked it, and the turn rule dropped the park — the question had no host and
+ * no door). Their own anchors still die with their phase (`anchorDead`).
+ */
+function offStageDead(frame: {kind: WorkspaceFrameKind, anchor: FrameAnchor}): boolean {
+  return anchorDead(frame.anchor) || (WORKSPACE_KINDS[frame.kind].parkOwnsFlow !== true && offStageAnchorDead(frame.anchor));
 }
 
 /** What the anchor rule dropped, and from where — the shell names it (`[workspace-anchor] …`). */
@@ -1961,7 +1968,7 @@ export function registerAnchorDropListener(listener: ((dropped: DroppedFrames) =
 
 /** Cut a home at its first dead-anchored frame (everything above it goes too). */
 function dropDeadAnchoredFrom(home: Array<WorkspaceFrame>, name: DroppedFrames['home']): ReadonlyArray<WorkspaceFrameKind> {
-  const at = home.findIndex((f) => offStageDead(f.anchor));
+  const at = home.findIndex((f) => offStageDead(f));
   if (at === -1) {
     return [];
   }
@@ -1986,7 +1993,7 @@ export function pruneOffStageDeadFrames(): ReadonlyArray<WorkspaceFrameKind> {
 
 /** Off-stage frames whose anchor is dead (reactive — the shell's prune watcher keys on it). */
 export function offStageDeadFrames(): ReadonlyArray<WorkspaceFrameKind> {
-  return [...workspaceStackState.parked, ...boardYielded].filter((f) => offStageDead(f.anchor)).map((f) => f.kind);
+  return [...workspaceStackState.parked, ...boardYielded].filter((f) => offStageDead(f)).map((f) => f.kind);
 }
 
 /** LIVE frames whose anchor is dead (reactive) — never a legitimate state past a phase's own leave: the shell's backstop
