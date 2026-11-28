@@ -170,6 +170,12 @@ function boardBeatParkDiagnosis(): unknown {
     sceneHeld: boardBeatParkState.sceneHeld,
     held: Object.keys(boardBeatParkState.heldParams ?? {}),
     members: [...storyMembers.entries()].filter(([, m]) => m.busy()).map(([id]) => id),
+    // WHERE A STANDING DRAIN IS (CI's autopilot, game 1040 — issues #187 / #189: `draining` up 35 s with nothing held,
+    // no member busy, no batch: the line could not say which step never came): its last step, its age, and whether
+    // the story's run — the scope its steps are timers of — still stands.
+    ...(boardBeatParkState.draining ? {
+      step: parkWindow.drainStep, standsMs: Date.now() - parkWindow.drainAt, run: boardStoryRun.scope !== undefined, steps: drainTimers.length,
+    } : {}),
   };
 }
 
