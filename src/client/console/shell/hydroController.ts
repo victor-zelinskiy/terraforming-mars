@@ -11,7 +11,7 @@ import type {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {intakeBatchSources} from '@/common/models/CardDrawRevealModel';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
-import {submitInput, SubmitTicket} from '@/client/console/transport/gameTransport';
+import {submitInput, SubmitTicket, transportState} from '@/client/console/transport/gameTransport';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {deckPickState} from '@/client/console/deckPick/consoleDeckPick';
 import {ConsoleRevealMode} from '@/client/components/console/consoleRevealOverlayTypes';
@@ -734,7 +734,9 @@ export function createHydroController(shell: HydroPort) {
     // tap, a held button, a raced click) finds a standing commit / an armed
     // marker and does nothing. Identical guard to `submitHydroAdvance`,
     // because the double-submit it prevents is identical.
-    if (isHydroMarkerActive() || hydroFlowState.commit !== undefined) {
+    // (…and an answer still ON THE WIRE: the funnel refuses a second one, and a commit begun over it is a beat for a
+    // press that is never sent — the bottle's game 18, `workspace/beat-rollback/hydro/executing/configure`.)
+    if (isHydroMarkerActive() || hydroFlowState.commit !== undefined || transportState.requestInProgress) {
       return;
     }
     // ONE batch, and literally the SAME TAIL the standard advance sends
@@ -1256,8 +1258,11 @@ export function createHydroController(shell: HydroPort) {
     modifierCard?: CardName,
   }): void {
     const path = findHydroActionPath(shell.playerView.waitingFor);
-    if (path === undefined || isHydroMarkerActive() || hydroFlowState.commit !== undefined) {
-      return; // guard a double-confirm: the flow owns the moment
+    // (A double confirm, the flow owning the moment — and an answer still on the wire: the funnel would refuse this
+    // one, and the commit begun for it would roll back over a press that was never sent — the bottle's game 18,
+    // `workspace/beat-rollback/hydro/executing/configure`.)
+    if (path === undefined || isHydroMarkerActive() || hydroFlowState.commit !== undefined || transportState.requestInProgress) {
+      return;
     }
     const responses = hydroAdvanceResponses(optionResponseForPath(path), payload);
     const kind: HydroResolutionKind = payload.kind ?? 'plain';
