@@ -279,6 +279,8 @@ export function setConsoleTaskHandoffPending(pending: boolean): void {
  * rationale: a client-side hand-off to another surface is a SERVING beat.
  */
 let consoleTaskSpacePlacement = false;
+/** The finale's offer stage on the board's context panel (`finaleStageOf` · `offer`) — the board's branch of its `or`. */
+const FINALE_OFFER_STAGE = '.con-context__finale[data-finale-stage="offer"]';
 export function setConsoleTaskSpacePlacement(active: boolean): void {
   consoleTaskSpacePlacement = active;
 }
@@ -776,7 +778,9 @@ function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | 
     startOwned: false,
     frameServes: workspacesServing(task.kind),
     host: flowHost(),
-    boardBranch: consoleTaskSpacePlacement,
+    // (The board's branch of the question: a task's nested placement answered on the board — and the finale's offer
+    // under a law that replaces the greenery, which the finale session answers on the board's context panel.)
+    boardBranch: consoleTaskSpacePlacement || document.querySelector(FINALE_OFFER_STAGE) !== null,
     held: screenShadowHeldBy({blind, hold, claimHeld: ctx.claimHeld === true, admission: ctx.admission, lateral: ctx.lateral}),
     blind,
     present,

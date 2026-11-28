@@ -78,7 +78,10 @@ export const OWNER_SURFACES: Readonly<Record<Exclude<ScreenOwner, WorkspaceFrame
   'corp-first': '.con-composer--corpfirst',
   'draft-wait': '.con-draftwait',
   'sheet': '.con-sheet',
-  'board': '.con-board--placing',
+  // (…and the FINALE's OFFER: under a law that replaces the greenery the final question is an `or` the finale session
+  // answers on the board — its context panel's «offer» stage, A «Обменять» — never the task host: the freeze gate's
+  // `finale-diverted` walks, 2026-11-28 — `screen-shadow/finding/unserved/task/nothing` over a working offer.)
+  'board': '.con-board--placing, .con-context__finale[data-finale-stage="offer"]',
 };
 
 /**
