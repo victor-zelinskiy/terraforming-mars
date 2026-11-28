@@ -28,6 +28,9 @@ import {NEUTRAL_RALLY_STEP_STAGE} from '@/client/console/consoleTaskRouter';
 import {ActionPreviewBranch, NeutralRallyModel} from '@/common/models/ActionPreviewModel';
 import {ParliamentSlotVm} from '@/client/console/parliament/consoleParliamentModel';
 import {SUPPORT_CUBE_STAGGER_MS} from '@/client/console/parliament/consoleParliamentModel';
+import {collectWaitNodes} from '@/client/console/waitGraph/waitGraph';
+import {WaitTarget} from '@/client/console/waitGraph/waitGraphModel';
+import {setStartHostedStepHolder, startHostedStepHeldBy} from '@/client/console/parliament/startHostedHold';
 
 /*
  * «ДЕЛЕГАТЫ» — a card's RALLY of neutral delegates (TR31 Nationalist Movement),
@@ -195,6 +198,33 @@ describe('«ДЕЛЕГАТЫ» — a card\'s rally of neutral delegates (the pur
       neutralRallyFlow.live = true;
       expect(startHostedStepToEnter(), 'live: nothing left to enter').is.undefined;
       expect(hostedStepLiveIn('start')).is.true;
+    });
+
+    /*
+     * THE START's DOOR HELD (the bottle's games 105 and 117 of the cards axis, 2026-11-28: Scientists Campaign and Greens
+     * Campaign in one opening — the second prelude's hero, the bought cards' flight and the reveal the PLAYER takes stood
+     * in front of the first rally, and at twelve seconds the graph filed `wait-graph/overdue/flow:rally`).
+     */
+    it('owed to the START, the rally waits on what holds the start\'s door — that node\'s bound, never twelve seconds of its own', () => {
+      enterWorkspace('start', {anchor: {type: 'phase', phase: 'start'}});
+      seedNeutralRallyHolds(view(model(), 12), view(model({lastRally: CAMPAIGN} as never), 12));
+      const node = () => collectWaitNodes(Date.now()).find((n) => n.id.startsWith('flow:rally#'));
+      expect(node()?.targets, 'nothing holds the door: the open is owed now — the orphan').deep.eq([{kind: 'motion', what: 'the start opens the rally pose'}]);
+      expect(node()?.boundMs).eq(12_000);
+      let held: WaitTarget | undefined = {kind: 'node', id: 'admission:followUp:reveal'};
+      const stop = setStartHostedStepHolder(() => held);
+      try {
+        expect(node()?.targets, 'a reveal the player takes holds the door: the rally waits on its node').deep.eq([{kind: 'node', id: 'admission:followUp:reveal'}]);
+        expect(node()?.boundMs, 'the node waited on carries the clock').is.undefined;
+        held = {kind: 'motion', what: 'a card reaction plays first (rising)'};
+        expect(node()?.targets).deep.eq([held]);
+        expect(node()?.boundMs, 'a reaction in front: a motion with the live pose\'s bound').eq(40_000);
+        held = undefined;
+        expect(node()?.boundMs).eq(12_000);
+      } finally {
+        stop();
+      }
+      expect(startHostedStepHeldBy(), 'the holder\'s stop restores «nothing holds»').is.undefined;
     });
 
     it('NOBODY there: no hold is seeded (a hold nobody would consume freezes the table), the promise is dropped, the state just updates', () => {

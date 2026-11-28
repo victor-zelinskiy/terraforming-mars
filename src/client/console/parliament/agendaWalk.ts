@@ -51,6 +51,7 @@ import {buildParliamentView, ParliamentQuestVm} from './consoleParliamentModel';
 import {AgendaBonusOwed, agendaCardInPlayersHands, flushAgendaBonus, queueAgendaBonuses, RATING_RAIL_KEY} from './parliamentRewardBeat';
 import {detectChairmanChange} from './consoleChairmanQuest';
 import {registerWaitSource} from '@/client/console/waitGraph/waitGraph';
+import {startHostedStepHeldBy} from './startHostedHold';
 
 /**
  * THE TABLE'S ANSWER to the walk's TR step, promised at the press (PL-002):
@@ -456,11 +457,14 @@ registerWaitSource('flow:walk', () => {
   // (…and while the walk's host is PARKED by the player, not yet opened — the rally's own case, `flow:rally`: the walk
   // opens when the player brings the host back by its plate, a player's wait with no bound.)
   const aside = !flow.live && workspaceFrameParked(flow.owed.host);
+  // (…and owed to the START while its follow-up door is held — the rally's own case, `startHostedHold.ts`: the wait is
+  // on what holds the door, never twelve seconds of the opening's presentations and the player's take.)
+  const held = !flow.live && !aside && flow.owed.host === 'start' ? startHostedStepHeldBy() : undefined;
   return [{
     id: `flow:walk#${flow.owed.seq}`, family: 'flow', owner: `agendaWalk:${flow.owed.host}`,
     targets: [take ? {kind: 'player', what: 'the card of the walk\'s step is taken', accepts: true} :
       aside ? {kind: 'player', what: `the ${flow.owed.host} comes back from the park (its plate)`} :
-        {kind: 'motion', what: flow.live ? `the walk (${flow.beat})` : `the ${flow.owed.host} opens the walk`}],
-    ...(take || aside ? {} : {boundMs: flow.live ? 40_000 : 12_000}),
+        held ?? {kind: 'motion', what: flow.live ? `the walk (${flow.beat})` : `the ${flow.owed.host} opens the walk`}],
+    ...(take || aside || (held !== undefined && held.kind !== 'motion') ? {} : {boundMs: flow.live || held !== undefined ? 40_000 : 12_000}),
   }];
 });

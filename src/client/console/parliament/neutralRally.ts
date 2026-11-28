@@ -44,6 +44,7 @@ import {workspaceFrameDescended, workspaceFrameKnown, workspaceFrameParked} from
 import {releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
 import {parliamentHolds} from './parliamentDisplayHolds';
 import {registerWaitSource} from '@/client/console/waitGraph/waitGraph';
+import {startHostedStepHeldBy} from './startHostedHold';
 
 /**
  * WHO PLAYS the rally: the hand that hosts the Parliament as a step, a Parliament standing on its own — or the START
@@ -432,6 +433,10 @@ export function neutralRallyLiveIn(host: NeutralRallyHost): boolean {
  * Campaign played in the start, the start minimized over the opening's placements, and at twelve seconds the graph filed
  * `wait-graph/overdue/flow:rally` over a host the player had set aside): the pose opens when the player brings the host
  * back by its plate — the player's wait, and a player's wait has no bound (the conclusion's `owed-step` keeps it owed).
+ * …AND WHILE THE START'S FOLLOW-UP DOOR IS HELD (the bottle's games 105 / 117: two campaigns in one opening — the
+ * second prelude's hero, the bought cards' flight, the reveal the player takes stood in front of the first rally): the
+ * wait is on what holds the door (`startHostedHold.ts` — that node's bound, a reveal the player's), a motion with the
+ * live pose's bound when a card reaction plays first; only an open nothing holds is the orphan's twelve seconds.
  */
 registerWaitSource('flow:rally', () => {
   const flow = neutralRallyFlow;
@@ -439,10 +444,12 @@ registerWaitSource('flow:rally', () => {
     return [];
   }
   const aside = !flow.live && workspaceFrameParked(flow.owed.host);
+  const held = !flow.live && !aside && flow.owed.host === 'start' ? startHostedStepHeldBy() : undefined;
   return [{
     id: `flow:rally#${flow.owed.seq}`, family: 'flow', owner: `neutralRally:${flow.owed.host}`,
     targets: [aside ? {kind: 'player', what: `the ${flow.owed.host} comes back from the park (its plate)`} :
-      {kind: 'motion', what: flow.live ? `the rally pose (${flow.beat})` : `the ${flow.owed.host} opens the rally pose`}],
-    ...(aside ? {} : {boundMs: flow.live ? 40_000 : 12_000}), detail: flow.queued.length > 0 ? `${flow.queued.length} queued` : undefined,
+      held ?? {kind: 'motion', what: flow.live ? `the rally pose (${flow.beat})` : `the ${flow.owed.host} opens the rally pose`}],
+    ...(aside || (held !== undefined && held.kind !== 'motion') ? {} : {boundMs: flow.live || held !== undefined ? 40_000 : 12_000}),
+    detail: flow.queued.length > 0 ? `${flow.queued.length} queued` : undefined,
   }];
 });

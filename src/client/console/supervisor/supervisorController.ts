@@ -26,6 +26,9 @@ import {isTransientBeat, resetBeatStall, transientSurfaceBeats, WORKSPACE_BEAT_S
 import {registerWaitRecovery, registerWaitSource, tickWaitGraph, waitGraphArming, waitGraphDigest, WaitNodeInput} from '@/client/console/waitGraph/waitGraph';
 import {flowTreeDigest} from '@/client/console/kernel/flowScope';
 import {WaitTarget} from '@/client/console/waitGraph/waitGraphModel';
+import {setStartHostedStepHolder} from '@/client/console/parliament/startHostedHold';
+import {startHostedStepToEnter} from '@/client/console/parliament/hostedParliamentStep';
+import {cardReactionState} from '@/client/console/cardReaction/cardReactionStage';
 import {CONCLUSION_HOLD_EDGE, WAIT_ADMISSION_BOUND_MS} from '@/client/console/waitGraph/waitGraphShellBounds';
 import {registerConstructionWaitSources} from '@/client/console/waitGraph/waitGraphSources';
 import {observeStillHold, pageMoves, StillHoldState} from '@/client/console/waitGraph/motionWitness';
@@ -44,7 +47,7 @@ import {buildStallEvidence, stallHolder, StallHolderFacts} from '@/client/consol
 import {inputEchoSnapshot} from '@/client/console/inputEcho';
 import {ANIMATION_STALL_GRACE_MS} from '@/client/console/consoleForegroundWatchdog';
 import {ConsoleRevealMode} from '@/client/components/console/consoleRevealOverlayTypes';
-import {closePhaseRoot, closeWorkspaceRoot, deadLiveFrames, pruneOffStageDeadFrames, collapseWorkspaceStack, stackYieldedToBoard, frameServing, goBoardHome, popWorkspaceFrame, workspaceFrameHasNested, workspaceStackTop, workspaceFrameAnchor, workspaceFrameKnown, workspaceFrameAnywhere, workspaceFrameParked, workspaceStackCollapsed, workspaceStackState, workspaceFrameOffStage, WorkspaceFrameKind, workspaceVerbTrail} from '@/client/console/consoleWorkspaceStack';
+import {closePhaseRoot, closeWorkspaceRoot, deadLiveFrames, pruneOffStageDeadFrames, collapseWorkspaceStack, stackYieldedToBoard, frameServing, goBoardHome, popWorkspaceFrame, workspaceFrameHasNested, workspaceStackTop, workspaceFrameAnchor, workspaceFrameKnown, workspaceFrameAnywhere, workspaceFrameParked, workspaceStackCollapsed, workspaceStackState, workspaceFrameOffStage, WorkspaceFrameKind, workspaceHostForStep, workspaceVerbTrail} from '@/client/console/consoleWorkspaceStack';
 import {openFrameQuestionDoor} from '@/client/console/frameQuestionDoor';
 import {Phase} from '@/common/Phase';
 import {isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
@@ -919,6 +922,10 @@ export function createSupervisorController(shell: SupervisorPort) {
         return announceId;
       }
       const id = `admission:${family}:${block}`;
+      // (One node per family: the question, a held conclusion and the start's hosted step may all wait on the same door.)
+      if (out.some((node) => node.id === id)) {
+        return id;
+      }
       // THE REVEAL TAKES ITS OWN PRESS (freeze zero, stage 1 — the seed of the day on CI, 2026-11-18 ·
       // `red-lawyers-tr-first`, issue #47): «Получена карта» stood in the Parliament with «A Взять · B Взять всё» on
       // the bar, over the played card's own transient beat — the world's one «accepting» is false there (a beat
@@ -933,6 +940,11 @@ export function createSupervisorController(shell: SupervisorPort) {
       });
       return id;
     };
+    // THE START'S HOSTED STEP — a rally or a walk owed to the start opens at its follow-up door: the door's node is
+    // published here, the step's own node waits on it (`startHostedHold.ts`, `startHostedStepHold`).
+    if (startHostedStepToEnter() !== undefined && workspaceHostForStep() === 'start' && deferredId === undefined) {
+      admission('followUp');
+    }
     // THE QUESTION — answered by a press on whatever serves it, or held by what holds it.
     if (questionId !== undefined) {
       // …AND A CLAIM HOLDS THE QUESTION IT WILL HOST. A press that draws-then-asks («reveal two, buy the rest») claims
@@ -1085,8 +1097,38 @@ export function createSupervisorController(shell: SupervisorPort) {
     return out;
   }
 
+  /**
+   * WHAT HOLDS THE START'S HOSTED STEP — the gates of its door (`startController.startHostedStepDue`) read in their
+   * order, each answered by the node that IS that gate (`startHostedHold.ts`): the frame standing above the start, the
+   * question set aside, the follow-up family's admission (published by `shellWaitNodes` in the same tick), a card
+   * reaction playing first. Undefined when nothing holds it — its open is owed now.
+   */
+  function startHostedStepHold(): WaitTarget | undefined {
+    if (startHostedStepToEnter() === undefined) {
+      return undefined;
+    }
+    const top = workspaceStackTop();
+    if (workspaceHostForStep() !== 'start') {
+      return top !== undefined ? {kind: 'node', id: `surface:${top.kind}`} : undefined;
+    }
+    const wf = shell.playerView.waitingFor;
+    if (consoleState.task.deferred && wf !== undefined) {
+      return {kind: 'node', id: `deferred:${wf.promptId ?? ''}`};
+    }
+    const block = promptAdmissionBlock('followUp', shell.admissionSignals);
+    if (block === 'announce-gate') {
+      const beat = shell.mandatoryBeat;
+      return shell.mandatoryGateHeld && beat !== undefined ? {kind: 'node', id: `announce:${beat.key}`} : {kind: 'motion', what: 'the announce gate'};
+    }
+    if (block !== undefined) {
+      return {kind: 'node', id: `admission:followUp:${block}`};
+    }
+    return cardReactionState.phase !== 'idle' ? {kind: 'motion', what: `a card reaction plays first (${cardReactionState.phase})`} : undefined;
+  }
+
   function registerLivenessRungs(): void {
     livenessRungStops.value = [
+      setStartHostedStepHolder(startHostedStepHold),
       registerWaitSource('shell', () => shellWaitNodes()),
       // …and the registries every presentation wait goes through — holds, ledger stories, the park — BY CONSTRUCTION (Э4).
       ...registerConstructionWaitSources(),
