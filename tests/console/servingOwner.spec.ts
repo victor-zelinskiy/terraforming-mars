@@ -176,11 +176,16 @@ describe('servingOwner — who serves the question: one total function', functio
         const yielded = facts.startYielded && o.owner === 'start';
         // (…and so is «set aside»: the player standing on the surface that answers is not away from it.)
         const onItsSurface = (facts.frames as ReadonlyArray<string>).includes(o.owner);
+        // (…and the sitting's draw, hosted in the Parliament's stage, while another frame still covers it — the claim of
+        // that frame: issue #110, the sitting's colony step on top.)
+        const top = facts.frames[facts.frames.length - 1];
+        const coveredDraw = task.kind === 'externalDraw' && facts.resolutionDraw && o.host === 'parliament' && top !== undefined &&
+          top !== 'parliament' && top !== o.owner && (facts.frames as ReadonlyArray<string>).includes('parliament');
         const expected =
           facts.aside && (facts.boardBranch || !onItsSurface) ? 'aside' :
             facts.boardBranch ? (admitted ? undefined : 'admission') :
               facts.scene !== '' || yielded ? 'scene' :
-                facts.claimHeld ? 'claim' :
+                facts.claimHeld || coveredDraw ? 'claim' :
                   admitted ? undefined : 'admission';
         if (o.hold?.kind !== expected) {
           expect.fail(`${shapeOf(task)}: held by ${JSON.stringify(o.hold)} — expected «${expected}» for ${JSON.stringify({...facts, task: undefined})}`);

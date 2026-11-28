@@ -305,6 +305,16 @@ export function servingOwnerOf(f: QuestionFacts): Ownership {
   if ((f.zoneAwaited ?? '') !== '' && (f.zoneAwaited === owner.owner || f.zoneAwaited === owner.host)) {
     return {asked: true, ...owner, hold: {kind: 'claim', by: `zone of ${f.zoneAwaited}`}};
   }
+  // …AND A STEP WHOSE HOST ANOTHER FRAME STILL COVERS (the bottle's game 545 — issue #110: the sitting's draw, hosted in
+  // the Parliament's stage, while the sitting's colony step still stood ON TOP of it — «says external-draw@parliament,
+  // painted colonies|parliament», the screen holding it behind the colony's own presentation): the step stands in a
+  // zone nobody sees until that frame leaves — held by it, never served (its lifetime does not put it on screen).
+  // (The sitting's draw alone — the one step whose host the function FORCES, whatever stands on top: `resolutionDraw`.)
+  const top = f.frames[f.frames.length - 1];
+  if (task.kind === 'externalDraw' && f.resolutionDraw && owner.host === 'parliament' && top !== undefined && top !== 'parliament' &&
+      top !== owner.owner && f.frames.includes('parliament')) {
+    return {asked: true, ...owner, hold: {kind: 'claim', by: `covered by ${top}`}};
+  }
   // ADMISSION IS A DOOR, NOT A PRESENCE: a workspace whose frame already stands on the stack was let in — a scene that
   // begins beside it does not take it off the screen (the first disagreement the measure named, 2026-11-19: the
   // Parliament standing under a `presentation` block of its own sitting). Only an owner still to ENTER is held.
