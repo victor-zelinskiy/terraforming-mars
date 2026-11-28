@@ -418,7 +418,9 @@ function fitHoldStanding(): string {
     `stage ${stageKey() ?? 'away'}`,
     `fitted for ${fitKey.value ?? 'nothing'} as ${fitMode.value}`,
     `focus ${planetFocusState.phase}${planetFocusState.arcsReturning ? ' arcs returning' : ''}`,
-    `tween ${boardTweening.value ? `on, ${tweenStableFrames.value} stable` : 'off'}`,
+    // (WHERE THE TWEEN'S LOOK STANDS — #198, CI's game 630: «tween on, 0 stable» for the whole bound after a page
+    // rebuild, and the line could not say whether the look ran and read the board off its target, or stopped looking.)
+    `tween ${boardTweening.value ? `on, ${tweenStableFrames.value} stable, ${tweenRaf === undefined ? 'NOT looking' : 'looking'}, last: ${tweenLastLook}` : 'off'}`,
     `owed ${owed === '' ? 'nothing' : owed}`,
     `passes ${calibratePasses.value} of ${CALIBRATE_MAX_PASSES}, late ${lateVerifyRuns.value} of ${LATE_VERIFY_MAX}`,
     `lock ${calibrateLock.value === undefined ? 'none' : `${calibrateLock.value.w}x${calibrateLock.value.h}`}`,
@@ -487,6 +489,8 @@ const fitted = ref(false);
  *  it rests (calibration would otherwise chase a moving planet). */
 const boardTweening = ref(false);
 let tweenRaf: (() => void) | undefined;
+/** The tween's last look, in words — for the boot curtain's standing (`fitHoldStanding`); diagnostics only. */
+let tweenLastLook = 'none yet';
 const tweenStableFrames = ref(0);
 /** P29: the self-calibrated natural content box (seeded by constants). */
 const naturalW = ref(BOARD_NATURAL_W);
@@ -933,6 +937,7 @@ function scheduleBoardTweenCheck(): void {
     const stageNow = stage.value ?? undefined;
     const board = stageNow?.querySelector<HTMLElement>(':scope > .board-cont');
     if (stageNow === undefined || board === null || board === undefined) {
+      tweenLastLook = stageNow === undefined ? 'stopped: no stage' : 'stopped: no board in the stage';
       return;
     }
     const sr = stageNow.getBoundingClientRect();
@@ -940,6 +945,7 @@ function scheduleBoardTweenCheck(): void {
     // A v-show section handoff is not a geometry frame. Pause polling;
     // scheduleFit resumes it when ResizeObserver sees the stage return.
     if (sr.width < 40 || sr.height < 40 || br.width < 40 || br.height < 40) {
+      tweenLastLook = `paused: stage ${Math.round(sr.width)}x${Math.round(sr.height)}, board ${Math.round(br.width)}x${Math.round(br.height)}`;
       return;
     }
     const rawX = stageNow.style.getPropertyValue('--con-board-dx');
@@ -958,6 +964,7 @@ function scheduleBoardTweenCheck(): void {
       Math.abs(paintedX - targetX) <= TWEEN_OFFSET_EPS &&
       Math.abs(paintedY - targetY) <= TWEEN_OFFSET_EPS;
     tweenStableFrames.value = atTarget ? tweenStableFrames.value + 1 : 0;
+    tweenLastLook = `painted s${paintedScaleX.toFixed(3)} off ${Math.round(paintedX)},${Math.round(paintedY)} vs target s${targetScale.toFixed(3)} off ${Math.round(targetX)},${Math.round(targetY)}`;
     if (tweenStableFrames.value >= TWEEN_STABLE_FRAMES) {
       boardTweening.value = false;
       tweenStableFrames.value = 0;
