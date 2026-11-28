@@ -283,7 +283,19 @@ export function createMandatoryController(shell: MandatoryPort) {
    * showing; a PARKED workspace is not (the player went back to the board — the plate is how they return).
    */
   const flowBeatInPlace = computed((): string | undefined => {
-    return flowBeatServedInPlace(mandatoryBeat.value, (kind) => workspaceFrameIndex(kind) !== -1 && workspaceSceneOnStage(kind));
+    const own = flowBeatServedInPlace(mandatoryBeat.value, (kind) => workspaceFrameIndex(kind) !== -1 && workspaceSceneOnStage(kind));
+    if (own !== undefined) {
+      return own;
+    }
+    // …AND A HELD FLOW BEAT WHOSE QUESTION ANOTHER WORKSPACE ON STAGE ALREADY SERVES (the bottle's game 11 and CI's
+    // browser game 577 — issue #192): the sitting asked its winner's free colony while the player stood in «Колонии»
+    // opened from the wheel, and the plate (on the board, under the workspace) waited for that workspace to leave, the
+    // workspace for the question, the question for the plate — until the graph's door acknowledged the beat seconds
+    // later by this very rule (`yieldAnnounceInCycle`: the question's home stands and serves it in place). Now at the edge.
+    const beat = mandatoryBeat.value;
+    const task = taskFor(shell.playerView);
+    const home = task === undefined ? undefined : frameServing(task.kind);
+    return beat?.flow !== undefined && isMandatoryBeatHeld(beat) && home !== undefined && workspaceSceneOnStage(home.kind) ? beat.key : undefined;
   });
 
   /**
