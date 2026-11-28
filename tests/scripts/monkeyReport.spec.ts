@@ -23,7 +23,7 @@ type Diff = {newClasses: Array<string>, goneClasses: Array<string>, kept: Array<
 type Lib = {
   aggregateCauseFiles: (files: Array<File>) => Report,
   compareReports: (now: Report, before: Report | undefined) => Diff,
-  gateVerdict: (report: Report, diff?: Diff, opts?: {zero?: boolean}) => {pass: boolean, reasons: Array<string>},
+  gateVerdict: (report: Report, diff?: Diff, opts?: {zero?: boolean, expect?: number}) => {pass: boolean, reasons: Array<string>},
   beatLawBroken: (report: Pick<Report, 'owner'>) => Array<[string, number, number, Array<string>]>,
   BEAT_LAW_QUIET_MS: number,
   renderOwner: (owner: Report['owner']) => string,
@@ -222,8 +222,14 @@ describe('the monkey\'s report — a run summed by cause class', () => {
       {where: 'card · frames none · bar «RT Actions B Close»', n: 1, games: 1},
     ]);
     expect(renderAutopilot(whole)).to.contain('   2× in  2 game(s)  option · frames parliament:committed>colonies:browse');
-    // A capped game is the pilot's own bound — said, never a failure.
-    expect(gateVerdict({...aggregateCauseFiles(clean), autopilot: whole}).pass).to.eq(true);
+    // A door's answer is the zero bar's (a place seen once or twice in a game); the games that reached their scoring pass…
+    const finished = clean.filter((f) => f.autopilot?.end !== 'capped');
+    expect(gateVerdict({...aggregateCauseFiles(finished), autopilot: aggregateAutopilot(finished) as Whole}).pass).to.eq(true);
+    // …and A CAPPED GAME IS NOT A GAME THAT WAS PLAYED (stage M — CI's browser game 632 stood on one bar for four
+    // generations, was booked «1 capped» and passed): it fails by name.
+    expect(gateVerdict({...aggregateCauseFiles(clean), autopilot: whole}).reasons).to.deep.eq([
+      '1 whole game(s) ended on the pilot\'s cap, not on the final scoring: autopilot · game 3 (ap0:3) — generation 44, action, 4000 presses',
+    ]);
 
     // A game counts by its LAST run; a stuck game and a rebuild are the freeze and the last line — each fails by name.
     const bad = [game(1, {end: 'stuck', generation: 6, phase: 'action', presses: 410}, 0), game(1, {end: 'stuck', generation: 7, phase: 'research', presses: 480}, 1), game(2, {rebuilds: 2})];
@@ -236,6 +242,81 @@ describe('the monkey\'s report — a run summed by cause class', () => {
       '1 whole game(s) STUCK: autopilot · game 1 (ap0:1) — generation 7, research, 480 presses',
       '2 rebuild(s) in whole games — the last line was taken',
     ]);
+  });
+
+  /*
+   * STAGE M — THE MEASURE IS HONEST (the fresh look's audit, 2026-11-28 — AUDIT-2026-11-28.md A1, A6, A7). Every way
+   * the report read «pass» over a pass that was not one, as a spec: the verdict of a whole game is read off what its
+   * PAGE said (never off a field one driver writes and the other does not), and a pass has a DENOMINATOR.
+   */
+  describe('STAGE M — a pass has a denominator, and a whole game is judged by what its page said', () => {
+    const game = (n: number, pilot: Record<string, unknown> | undefined, records: Array<Rec> = [], extra: Record<string, unknown> = {}): File => ({
+      file: 'console-autopilot.spec.ts', title: `autopilot · game ${n}`, retry: 0, monkey: {seed: `ap0:${n}`, presses: 900}, records,
+      ...(pilot === undefined ? {} : {autopilot: {end: 'finished', generation: 14, phase: 'end', presses: 900, byUi: {card: 20}, byApi: {}, passes: {ui: 13, api: 0}, tookMs: 600_000, ...pilot}}),
+      ...extra,
+    } as File);
+    const judged = async (files: Array<File>, opts: {zero?: boolean, expect?: number} = {}, report: Record<string, unknown> = {}) => {
+      const {aggregateAutopilot, aggregateCauseFiles, gateVerdict} = await load();
+      const whole = aggregateAutopilot(files);
+      return gateVerdict({...aggregateCauseFiles(files), ...(whole !== undefined ? {autopilot: whole} : {}), ...report} as Report, undefined, opts);
+    };
+
+    it('A REBUILD IS READ OFF THE PAGE: the real browser\'s driver files no `rebuilds` field — its `session-rebuild` record counts', async () => {
+      const {aggregateAutopilot, renderAutopilot} = await load();
+      // (Run 46144276012: «episodes 2 (rebuilt 2)» two lines above «rebuilds 0» — the browser never wrote the field.)
+      const rebuilt = [game(621, {}, [rec('session-rebuild/page/choice', 'defect')]), game(622, {})];
+      const whole = aggregateAutopilot(rebuilt) as Whole;
+      expect(whole.rebuilds, 'the page said it was rebuilt').to.eq(1);
+      expect(renderAutopilot(whole)).to.contain('rebuilds 1');
+      expect((await judged(rebuilt)).reasons).to.include('1 rebuild(s) in whole games — the last line was taken');
+      // The bottle's driver counts them itself — the larger of the two words is the game's, never their sum.
+      const both = [game(1, {rebuilds: 2}, [rec('session-rebuild/page/choice', 'defect')])];
+      expect((aggregateAutopilot(both) as Whole).rebuilds).to.eq(2);
+      // THE SHAPE THE REAL PAGE FILES: the rebuild is the END of a stall's episode — its outcome, and a line that spoke
+      // inside it — never a record of its own (the first reading of this law counted the record alone, and CI's two
+      // rebuilt games still summed to zero).
+      const episode = [game(630, {}, [rec(STALL, 'defect', {outcome: 'rebuilt', stoodS: 10, cure: 'session-rebuild', nets: [{cls: 'session-rebuild/page/choice', tier: 'defect', n: 1}]})])];
+      expect((aggregateAutopilot(episode) as Whole).rebuilds, 'an episode that ended in a rebuild is a rebuild').to.eq(1);
+    });
+
+    it('THE DOOR UNDER ONE SCREEN: three answers through the door at one unchanged screen are a screen that cannot be answered', async () => {
+      const {aggregateAutopilot} = await load();
+      const bar = 'frames parliament:browse · bar «ПарламентAВыполняется…» · grey Enter';
+      const frozen = game(632, {end: 'finished', byApi: {option: 2}, passes: {ui: 3, api: 1}, doors: [
+        `option «You completed the chairman quest» [chairmanQuestPrompt] · gen 4 · ${bar} · owner «parliament — frames [parliament] · serving parliament»`,
+        `pass · gen 4 · ${bar} → after the gesture: ${bar} · owner «free»`,
+        `card «Take \${0} card(s) drawn by \${1}» [externalDrawPrompt] · gen 5 · ${bar} · owner «parliament — frames [parliament] · serving parliament»`,
+      ]});
+      const whole = aggregateAutopilot([frozen]) as Whole & {doorStuck: Array<string>};
+      expect(whole.doorStuck).to.deep.eq([`autopilot · game 632 (ap0:632) — the door answered 3× under «${bar}»`]);
+      const verdict = await judged([frozen]);
+      expect(verdict.pass, 'a game that «finished» behind the door is not a game the screen played').to.eq(false);
+      expect(verdict.reasons).to.deep.eq([`the door answered three times or more under ONE screen in 1 game(s) — a screen that could not be answered: autopilot · game 632 (ap0:632) — the door answered 3× under «${bar}»`]);
+      // Twice at one place, or three times at three places, is the zero bar's — not a freeze.
+      const twice = game(7, {byApi: {card: 3}, doors: [
+        `card · gen 3 · ${bar} · owner «x»`, `card · gen 9 · ${bar} · owner «x»`, 'card · gen 4 · frames none · bar «RT Actions B Close» · owner «free»',
+      ]});
+      expect((aggregateAutopilot([twice]) as Whole & {doorStuck: Array<string>}).doorStuck).to.deep.eq([]);
+      expect((await judged([twice])).pass).to.eq(true);
+      expect((await judged([twice], {zero: true})).pass).to.eq(false);
+    });
+
+    it('A GAME THAT DID NOT PLAY IS NOT A GAME THAT PASSED: a thrown harness fails the gate by name, whatever tier its line was filed at', async () => {
+      const {aggregateCauseFiles} = await load();
+      // (The bottle's driver: `status: 'harness'`, the error filed `bottle/harness-error` at INFO, no game block at all.)
+      const thrown = [game(1, {}), game(2, undefined, [rec('bottle/harness-error', 'info')], {file: 'autopilot.bottle.ts', status: 'harness'})];
+      expect((aggregateCauseFiles(thrown).totals as Report['totals'] & {thrown: Array<string>}).thrown).to.deep.eq(['autopilot · game 2']);
+      expect((await judged(thrown)).reasons).to.deep.eq(['the harness threw in 1 test(s) — nothing of them was measured: autopilot · game 2']);
+    });
+
+    it('THE DENOMINATOR: fewer files than the pass asked for, no file at all and a file that cannot be read each fail the gate by name', async () => {
+      const three = [game(1, {}), game(2, {}), game(3, {})];
+      expect((await judged(three, {expect: 3})).pass).to.eq(true);
+      expect((await judged(three, {expect: 48})).reasons).to.deep.eq(['the pass is not whole — 3 of the 48 test(s) it asked for left a file: a shard that died is not a shard that passed']);
+      expect((await judged([])).reasons).to.deep.eq(['no test left a file — nothing was measured']);
+      expect((await judged(three, {}, {unreadable: ['cause-classes/game-9-r0.json']})).reasons)
+        .to.deep.eq(['1 file(s) of the pass could not be read (cut short, or not a report): cause-classes/game-9-r0.json']);
+    });
   });
 
   /*

@@ -74,6 +74,12 @@ booked «1 capped», nothing was filed (audit A1).
 still named game 3014). CI: Autopilot 46154080374 (games 633 – 680, both worlds); the Freeze gate 46154082798 —
 **green on the pin, three seeds**. Queued: the 24 cells of stage 1's matrix on `fz/pin-1128`, one at a time.
 
+⚠ **For whoever reads an Autopilot run from stage M's first step on** (§8, «STAGE M, STEP 1»): the report job has TWO
+verdicts of the real browser. «The browser's games, as a gate» is the hard one — and it now also refuses a capped
+game, a door that answered three times under one screen, and a pass that is not whole. «The browser's games against
+THE ZERO BAR» is the owner's bar; it is red by the bar's DEBT until the flow pays it, so a red job is read by its
+steps: a fix is confirmed by the gate step and by its class leaving the bar's list.
+
 *The open queue:* `gh issue list --repo victor-zelinskiy/terraforming-mars --label ci-finding`. **Who takes what:** the
 label `taken:fz-program` — the program's session (the support session leaves the issue alone); `taken:ci-support` — the
 support session (a pointwise fix of a CI finding; the program's session takes one over by putting its own label and a
@@ -564,6 +570,50 @@ goes first, because every other number is read through it.
 | **8 · THE STORY IS TOLD** | every presentation the product promises — a flight, a wave, a landing, a reveal, a transition — is a STORY of ONE book (the presentation ledger's idea, for every teller): opened where the promise is made, ended exactly once as *told* · *cut by the player* (its end state landed) · *by design* (reduced motion, the performance mode — a closed list) · **UNTOLD** with its reason (no source, not measured, a ceiling, the host gone, superseded, a safety). An untold story on a painted page is a DEFECT of class `story/untold/<story>/<reason>` in EVERY build — no build flag in front of a verdict, no NOTE that states a degradation; a net that ends a wait says which story it cut and what the player was shown instead; a `guarantee` that fires by its timer leaves a trace; a card's flight has the end witness a token's has; the session's ledger carries stories told / untold per class to the field | CONSERVATION — every story opened is ended, per class, over whole passes; `untold` = 0 on a painted page over the perturbation matrix and over a hundred fresh games per board in a real browser; the guard «no NOTE line states a degradation» at zero (≈ 30 sites today); diagnostic print sites behind a build flag = 0 (21 today); silent `guarantee` firings = 0 |
 | **9 · THE FLOW GOES WHERE ITS CONTRACT SAYS, AND THE SCREEN CAN BE ANSWERED** | the frame protocol is PRESCRIPTIVE — the commit boundary's law, and a move it does not hold is a defect, never «info» — and every workspace writes its phase to its frame; ONE witness on the frame machine's edges holds the workspace contract of `CLAUDE.md`: Back is one logical level and the carried object survives it, a finished flow leaves through the one conclusion and lands where it says, the crumb only gains a tail, a stage has one instance; THE ANSWERABILITY JUDGE — while the server asks this seat, the surface that serves offers an enabled answer or stands in a declared beat: «accepting» is not «answerable» (game 632), and a press that was taken and changed nothing is judged for every button; a cursor exists, is painted and stands on a live element; at rest the instruments' painted values are the applied view (invariant 16's runtime reader) | 0 records of `flow-contract/*` · `answerable/*` · `cursor/*` · `truth/*` over whole passes; every contract of «A WORKSPACE IS ONE FLOW» is a row of the witness's table (a guard holds the table to the document); the pilots' own judgments (`backUnmoved`, the door) are product judges, and the door answers 0 because no screen needs it |
 | **7, re-stated as numbers** | — | fires of any ACTING net (a committed list of acting shapes) per 1 000 presses = 0 over a whole pass in a real browser; a release candidate carries its gates' verdicts (the channel is the owner's decision); the per-release field report prints stories untold, nets fired, rebuilds and long frames per hour of play, and the release probe (A7) is run |
+
+**STAGE M, STEP 1 — THE REPORT HAS A DENOMINATOR, AND A WHOLE GAME IS JUDGED BY WHAT ITS PAGE SAID (2026-11-28).** The
+report every gate reads (`scripts/monkey-report.mjs`) was the first instrument to mend, because the audit's two
+heaviest findings (A1, A6, A7) were its silences. Red first — five cases of `tests/scripts/monkeyReport.spec.ts`
+(«STAGE M») and one of `tests/ci/findingsProof.spec.ts`, each failing on the script as it stood — then the laws:
+
+- **A REBUILD IS READ OFF THE PAGE.** «rebuilds» was a field only the bottle's driver wrote; the real browser's games
+  summed to «rebuilds 0» two lines under «episodes 2 (rebuilt 2)». The count is now what the page SAID — a
+  `session-rebuild` record, or (the shape a real page files, and the one the first reading of this law missed) a
+  stall's episode that ENDED in the rebuild — the largest word of the game, never a sum.
+- **A CAPPED GAME IS NOT A GAME THAT WAS PLAYED** — it fails the gate by name (it was «said, never a failure»).
+- **THE DOOR UNDER ONE SCREEN.** Three answers through the door at one unchanged screen of one game (the same frames,
+  the same bar, whatever the question) are a screen that could not be answered: named per game, refused by the gate,
+  filed as ONE finding per screen (`<source>|unanswerable-screen|<screen>` — the screen is the class).
+- **THE DENOMINATOR.** `--expect <tests the pass asked for>`: fewer files, no file at all, a file that cannot be read
+  (it was dropped in silence), a test whose harness threw (it was «info», and out of the count) — each fails the gate
+  by name and is filed as «the pass is not whole».
+- **BOTH VERDICTS ARE THE REPORT's, ALWAYS.** The gate's and the ZERO bar's are written into the report's JSON
+  (`verdicts`) and printed whatever flag was passed.
+
+*On the real artefacts of CI's pass 585 – 632 (run 46144276012, `983c3b60d0`), re-summed:* the browser world read
+«rebuilds 0 · GATE: FAIL — 2 never cured; 7 NEW classes»; it now reads **«rebuilds 2»** and the gate adds **«1 whole
+game ended on the pilot's cap … game 632»** and **«the door answered 24× under «frames parliament:browse · bar
+«ПарламентAВыполняется…»»»** — the frozen Parliament is named twice by the instrument that had called it a clean game.
+An empty directory and a file cut at 4 000 bytes, which read «GATE: pass», read «no test left a file» and «1 file(s)
+of the pass could not be read». The pin's own freeze gate (46154082798, 632 walks) still passes under the stricter
+script — nothing was green by the old silences there.
+
+*CI:* the Autopilot's two gate steps pass `--expect` (the games the run dealt — a shard that dies is a pass that is not
+whole); and **the real browser's games are held to THE ZERO BAR in a step of their own** («The browser's games against
+THE ZERO BAR»), beside the gate: the gate says «no defect of the hard kind», the bar says «nothing at all». The step is
+RED today — that is the bar's debt, printed reason by reason (on that pass: 13 records of 10 classes, 25 answers
+through the door at 12 places, 18 classes of line in the log, the opening's measure off zero ×7) — and it is paid by
+the flow, never by the bar. The bottle's bar is printed and not yet a failure: its debt is the blind list, and that is
+step 3's.
+
+*Open of stage M:* ② the pilots end a game `stuck` at the freeze itself (a door streak under one screen — today the
+report names it after a wasted half hour of runner) and «STUCK» reads the screen in both worlds; ③ the excuses — every
+`LAYOUT_BLIND` / baseline row with its browser evidence, the two rows a browser already named (`start:reactor-face`,
+`start-bonus:visible-source`) out, the counts enforced, «gone» that is not a re-tiering; ④ `--expect` for the Monkey
+and the freeze gate (the count of tables from the fixtures); ⑤ fresh ranges by a committed high-water mark; ⑥ coverage
+per commit and per world produced by CI (`kernel-walked --gate`, the cards with a provenance); ⑦ the scripted e2e suite
+gates defect-tier records; ⑧ the Autopilot on a schedule, and a lane that plays as a player (a gamepad, the TV profile,
+motion ×1); ⑨ the pilot-rule ledger; ⑩ a pass asserts the product booted as it ships (the locale — A30).
 
 **STAGE 1 — EXIT REACHED 2026-11-20 04:19 UTC.** The stage's number is met on ONE commit (`ab6ad53eba`): the
 perturbation matrix — CPU ×4 · ×6, the net at 400 · 1500 ms, a reload, two windows, a hidden tab, plain — × 3 seeds ×

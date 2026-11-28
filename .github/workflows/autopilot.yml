@@ -216,14 +216,32 @@ jobs:
         id: bottle
         if: ${{ inputs.where != 'browser' }}
         run: |
-          node scripts/monkey-report.mjs bottle-results --against tests/client/bottle/autopilotBaseline.json --out autopilot-bottle.json --gate | tee autopilot-bottle.txt
+          # (--expect: THE DENOMINATOR — a shard that died, a game whose harness threw or a file cut short is a pass that
+          #  is not whole, never a pass that passed: stage M of docs/claude/console/freeze-zero/PLAN.md § 8.)
+          node scripts/monkey-report.mjs bottle-results --against tests/client/bottle/autopilotBaseline.json --out autopilot-bottle.json --gate --expect "${{ inputs.games }}" | tee autopilot-bottle.txt
           exit ${PIPESTATUS[0]}
       - name: The browser's games, as a gate
         id: browser
         if: ${{ !cancelled() && inputs.where != 'bottle' }}
         run: |
-          node scripts/monkey-report.mjs browser-results --against tests/e2e/autopilotBaseline.json --out autopilot-browser.json --gate | tee autopilot-browser.txt
+          node scripts/monkey-report.mjs browser-results --against tests/e2e/autopilotBaseline.json --out autopilot-browser.json --gate --expect "${{ inputs.games }}" | tee autopilot-browser.txt
           exit ${PIPESTATUS[0]}
+      # THE ZERO BAR IS THE REAL PAGE's VERDICT (the owner, 2026-11-25: «0 % ошибок, зависаний и даже ворнингов … на
+      # ЛЮБЫХ запусках автопилота»; stage M — the bar was a flag no workflow passed, and no run ever said how far from
+      # it a pass stood). A step of its own beside the gate: the gate says «no defect of the hard kind», this says
+      # «nothing at all» — a record of any tier, an answer through the door, a line of the page's log. In the bottle
+      # the bar is printed, not yet a failure: its debt is the blind list (jsdom has no layout), paid row by row.
+      - name: The browser's games against THE ZERO BAR
+        if: ${{ !cancelled() && inputs.where != 'bottle' }}
+        run: |
+          node --input-type=module -e '
+            import * as fs from "node:fs";
+            const zero = JSON.parse(fs.readFileSync("autopilot-browser.json", "utf8")).verdicts?.zero;
+            if (zero === undefined) { console.error("the report carries no verdict"); process.exit(1); }
+            console.log(zero.pass ? "THE ZERO BAR: pass" : "THE ZERO BAR: FAIL");
+            for (const reason of zero.pass ? [] : zero.reasons) { console.log("  · " + reason); }
+            process.exit(zero.pass ? 0 : 1);
+          '
       # WHAT THE PASS FOUND, in the one shape every workflow speaks — and filed: one issue per cause class.
       - name: Findings
         if: ${{ !cancelled() }}
@@ -254,6 +272,7 @@ jobs:
               grep -A 8 'THE WHOLE GAMES' "autopilot-$world.txt" || true
               grep -A 12 'against the earlier run' "autopilot-$world.txt" || true
               grep 'GATE:' "autopilot-$world.txt" || true
+              grep 'THE ZERO BAR:' "autopilot-$world.txt" | cut -c1-1600 || true
               echo '```'
             done
           } >> "$GITHUB_STEP_SUMMARY"

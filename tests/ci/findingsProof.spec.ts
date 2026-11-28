@@ -135,6 +135,34 @@ describe('ci findings: a finding names its proof', function() {
       '--source', 'autopilot')).to.deep.eq([]);
   });
 
+  /*
+   * STAGE M (the fresh look's audit, 2026-11-28 — A1, A7): what the gate now refuses is FILED, by name. A screen the
+   * door had to answer three times is ONE finding per screen (its class is the screen — game 632 stood on it for four
+   * generations and no issue existed); a game that ended on the pilot's cap is not a game that was played; a pass
+   * that is not whole — a shard that died, a harness that threw, a file cut short — is said, never a quiet night.
+   */
+  it('a screen that could not be answered, a capped game and a pass that is not whole are findings by name', () => {
+    const bar = 'frames parliament:browse · bar «ПарламентAВыполняется…» · grey Enter';
+    const report = {
+      totals: {notCured: 0, tests: 46, thrown: ['autopilot · game 9']},
+      classes: {}, diff: {newClasses: []}, expect: 48, unreadable: ['cause-classes/game-11-r0.json'],
+      autopilot: {games: 45, finished: 44, rebuilds: 0, stuck: [],
+        capped: ['autopilot · game 632 (ap0:632) — generation 8, drafting, 3200 presses'],
+        doorStuck: [`autopilot · game 632 (ap0:632) — the door answered 24× under «${bar}»`, `autopilot · game 640 (ap0:640) — the door answered 3× under «${bar}»`]},
+    };
+    const findings = findingsOf('from-monkey', report, '--source', 'autopilot', '--context', 'browser · ap0 · games 585+48',
+      '--repro', 'gh workflow run Autopilot -f from=<game> -f games=1');
+    expect(findings.map((finding) => [finding.key, finding.kind])).to.deep.eq([
+      [`autopilot|unanswerable-screen|${bar}`, 'failed'],
+      ['autopilot|capped', 'failed'],
+      ['autopilot|not-whole|browser · ap0 · games 585+48', 'broken-run'],
+    ]);
+    expect(findings[0].title).to.eq(`[autopilot] a screen that could not be answered: ${bar}`);
+    expect(findings[0].body, 'both games stood on it — one finding, the first game to repeat').to.contain('game 640').and.to.contain('gh workflow run Autopilot -f from=632 -f games=1');
+    expect(findings[1].body).to.contain('game 632 (ap0:632) — generation 8, drafting, 3200 presses');
+    expect(findings[2].body).to.contain('46 of the 48').and.to.contain('game 9').and.to.contain('game-11-r0.json');
+  });
+
   it('a class of the monkey is proven by the monkey on its table, seed and perturbation', () => {
     const [finding] = findingsOf('from-monkey', monkeyReport, '--source', 'monkey', '--context', 'seed fz0', '--perturb', 'cpu4');
     expect(finding.proof).to.deep.eq({workflow: 'Monkey', inputs: {seed: 'fz0', only: '^hydro-terminal-surge$', shards: '1', perturb: 'cpu4'}});

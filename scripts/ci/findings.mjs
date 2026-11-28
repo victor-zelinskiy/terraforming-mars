@@ -256,6 +256,67 @@ function fromMonkey() {
         'Read the report: the `liveness/stall/…` classes of the pass name the screens, each game\'s file carries its presses (`walk`).',
     });
   }
+  /*
+   * WHAT THE GATE REFUSES SINCE STAGE M (`monkey-report.gateVerdict` — the fresh look's audit, 2026-11-28, A1 · A7),
+   * filed by name. A SCREEN THE DOOR HAD TO ANSWER THREE TIMES is one finding per SCREEN — the screen is the class:
+   * CI's browser game 632 stood on «Парламент · A Выполняется…» for four generations, the door answered twenty-four
+   * questions, the game was «1 capped», and no issue existed. A game that ENDED ON THE PILOT's CAP was not played. A
+   * pass that is NOT WHOLE — a shard that died, a harness that threw, a file cut short — is said: it measured less
+   * than it was asked to, and a quiet queue must never be read as a clean night.
+   */
+  const screens = new Map();
+  for (const game of report.autopilot?.doorStuck ?? []) {
+    const screen = /under «(.*)»$/.exec(String(game))?.[1] ?? String(game);
+    screens.set(screen, [...(screens.get(screen) ?? []), String(game)]);
+  }
+  for (const [screen, games] of screens) {
+    findings.push({
+      key: `${source}|unanswerable-screen|${screen}`,
+      kind: 'failed',
+      title: `[${source}] a screen that could not be answered: ${screen}`.slice(0, 240),
+      body: [
+        `**The door answered three times or more under ONE unchanged screen**${context === '' ? '' : ` (${context})`} — the walk pressed what the bar offered and the question stood; ` +
+          'the server\'s door answered for the seat and the game went on behind a screen that did not. A freeze no net named (or a layout the pilot has no hands for — read the walk).',
+        '',
+        `- the screen: \`${screen}\``,
+        ...games.map((game) => `- ${game.replace(/ under «.*»$/, '')}`),
+        ...(repro === '' ? [] : ['', '**Repeat it:**', fence(repro.replace(/<game>/g, /game (\d+)/.exec(games[0])?.[1] ?? '<n>'))]),
+      ].join('\n'),
+    });
+  }
+  if ((report.autopilot?.capped ?? []).length > 0) {
+    findings.push({
+      key: `${source}|capped`,
+      kind: 'failed',
+      title: `[${source}] ${report.autopilot.capped.length} whole game(s) ended on the pilot's cap, not on the final scoring`,
+      body: [
+        `**A game that reached the press budget was not played to its end**${context === '' ? '' : ` (${context})`} — a pilot that walked in circles, or a screen it could not leave. ` +
+          'Read the game\'s walk: where its last hundreds of presses stood.',
+        '',
+        ...report.autopilot.capped.map((game) => `- ${game}`),
+        ...(repro === '' ? [] : ['', '**Repeat it:**', fence(repro.replace(/<game>/g, /game (\d+)/.exec(String(report.autopilot.capped[0]))?.[1] ?? '<n>'))]),
+      ].join('\n'),
+    });
+  }
+  const tests = report.totals?.tests;
+  const short = report.expect !== undefined && tests !== undefined && tests < report.expect;
+  const thrown = report.totals?.thrown ?? [];
+  const unreadable = report.unreadable ?? [];
+  if (short || tests === 0 || thrown.length > 0 || unreadable.length > 0) {
+    findings.push({
+      key: `${source}|not-whole|${context}`,
+      kind: 'broken-run',
+      title: `[${source}] the pass is not whole${context === '' ? '' : ` (${context})`}`.slice(0, 240),
+      body: [
+        '**The pass measured less than it was asked to** — what did not report is not what passed.',
+        '',
+        ...(tests === 0 ? ['- no test left a file'] : []),
+        ...(short ? [`- ${tests} of the ${report.expect} test(s) the pass asked for left a file (a shard that died, a job that never started)`] : []),
+        ...(thrown.length > 0 ? [`- the harness threw in ${thrown.length} test(s): ${thrown.slice(0, 12).join(', ')}`] : []),
+        ...(unreadable.length > 0 ? [`- ${unreadable.length} file(s) could not be read: ${unreadable.slice(0, 12).join(', ')}`] : []),
+      ].join('\n'),
+    });
+  }
   if ((report.totals?.notCured ?? 0) > 0) {
     findings.push({
       key: `${source}|never-cured`,

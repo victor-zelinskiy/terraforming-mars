@@ -117,7 +117,17 @@ export function aggregateCauseFiles(files) {
     raised(n, tier);
     return n;
   };
+  /*
+   * A TEST WHOSE HARNESS THREW MEASURED NOTHING (stage M — the audit of 2026-11-28, A7). The bottle's driver files a
+   * game that threw as `status: 'harness'` with its error at tier INFO and no game block: it was dropped from the
+   * count of games, its line was «info», and the pass read «GATE: pass». A thrown test is named here, whatever tier
+   * its line carries — the gate refuses the pass.
+   */
+  totals.thrown = [];
   for (const f of [...last.values()].sort((a, b) => `${a.file}${a.title}`.localeCompare(`${b.file}${b.title}`))) {
+    if (f.status === 'harness' || (f.records ?? []).some((r) => /^[a-z-]+\/harness-error(\/|$)/.test(String(r.cls)))) {
+      totals.thrown.push(f.title);
+    }
     if (f.monkey !== undefined) {
       totals.walks++;
       totals.presses += Number(f.monkey.presses ?? 0);
@@ -688,6 +698,24 @@ export function beatLawBroken(report) {
  * is answered through the server's door, as a second device would — the game goes on, and the share says how much of
  * the play the SCREEN served.
  */
+/** How many answers through the door at ONE screen of one game are «a screen that could not be answered». */
+export const DOOR_STUCK_AT = 3;
+
+/**
+ * The SCREEN a door's row stood under — its frames and its bar (`… · frames <frames> · bar «…»[ · grey <key>]`), the
+ * question, the generation, the owner's word and what followed the gesture taken out. `undefined` for a row that
+ * names no screen.
+ */
+export function doorScreenOf(door) {
+  const row = String(door);
+  const from = row.indexOf('frames ');
+  if (from < 0) {
+    return undefined;
+  }
+  const ends = [row.indexOf(' → after the gesture', from), row.indexOf(' · owner «', from)].filter((i) => i >= 0);
+  return row.slice(from, ends.length > 0 ? Math.min(...ends) : undefined).trim();
+}
+
 export function aggregateAutopilot(files) {
   const last = new Map();
   for (const f of files) {
@@ -704,7 +732,7 @@ export function aggregateAutopilot(files) {
     return undefined;
   }
   const sum = (row) => Object.values(row ?? {}).reduce((a, n) => a + Number(n ?? 0), 0);
-  const out = {games: 0, finished: 0, capped: [], stuck: [], rebuilds: 0, presses: 0, byUi: 0, byApi: 0, passes: {ui: 0, api: 0}, playMin: 0, doors: [], log: [],
+  const out = {games: 0, finished: 0, capped: [], stuck: [], rebuilds: 0, doorStuck: [], presses: 0, byUi: 0, byApi: 0, passes: {ui: 0, api: 0}, playMin: 0, doors: [], log: [],
     cards: [], weather: {games: 0, faults: 0, submits: 0, said: 0}, slow: {games: 0, frames: 0}, shapes: [], types: undefined};
   // THE QUESTIONS' SHAPES the screen answered (a type × the server's markers), summed — and the input TYPES among them
   // against the ones the server declares (`common/input/PlayerInputType.ts` — read from the source, so a new type
@@ -727,7 +755,15 @@ export function aggregateAutopilot(files) {
     const a = f.autopilot;
     out.games++;
     out.presses += Number(a.presses ?? 0);
-    out.rebuilds += Number(a.rebuilds ?? 0);
+    // A REBUILD IS READ OFF THE PAGE (stage M — A6): the bottle's driver counts the rebuilds it was asked for, the real
+    // browser's files no such field — its report printed «rebuilds 0» two lines under «episodes 2 (rebuilt 2)» (run
+    // 46144276012). What the PAGE said is the count both worlds have — a `session-rebuild` record of its own, or (the
+    // shape a real page files) a stall's episode that ENDED in the rebuild: its outcome, the line that spoke inside it.
+    // The largest of the three words is the game's, never their sum.
+    const isRebuild = (cls) => String(cls).startsWith('session-rebuild/');
+    const rebuiltBySaying = (f.records ?? []).filter((r) => isRebuild(r.cls)).reduce((n, r) => n + Number(r.count ?? 1), 0);
+    const rebuiltByEnding = (f.records ?? []).filter((r) => r.episode !== undefined && (r.episode.outcome === 'rebuilt' || (r.episode.nets ?? []).some((inner) => isRebuild(inner.cls)))).length;
+    out.rebuilds += Math.max(Number(a.rebuilds ?? 0), rebuiltBySaying, rebuiltByEnding);
     out.byUi += sum(a.byUi);
     out.byApi += sum(a.byApi);
     out.passes.ui += Number(a.passes?.ui ?? 0);
@@ -758,14 +794,33 @@ export function aggregateAutopilot(files) {
       out.weather.submits += Number(a.weather.submits ?? 0);
       out.weather.said += Number(a.weather.said ?? 0);
     }
+    /*
+     * THE DOOR UNDER ONE SCREEN (stage M — A1). The door answers a question the walk did not get through, «as a second
+     * device would», and the game goes on. When it answers again and again AT ONE UNCHANGED SCREEN — the same frames,
+     * the same bar, whatever the question — the screen is not being walked around: it cannot be answered. CI's browser
+     * game 632 stood on «Парламент · A Выполняется…» from generation 4 to the cap, twenty-four questions through the
+     * door, and was a clean game by every count. Three at one screen in one game is the freeze's own signature (or a
+     * layout the pilot has no hands for — a finding too): named, and the gate refuses it.
+     */
+    const screens = new Map();
     for (const door of a.doors ?? []) {
       const where = String(door).replace(/ · gen \d+/, '');
       const row = doors.get(where) ?? {where, n: 0, games: new Set()};
       row.n++;
       row.games.add(f.title);
       doors.set(where, row);
+      const screen = doorScreenOf(door);
+      if (screen !== undefined) {
+        screens.set(screen, (screens.get(screen) ?? 0) + 1);
+      }
     }
-    const where = `${f.title}${f.monkey?.seed !== undefined ? ` (${f.monkey.seed})` : ''} — generation ${a.generation ?? '?'}, ${a.phase ?? '?'}, ${a.presses ?? '?'} presses`;
+    const seeded = `${f.title}${f.monkey?.seed !== undefined ? ` (${f.monkey.seed})` : ''}`;
+    for (const [screen, n] of screens) {
+      if (n >= DOOR_STUCK_AT) {
+        out.doorStuck.push(`${seeded} — the door answered ${n}× under «${screen}»`);
+      }
+    }
+    const where = `${seeded} — generation ${a.generation ?? '?'}, ${a.phase ?? '?'}, ${a.presses ?? '?'} presses`;
     if (a.end === 'finished') {
       out.finished++;
     } else if (a.end === 'stuck') {
@@ -928,6 +983,9 @@ export function renderAutopilot(a) {
   for (const game of a.capped) {
     L.push(`   capped  ${game}`);
   }
+  for (const game of a.doorStuck ?? []) {
+    L.push(`   THE DOOR UNDER ONE SCREEN  ${game}`);
+  }
   if ((a.doors ?? []).length > 0) {
     L.push(`   THE DOOR ANSWERED — where the seat stood (${a.doors.length} place(s); a question the screen cannot be walked to hides here):`);
     for (const door of a.doors.slice(0, 24)) {
@@ -946,6 +1004,24 @@ export function renderAutopilot(a) {
 
 export function gateVerdict(report, diff, opts = {}) {
   const reasons = [];
+  /*
+   * THE DENOMINATOR (stage M — the audit of 2026-11-28, A7): a pass is judged only when it is WHOLE. An empty
+   * directory, a shard that died, a results file cut short and a game whose harness threw each read «GATE: pass»
+   * (proven with synthetic passes) — a pass that measured nothing agreed with every bar. `opts.expect` is the number
+   * of tests the pass asked for (the workflow knows it: the games it dealt, the tables it walks).
+   */
+  const tests = report.totals?.tests;
+  if (tests === 0) {
+    reasons.push('no test left a file — nothing was measured');
+  } else if (opts.expect !== undefined && tests !== undefined && tests < opts.expect) {
+    reasons.push(`the pass is not whole — ${tests} of the ${opts.expect} test(s) it asked for left a file: a shard that died is not a shard that passed`);
+  }
+  if ((report.unreadable ?? []).length > 0) {
+    reasons.push(`${report.unreadable.length} file(s) of the pass could not be read (cut short, or not a report): ${report.unreadable.slice(0, 8).join(', ')}`);
+  }
+  if ((report.totals?.thrown ?? []).length > 0) {
+    reasons.push(`the harness threw in ${report.totals.thrown.length} test(s) — nothing of them was measured: ${report.totals.thrown.slice(0, 8).join(', ')}`);
+  }
   // THE ZERO BAR (`--zero`): nothing at all — no record of any tier, no door, no routed press, no line in the log.
   if (opts.zero === true) {
     const classes = Object.entries(report.classes ?? {});
@@ -957,9 +1033,6 @@ export function gateVerdict(report, diff, opts = {}) {
     if (a !== undefined) {
       if (a.byApi > 0 || a.passes.api > 0) {
         reasons.push(`ZERO: ${a.byApi} answer(s) and ${a.passes.api} pass(es) went through the door (${(a.doors ?? []).length} place(s))`);
-      }
-      if (a.capped.length > 0) {
-        reasons.push(`ZERO: ${a.capped.length} game(s) ended on the pilot's cap, not on the final scoring`);
       }
       if ((a.log ?? []).length > 0) {
         reasons.push(`ZERO: the log is not clean — ${a.log.length} class(es) of line: ` + a.log.slice(0, 10).map((line) => `«${line.key}» ×${line.n}`).join(', '));
@@ -981,6 +1054,15 @@ export function gateVerdict(report, diff, opts = {}) {
   }
   if (report.autopilot !== undefined && report.autopilot.rebuilds > 0) {
     reasons.push(`${report.autopilot.rebuilds} rebuild(s) in whole games — the last line was taken`);
+  }
+  // A CAPPED GAME IS NOT A GAME THAT WAS PLAYED, and a door that answers under one screen is a screen that cannot be
+  // answered (stage M — A1: game 632 was both, and a clean game by every count the gate read).
+  if (report.autopilot !== undefined && report.autopilot.capped.length > 0) {
+    reasons.push(`${report.autopilot.capped.length} whole game(s) ended on the pilot's cap, not on the final scoring: ${report.autopilot.capped.join('; ')}`);
+  }
+  if (report.autopilot !== undefined && (report.autopilot.doorStuck ?? []).length > 0) {
+    reasons.push(`the door answered three times or more under ONE screen in ${report.autopilot.doorStuck.length} game(s) — a screen that could not be answered: ` +
+      report.autopilot.doorStuck.join('; '));
   }
   if (diff !== undefined && diff.newClasses.length > 0) {
     reasons.push(`${diff.newClasses.length} NEW defect class(es): ${diff.newClasses.join(', ')}`);
@@ -1050,17 +1132,26 @@ function main(argv) {
     return i < 0 ? undefined : (argv[i + 1] !== undefined && !argv[i + 1].startsWith('--') ? argv[i + 1] : true);
   };
   // (A flag's value is not a positional.)
-  const values = new Set(['against', 'out'].map((n) => flag(n)).filter((v) => typeof v === 'string'));
+  const values = new Set(['against', 'out', 'expect'].map((n) => flag(n)).filter((v) => typeof v === 'string'));
   const zero = argv.includes('--zero');
   const dir = positional.find((p) => !values.has(p));
-  if (dir === undefined || !fs.existsSync(dir)) {
-    console.error('usage: node scripts/monkey-report.mjs <test-results dir> [--against <monkey-report.json>] [--out <file>] [--gate] [--zero]');
+  const expect = typeof flag('expect') === 'string' ? Number(flag('expect')) : undefined;
+  if (dir === undefined || !fs.existsSync(dir) || (expect !== undefined && !(Number.isInteger(expect) && expect > 0))) {
+    console.error('usage: node scripts/monkey-report.mjs <test-results dir> [--against <monkey-report.json>] [--out <file>] [--gate] [--zero] [--expect <tests the pass asked for>]');
     return 2;
   }
+  // A FILE THAT CANNOT BE READ IS A FILE OF THE PASS (stage M): it was dropped in silence — a report cut short by a
+  // dying shard left no trace in the sum. It is named, and the gate refuses the pass.
+  const unreadable = [];
   const files = findCauseFiles(dir).map((f) => {
     try {
-      return JSON.parse(fs.readFileSync(f, 'utf8'));
+      const parsed = JSON.parse(fs.readFileSync(f, 'utf8'));
+      if (parsed === null || typeof parsed !== 'object' || !Array.isArray(parsed.records)) {
+        throw new Error('not a cause-classes file');
+      }
+      return parsed;
     } catch {
+      unreadable.push(path.relative(dir, f).replace(/\\/g, '/'));
       return undefined;
     }
   }).filter((f) => f !== undefined);
@@ -1068,7 +1159,7 @@ function main(argv) {
   const owner = aggregateOwner(files);
   const autopilot = aggregateAutopilot(files);
   const report = {at: new Date().toISOString(), dir: path.resolve(dir), ...aggregateCauseFiles(files), ...(coverage !== undefined ? {coverage} : {}), ...(owner !== undefined ? {owner} : {}),
-    ...(autopilot !== undefined ? {autopilot} : {})};
+    ...(autopilot !== undefined ? {autopilot} : {}), ...(unreadable.length > 0 ? {unreadable} : {}), ...(expect !== undefined ? {expect} : {})};
   const against = flag('against');
   let diff;
   if (typeof against === 'string') {
@@ -1079,8 +1170,13 @@ function main(argv) {
       return 2;
     }
   }
+  // BOTH VERDICTS ARE THE REPORT's, always (stage M — A5): the gate's and the ZERO bar's are written into the file and
+  // printed whatever flag was passed — the owner's bar was a flag no workflow passed, so no run ever said how far
+  // from it a pass stood. The exit code is the bar that was asked for.
+  const gate = gateVerdict(report, diff, {expect});
+  const zeroBar = gateVerdict(report, diff, {zero: true, expect});
   const out = typeof flag('out') === 'string' ? flag('out') : path.join(dir, 'monkey-report.json');
-  fs.writeFileSync(out, JSON.stringify({...report, ...(diff !== undefined ? {diff} : {})}, null, 1));
+  fs.writeFileSync(out, JSON.stringify({...report, ...(diff !== undefined ? {diff} : {}), verdicts: {gate, zero: zeroBar}}, null, 1));
   console.log(renderReport(report, diff));
   if (autopilot !== undefined) {
     console.log(renderAutopilot(autopilot));
@@ -1089,8 +1185,11 @@ function main(argv) {
   console.log(renderOwner(owner));
   console.log(`\n→ ${out}`);
   if (flag('gate') === true || zero) {
-    const verdict = gateVerdict(report, diff, {zero});
+    const verdict = zero ? zeroBar : gate;
     console.log(verdict.pass ? '\nGATE: pass' : `\nGATE: FAIL — ${verdict.reasons.join('; ')}`);
+    if (!zero) {
+      console.log(zeroBar.pass ? 'THE ZERO BAR: pass' : `THE ZERO BAR: FAIL (${zeroBar.reasons.length} reason(s)) — ${zeroBar.reasons.join('; ')}`);
+    }
     return verdict.pass ? 0 : 3;
   }
   return 0;
