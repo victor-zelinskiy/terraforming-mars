@@ -3170,6 +3170,25 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   played through the console, not one card declared** (`autopilotCardsUnplayed.json` is `[]`; the `missing` deal falls
   back to the scope's rotation). The bottle's v4 (201 – 212, the opening taking the dealt corporation and preludes): 12
   games, no defect, no door.
+- **A D-PAD PRESS DURING THE HAND's OPENING IS KEPT (2026-11-28 — the bottle suite's one red, bisected to
+  `4c867dbc20`):** the class replay «a pick dealt onto a stage that cannot be measured» went red when a hold's ceiling
+  began to count painted time — its walk hid the page eleven seconds and pressed → as it came back, now during the
+  hand's entry (a hidden page gives the entry nothing; it plays on the return). The probe found the product's defect
+  the replay had walked around: → 50 – 600 ms into ANY opening said «consumed» and the cursor never moved —
+  `handleSectionNav` drops navigation while the copies fly. The presses of the opening are KEPT (four at most) and
+  walked in order when the album settles (`whenHandAlbumPoseChanges` — `open` with the cursor arrived); an opening
+  that ends otherwise drops them. A new replay pins it (red on the head, green with); the old one is green again.
+- **A SPENT BATCH IS FORGOTTEN by the «re-asked» witness (CI's autopilot with the `missing` deal, run 46079806794,
+  game 1037 — its one red):** Focused Organization's resource landed in its play's batch, then Double Down copied the
+  prelude with a plain pick and the copy asked its own resource — the witness, kept «until the action menu» (an
+  opening has none), called the new question a re-ask. The server now says how many answers of the last batch it
+  still holds parked (`preselectParked` on the player view — `deferredInputBatch.parkedBatchTailLength`), and a view
+  past the batch's head that asks none of its questions with nothing parked spends it; a refusal in the batch's own
+  answer and an answer parked behind an interloper stay reports (`preselectStamp.spec` — red without, green with).
+- **THE PILOTS END A SECOND ACTION BY «ПРОПУСТИТЬ ХОД» (the bottle's scenario of the cities, game 41 — its one
+  door):** the menus that played the game's cards ran into the turn's second action, where the rules offer no pass;
+  both pilots read the grey pass as an unfinished action and passed through the door. The wheel's up slot ends the
+  turn at once.
 - **THE RALLY's NODE WAITS ON THE START's DOOR (the bottle's games 105 / 117 of the cards axis, 2026-11-28):** two
   campaigns in one opening (Scientists Campaign + Greens Campaign — the deal took both), and at twelve seconds the graph
   filed `wait-graph/overdue/flow:rally` over a rally the start had not opened. Replayed on the v3 source three times

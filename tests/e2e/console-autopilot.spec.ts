@@ -330,6 +330,8 @@ const LOOK_KEYS: ReadonlySet<string> = new Set(['KeyX', 'KeyR', 'KeyC', 'KeyV'])
 /** What stands on screen as the pilot reads it: the verbs the bar offers, the stack, the bar's words. */
 type Screen = {
   offered: Array<{key: string, hot: boolean}>, frames: Array<string>, bar: string, zoom: boolean, quick: boolean, pass: boolean, confirm: boolean,
+  /** The wheel's turn end on a SECOND action: the pass grey, «Пропустить ход» lit (the rules — a pass is a turn's first action). */
+  skipOnly: boolean,
   /** A LOOK of the player's own stands (`info` — closed by Y; the journal and the «Разыграно» table — by B). */
   look: '' | 'info' | 'journal' | 'played',
   /** The layout of a production loss stands. */
@@ -537,6 +539,8 @@ async function look(page: Page): Promise<Screen> {
       quick: document.querySelector('.con-quick') !== null,
       pass: document.querySelector('.con-quick [data-quick-id="pass"]') !== null,
       confirm: document.querySelector('.con-confirm') !== null,
+      skipOnly: document.querySelector('.con-quick [data-quick-id="pass"].con-quick__slot--disabled') !== null &&
+        document.querySelector('.con-quick [data-quick-id="skipTurn"]:not(.con-quick__slot--disabled)') !== null,
     };
   }, GLYPH_KEY);
 }
@@ -1210,6 +1214,13 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
             await press('Comma', 500);
           }
           await expect.poll(async () => (await look(page)).pass, {timeout: 3_000}).toBe(true).catch(() => undefined);
+          // (…a SECOND action's turn ends by «Пропустить ход», the wheel's up slot, at once — the pass is the turn's first
+          // action only: the bottle's scenario of the cities, game 41, met the grey pass and the door passed.)
+          if ((await look(page)).skipOnly) {
+            await press('ArrowUp', 800);
+            landed = await expect.poll(async () => (await truth()).waitingFor?.promptId !== wf.promptId, {timeout: 8_000}).toBe(true).then(() => true, () => false);
+            continue;
+          }
           await press('ArrowDown', 500);
           await expect.poll(async () => (await look(page)).confirm, {timeout: 3_000}).toBe(true).catch(() => undefined);
           await press('Enter', 800);

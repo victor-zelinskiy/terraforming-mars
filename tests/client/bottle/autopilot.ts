@@ -248,6 +248,18 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
         await press('Comma', 400);
         await bottle.until(() => sees('.con-quick [data-quick-id="pass"]'), 1_500, 100);
       }
+      // THE TURN's SECOND ACTION ENDS BY «ПРОПУСТИТЬ ХОД», never by the pass (the rules: a pass is the turn's FIRST
+      // action — the bottle's scenario of the cities, game 41: the menus that played the game's cards ran into the
+      // second action, the pilot read the grey pass as an unfinished action and the door passed). The wheel's up slot
+      // ends the turn at once — no confirm.
+      if (sees('.con-quick [data-quick-id="pass"].con-quick__slot--disabled') &&
+          sees('.con-quick [data-quick-id="skipTurn"]:not(.con-quick__slot--disabled)')) {
+        await press('ArrowUp', 800);
+        if (await bottle.until(() => server.seatTruth(viewer).promptId !== promptId, 6_000, 250)) {
+          return true;
+        }
+        continue;
+      }
       // THE PASS IS NOT OPEN YET — an action of the player's own stands unfinished (CI's bottle on `4d74b4f9a0`, game
       // 558: the opening minimized with Industrialists Campaign's rally still owed to it, the wheel's slots «Finish your
       // current action first»; the gesture could not land and the door passed). A player closes the wheel and goes back
