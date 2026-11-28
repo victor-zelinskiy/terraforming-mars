@@ -16,7 +16,7 @@ import {InputResponse} from '@/common/inputs/InputResponse';
 import {deckPickState} from '@/client/console/deckPick/consoleDeckPick';
 import {ConsoleRevealMode} from '@/client/components/console/consoleRevealOverlayTypes';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
-import {enterWorkspace, goBoardHome, leaveWorkspace, popWorkspaceFrame, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameServes, workspaceFrameHasNested, workspaceFrameIndex, workspaceFramePhase, workspaceStackTop, workspaceFrameKnown, workspaceStackCollapsed, workspaceSceneOnStage, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {enterWorkspace, goBoardHome, workspaceFrameEpoch, leaveWorkspace, popWorkspaceFrame, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameServes, workspaceFrameHasNested, workspaceFrameIndex, workspaceFramePhase, workspaceStackTop, workspaceFrameKnown, workspaceStackCollapsed, workspaceSceneOnStage, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
 import {hydroBonusAdvancePlan, hydroBonusDoorAction, hydroBonusOffer} from '@/client/console/hydroFlow/hydroBonusOffer';
 import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
@@ -568,11 +568,21 @@ export function createHydroController(shell: HydroPort) {
    *    the player is standing in did not count as the prompt's home, and the
    *    top chip flashed for attention at somebody standing on the decision.
    *
-   * The frame's depth is therefore part of the signal, and the handler is
-   * idempotent so any number of edges is harmless.
+   *  - …AND FROM THE WHEEL OVER THE DOOR'S OWN FRAME (the box's day-2 pass,
+   *    game 88): the wheel was open on the board when the door stood the track
+   *    up beneath it, and the wheel's «Гидросеть» is a lateral entry — the
+   *    door's frame popped, a fresh one pushed at the SAME depth with the
+   *    registry's `serves: []`. Action `queue` and depth 0 before and after:
+   *    no edge, the screen showing the offer served nothing, and the arbiter
+   *    called the question stranded.
+   *
+   * The frame's depth AND ITS EPOCH (a fresh instance of the kind — the stack
+   * bumps it on every push that is not a re-entry or a nested instrument) are
+   * therefore part of the signal, and the handler is idempotent so any number
+   * of edges is harmless.
    */
   const hydroBonusDoorSignal = computed((): string => {
-    return [hydroBonusDoor.value, workspaceFrameIndex('hydro')].join('|');
+    return [hydroBonusDoor.value, workspaceFrameIndex('hydro'), workspaceFrameEpoch('hydro')].join('|');
   });
 
   const hydroActionAvailable = computed((): boolean => {

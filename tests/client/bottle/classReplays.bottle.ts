@@ -608,6 +608,46 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
   });
 
   /*
+   * `liveness/stall/unserved` (holder: stranded) — the box's day-2 pass, game 88 (2026-11-28): Build Colony put an
+   * ocean down, «Динамический океанский барьер» offered its free Hydronetwork step. While the placement's own story
+   * still held the door the player opened the wheel on the board; the door then stood the Hydronetwork up UNDER the
+   * wheel, and the player took «Гидросеть» from it: a lateral entry, which pops the door's frame and pushes a FRESH one
+   * at the same depth, with the registry's `serves: []`. The door's signal was its action and the frame's depth —
+   * `queue|0` before and after — so the new frame never earned the offer, and the screen showing the offer was
+   * nobody's home: the leak detector's STRANDED PROMPT, the arbiter's stall. The law: the door re-asserts on every NEW
+   * frame of the kind (its epoch), not only on a new depth. (Here the corporation's drawn cards are the story the door
+   * waits out, and the wheel opens while they fly to the dock.)
+   */
+  it('the Hydronetwork its bonus door opened, entered AGAIN from the wheel: the new frame serves the offer — nothing is stranded', async () => {
+    const table = await bottleServer().bootFixture('hydro-terminal');
+    expect(await bottleServer().seatAsksHydroBonus(table.seats[0].id), 'the ocean raised the barrier\'s offer').to.equal('or');
+    bottle = await bootBottle(table);
+    await bottle.advance(3_000);
+    // The corporation's first action drew its cards before the page came: their reveal comes first (`followUp` waits
+    // for every card TAKEN — the barrier's own order), B takes them all.
+    expect(bottle.bar(), 'the drawn cards are shown first').to.match(/^Cards.*Take all cards$/);
+    const stack = bottle.pageModules.consoleWorkspaceStack;
+    const servesOffer = (): boolean => stack.workspaceStackState.frames.some((f) => f.kind === 'hydro' && f.serves.includes('choice'));
+    await bottle.press('Escape');
+    // …and while the taken cards fly to the dock (the door still waits), the player opens the wheel on the board.
+    for (let i = 0; i < 80 && /^Cards/.test(bottle.bar()); i++) {
+      await bottle.advance(50);
+    }
+    await bottle.press('Period');
+    await bottle.until(() => bottle?.frames().includes('hydro:browse') === true, 6_000);
+    expect(bottle.frames(), 'the offer\'s door opened the Hydronetwork — under the wheel').to.deep.equal(['hydro:browse']);
+    expect(servesOffer(), 'the door\'s frame serves the offer').to.equal(true);
+    const epoch = stack.workspaceFrameEpoch('hydro');
+    await bottle.press('ArrowLeft');
+    await bottle.advance(1_500);
+    expect(bottle.frames(), 'the wheel\'s «Гидросеть» stands').to.deep.equal(['hydro:browse']);
+    expect(stack.workspaceFrameEpoch('hydro'), 'the wheel stood a NEW frame of the kind').to.be.greaterThan(epoch);
+    expect(servesOffer(), 'the new frame serves the offer the screen shows').to.equal(true);
+    await bottle.advance(8_000);
+    expect(classes(), 'a player standing on the offer is nobody\'s defect').to.deep.equal([]);
+  });
+
+  /*
    * `screen-shadow/finding/unserved/task/nothing` (blind: announce-gate) — the monkey in the bottle's second seed
    * (`fz1 · two-player-finale-trigger`), reproduced in a real browser, cut down by the shrink to four presses:
    * → · X («Разыграно», 0.8 s) · B · LT (the wheel, held). The decision's plate stands on the board; each of the

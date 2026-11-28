@@ -37,6 +37,9 @@ import {Response} from '../../../../src/server/Response';
 import {testGame} from '../../../TestGame';
 import {SeededRandom} from '../../../../src/common/utils/Random';
 import {Payment} from '../../../../src/common/inputs/Payment';
+import {CardName} from '../../../../src/common/cards/CardName';
+import {DynamicOceanBarrier} from '../../../../src/server/cards/delta/DynamicOceanBarrier';
+import type {PlayerInput} from '../../../../src/server/PlayerInput';
 import {Server} from '../../../../src/server/models/ServerModel';
 import {TestPlayer} from '../../../TestPlayer';
 import {fuzzConfig} from '../../../fuzz/engineFuzz';
@@ -431,13 +434,53 @@ export async function seatTerraforms(playerId: string, seed: number): Promise<st
     if (player.megaCredits < cost) {
       continue;
     }
-    const payment = {...Payment.EMPTY, megaCredits: cost};
+    const payment = {...Payment.EMPTY, megacredits: cost};
     const answer = await answerAs(playerId, {type: 'or', index, response: {type: 'projectCard', card: project.name, payment}} as InputResponse);
     if (answer.status === 200) {
       return project.name;
     }
   }
   return undefined;
+}
+
+/**
+ * A CARD-GRANTED HYDRONETWORK OFFER ON THE WIRE, by the game's own road: «Динамический океанский барьер» stands in the
+ * seat's tableau, the seat buys «Водоносный слой» off its action menu and puts the ocean on the first cell it is
+ * offered — the barrier's `onTilePlaced` queues the bonus move, and the server asks it (`deltaBonusPrompt`). Returns the
+ * type of the question that stands after the ocean (`or` — the offer), or undefined when the road refused a step.
+ */
+export async function seatAsksHydroBonus(playerId: string): Promise<string | undefined> {
+  const player = [...loader.games.values()].flatMap((game) => game.players).find((candidate) => candidate.id === playerId);
+  const menu = player?.getWaitingFor();
+  if (player === undefined || menu === undefined || player.deltaProjectData === undefined) {
+    return undefined;
+  }
+  player.playedCards.push(new DynamicOceanBarrier());
+  player.megaCredits += 30;
+  const aquiferIn = (input: PlayerInput): number => (Server.getWaitingFor(player, input).options ?? [])
+    .findIndex((o) => o.type === 'projectCard' && (o.cards ?? []).some((c) => c.name === CardName.AQUIFER_STANDARD_PROJECT));
+  // A corporation's first action stands before the menu (the fixture's Inventrix): taken first, as the seat would.
+  if (aquiferIn(menu) < 0 && player.pendingInitialActions.length > 0 &&
+      (await answerAs(playerId, {type: 'or', index: 0, response: {type: 'option'}} as InputResponse)).status !== 200) {
+    return undefined;
+  }
+  const actions = player.getWaitingFor();
+  const index = actions === undefined ? -1 : aquiferIn(actions);
+  if (index < 0) {
+    return undefined;
+  }
+  const payment = {...Payment.EMPTY, megacredits: 18};
+  const bought = await answerAs(playerId, {type: 'or', index, response: {type: 'projectCard', card: CardName.AQUIFER_STANDARD_PROJECT, payment}} as InputResponse);
+  const cell = player.getWaitingFor();
+  if (bought.status !== 200 || cell === undefined) {
+    return undefined;
+  }
+  const spaceId = Server.getWaitingFor(player, cell).spaces?.[0];
+  if (spaceId === undefined || (await answerAs(playerId, {type: 'space', spaceId} as InputResponse)).status !== 200) {
+    return undefined;
+  }
+  const asked = player.getWaitingFor();
+  return asked === undefined ? undefined : Server.getWaitingFor(player, asked).type;
 }
 
 /**
