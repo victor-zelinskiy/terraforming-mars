@@ -270,5 +270,41 @@ for (const profile of PROFILES) {
         20_000, 'the finale placement stands again after the refused press');
       expect(await placeFinaleGreenery(page, request, ids[0]), 'and the next greenery is placed through the board').toBe(true);
     });
+
+    /*
+     * THE SAME WEATHER ON THE OTHER PRESS — «ЗАВЕРШИТЬ СВОЮ ПАРТИЮ» (CI's autopilot, games 621 · 630 of run 46144276012
+     * and 648 on the next head — the family of #119: a stranded `or`, the plate's lease expired over nothing, the
+     * ladder spent, the page rebuilt). The hold's submit did not land; the finish had raised «a commit is on its way»
+     * for the press and nothing ever lowered it — its release waited for an applied view, and the view re-fetched after
+     * a move that was not made is the same view. A latch of a press is its SUBMIT's (`session/pressState.ts`): the lost
+     * finish puts the finale's pick back on the same question, and the next hold finishes the seat's game.
+     */
+    test('the FINISH whose submit the network loses: the alert, then the pick stands again on the same question — and the next hold finishes', async ({page, request}) => {
+      const ids = await fixtureTable(request);
+      await driveToViewerFinale(request, ids);
+      await openConsole(page, ids[0], profile.query);
+      await openFinaleOnBoard(page);
+      expect(await onBoardPick(page), 'the board is in placement with the finale block').toBe(true);
+      let lost = 0;
+      await page.route(/\/player\/input(-batch)?\?/, async (route) => {
+        if (lost === 0 && route.request().method() === 'POST') {
+          lost++;
+          await route.abort('failed');
+          return;
+        }
+        await route.continue();
+      });
+      await holdFinishFinale(page);
+      await expect.poll(() => lost, {timeout: 15_000, message: 'the finish\'s submit was lost on the network'}).toBe(1);
+      await expect(page.locator('.con-alert'), 'the alert says so').toBeVisible({timeout: 15_000});
+      expect((await getModel(request, ids[0])).waitingFor?.finalGreeneryPrompt, 'the move was not made — the server still asks the finale').toBeDefined();
+      await press(page, 'Enter', 600);
+      await expect(page.locator('.con-alert')).toHaveCount(0, {timeout: 10_000});
+      await waitWithFrames(page, async () => (await finaleStage(page)) === 'pick' && await onBoardPick(page),
+        20_000, 'the finale\'s pick stands again after the lost finish — served on the same question, by no net and no rebuild');
+      await holdFinishFinale(page);
+      await waitWithFrames(page, async () => (await page.locator(FINALE_BLOCK).count()) === 0 &&
+        (await getModel(request, ids[0])).waitingFor?.finalGreeneryPrompt === undefined, 30_000, 'the second hold finishes the seat\'s game');
+    });
   });
 }

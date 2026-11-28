@@ -668,7 +668,13 @@ bounded by the machine's own bounds; `pick-answered`, kept by hand, was its firs
 press that had its unwind) green before and after; the finish under `network` · `stale` · `refused` · `error500` ·
 `silent` RED ×5 on the code as it stood (two independent runs: the three classes of game 630's file, class for class,
 and one rebuild) and GREEN ×5 with the law. *Each half is needed:* with the detector's row taken out the `silent` row is
-red again (`stranded-prompt/choice` filed inside the minute). Guards: `tests/console/pressState.spec.ts` (8 — every end
+red again (`stranded-prompt/choice` filed inside the minute). *In a real browser (the box):* `console-final-greenery
+.spec.ts` «the FINISH whose submit the network loses» — RED on the pin's build under the field's own signature (a
+liveness stall, the page rebuilt under the test), GREEN on the cured build in 13 s; the finale's and the strand's
+seventeen specs green; and the three storm games that had stranded — 630 · 621 · 648 — replayed on the cured build: 3
+of 3 to the final scoring, 0 records, 14 faults over 321 submits, **the gate and the ZERO bar both passed** (their
+weather did not fall on the finish this time — the spec is the road's own red, the games are three clean storms).
+Guards: `tests/console/pressState.spec.ts` (8 — every end
 of a submit), `tests/console/pressArmGuard.spec.ts` (the form, by the AST: a function that raises a latch and makes a
 submit declares it `pressState`, or stands on a list with why — one row today; the list only shrinks).
 
