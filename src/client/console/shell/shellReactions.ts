@@ -89,9 +89,6 @@ export function installShellReactions(shell: Shell): void {
   watch(() => shell.presentedDrawnRevealId, (id) => shell.whenPresentedDrawnRevealIdChanges(id), {immediate: true});
   watch(() => shell.journalHardBlocked, (now) => shell.whenJournalHardBlockedChanges(now));
   watch(() => shell.playedHeroState.phase, (phase) => shell.whenPlayedHeroStatePhaseChanges(phase));
-  // THE HAND's ALBUM SETTLES — the d-pad presses of its opening are walked then (`padRouterController.handleSectionNav`).
-  watch(() => (shell.handRevealState.phase === 'open' && shell.handRevealState.chrome === 'all' ? 'settled' : shell.handRevealState.phase),
-    (pose) => shell.whenHandAlbumPoseChanges(pose));
   watch(() => shell.patentSaleState.phase, (phase) => shell.whenPatentSaleStatePhaseChanges(phase));
   watch(() => shell.consoleMandatoryPresenting, (presenting) => shell.whenConsoleMandatoryPresentingChanges(presenting), {immediate: true});
   watch(() => shell.consoleState.sheet, (sheet) => shell.whenConsoleStateSheetChanges(sheet));

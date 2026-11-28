@@ -83,7 +83,7 @@ import {
 import {holdAnimationWhile} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
-import {checkPostCommitChoice, checkPreselectReask, notePreselectBatch} from '@/client/console/preselectWitness';
+import {checkPostCommitChoice, checkPreselectReask, notePreselectBatch, resetPostCommitWitness, resetPreselectWitness} from '@/client/console/preselectWitness';
 import {notePromptSubmit, notePromptView} from '@/client/console/promptSequence';
 import {
   detectDeferredGenerationFlip, detectGenerationScene, GenerationSceneEvent, markGenerationConversion, runGenerationFlip, runGenerationIncomeFlights,
@@ -163,7 +163,7 @@ import {startSceneHeld} from '@/client/console/consoleStartState';
 import {acknowledgeFlowHoldingCards} from '@/client/components/notifications/notificationState';
 import {registerLivenessRelease} from '@/client/console/consoleLiveness';
 import {FlowScope} from '@/client/console/kernel/flowScope';
-import {consoleAppScope, sessionChild} from '@/client/console/session/consoleSession';
+import {consoleAppScope, sessionChild, sessionState} from '@/client/console/session/consoleSession';
 import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
 import {submitMachine, SubmitStatus} from '@/client/console/transport/submitMachine';
 import {announceSubmitTicket, SubmitSettle, SubmitTicket} from '@/client/console/transport/submitTicket';
@@ -399,6 +399,14 @@ let askedBeyondView: {since: number, view: unknown} | undefined;
 let onVisibilityChange: (() => void) | undefined;
 let realtimeWakeOff: (() => void) | undefined;
 let freshnessWitnessOff: (() => void) | undefined;
+
+// THE PRE-SELECT WITNESSES END WITH THE GAME SCREEN (`preselectWitness.ts` stays pure — the server runner tests it —
+// so its session's end is declared here, where the transport feeds it): a new game never inherits the last batch's
+// addresses nor a commit's watch.
+sessionState('preselect-witness', () => {
+  resetPreselectWitness();
+  resetPostCommitWitness();
+}, 432);
 
 // ── ONE SUBMIT = ONE SCOPE (architecture v2, lifecycle 4) ───────────────────────────────────────────────────────────
 

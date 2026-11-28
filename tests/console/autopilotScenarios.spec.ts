@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import * as fs from 'fs';
 import * as path from 'path';
+import {PREMIUM_SCOPE_MODULES} from '../../src/common/cards/premiumScope';
 import {AUTOPILOT_SCENARIOS, CARDS_SCENARIO_HANDS, CARDS_SCENARIOS, dealFor, LEDGER_CARDS, SCENARIO_TARGETS, scenarioFor} from '../testing/autopilotDeal';
 
 /**
@@ -47,7 +48,7 @@ describe('autopilot scenarios', () => {
   });
 
   it('the ledger\'s cards are dealt to DEALT games of a CI pass — never only to the scenarios\' or the campaign\'s', () => {
-    const on = new Set(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'prelude2', 'ares', 'deltaProject', 'turmoilRedux']);
+    const on = new Set<string>(PREMIUM_SCOPE_MODULES);
     const dealtGames = Array.from({length: 48}, (_, i) => 537 + i).filter((n) => scenarioFor(n, 'auto') === undefined && n % 8 !== 5);
     for (const card of [...LEDGER_CARDS.corporations, ...LEDGER_CARDS.projects, ...LEDGER_CARDS.preludes]) {
       const games = dealtGames.filter((n) => {

@@ -200,7 +200,6 @@
   "src/client/console/played/playedCardReturn.ts": 1,
   "src/client/console/played/playedCategoryView.ts": 1,
   "src/client/console/played/playedHeroDirector.ts": 1,
-  "src/client/console/preselectWitness.ts": 2,
   "src/client/console/promptSequence.ts": 3,
   "src/client/console/quickWheel/wheelControlMode.ts": 1,
   "src/client/console/railProtectionModel.ts": 1,

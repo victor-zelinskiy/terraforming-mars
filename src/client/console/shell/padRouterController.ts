@@ -8,7 +8,7 @@ import {invariantBroken} from '@/client/diagnostics/invariant';
 import {ExposedOf} from '@/client/components/exposedOf';
 import {cursorEnsureVisible, scrollContainerOf} from '@/client/console/cursorScroll';
 import {stickScrollBy} from '@/client/console/stickScrollTarget';
-import {computed, ref, onBeforeUnmount, onMounted} from 'vue';
+import {computed, ref, onBeforeUnmount, onMounted, watch} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
@@ -2250,6 +2250,10 @@ export function createPadRouterController(shell: PadRouterPort) {
     }
   }
 
+  // THE HAND's ALBUM SETTLES — the d-pad presses of its opening are walked then (`handleSectionNav`).
+  watch(() => (handRevealState.phase === 'open' && handRevealState.chrome === 'all' ? 'settled' : handRevealState.phase),
+    (pose) => whenHandAlbumPoseChanges(pose));
+
   function handleSectionConfirm(): void {
     // No accidental card activation under the flying reveal proxies —
     // A waits out the episode (navigation stays free; B reverses).
@@ -2677,7 +2681,6 @@ export function createPadRouterController(shell: PadRouterPort) {
     handleSheetIntent,
     handleSectionIntent,
     handleSectionNav,
-    whenHandAlbumPoseChanges,
     handleSectionConfirm,
     handleSectionBack,
     scrollActiveConsole,
