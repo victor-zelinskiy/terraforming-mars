@@ -11,6 +11,34 @@
 
 ## 0. Where the work stands (the hand-over)
 
+**THE HAND-OVER OF 2026-11-28 — the program goes to a FRESH-LOOK session; the session that ran stage 6 stays as CI's
+support.** The goal does not change (the owner): the product reliable like a Swiss watch in every corner case — no
+freeze, no visual defect (a motion that does not play, a flow that goes the wrong way), the warning lines at zero
+because the flow accounts for every case (never because a check was weakened), so that the field sends no tickets.
+What is CLAIMED, and what was not re-measured — **a claim here is a starting point for the fresh look, not a fact**:
+
+| Stage (§8) | Claimed | Not re-measured / still open |
+| --- | --- | --- |
+| 1 · the nets fall silent | exit reached 2026-11-20 (`ab6ad53eba`) | the perturbation matrix not re-run on today's head |
+| 2 · one owner per question | exit reached 2026-11-23; the owner law gated on every pass | #111 (a pad rung named wrong) reopened 2026-11-28 — fixed `983c3b60d0`, awaiting a whole pass |
+| 3 · every wait bounded and owned | the three guards at zero (`kernelCoverage`, `waitGraphLaw`, flags as runs) | — |
+| 4 · the state space walked | the ledger read row by row 2026-11-25 (24 → 6); the owner's bar: a REAL hundred — a flow «declared with a reason» is not covered | the six rows; the transport faults' «served or rebuilt once» over a whole pass |
+| 5 · the server as an equal | the engine fuzz + reload equivalence stand | the nightly volume and its zero not re-read |
+| 6 · whole games and time | the coverage axes at 100 % (the autopilot's ledger debt 0, input types 20/20 in the browser, cards 672/672 played through the console) | **the stage's own exit numbers** — 100 whole games per map set with 0 episodes / 0 rebuilds, the 8-hour soak — not re-measured since step 7; the bottle's INFO tier (jsdom has no layout) not zero |
+| 7 · nets retire · the gate · the field | not started as a stage (the gate runs nightly; the field = the owner's own games once 1 – 6 are at a real 100 %) | the ladder's rungs, the planned / info lines a healthy pass still prints |
+| — · VISUAL DEFECTS | **no stage owns them yet**: the judges see a screen that cannot be answered; a motion that never played, a token that never flew, a flow that went another way while the screen stayed answerable is seen only by specs written for it | the fresh look decides how the architecture sees and closes them |
+
+*Today's head:* `4392fb1fc2` (1.2.3631). CI green on it; the confirming passes of 2026-11-28 (CI's autopilot 585 – 632,
+the box's 113 – 160): 3 games red of 96, two classes, taken by the support session (§8, «THE DAY's QUEUE»). *The open queue:* `gh issue list --repo
+victor-zelinskiy/terraforming-mars --label ci-finding`. **Who takes what:** the label `taken:fz-program` — the program's
+session (the support session leaves the issue alone); `taken:ci-support` — the support session (a pointwise fix of a
+CI finding; the program's session takes one over by putting its own label and a comment). An unlabelled finding is
+the support session's to triage first. **Trees:** the support session works in `C:\Projects\Mods\tm-fz-w` (branch
+`fz-next`); the program's session in a worktree of its own. **The box** is the program's for whole passes; the support
+session takes it pointwise only (≤ 3 workers, after `ps` shows no other run), snapshots prefixed by session.
+
+*Phase one's milestones (2026-11-14 / 15), kept for the record:*
+
 | # | Milestone | State |
 | --- | --- | --- |
 | P0 | the plan, the worktree, the reading | **done 2026-11-14** |
@@ -3198,6 +3226,14 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   - The bottle's rival never terraformed: its standard project was answered with `megaCredits` (the payment's key is
     `megacredits`) and refused every time — the two-seat tables ran long for it. Fixed with the helper that brings the
     Hydronetwork's offer onto the wire.
+  - **A drain the terraformed scene cuts is a drain ended** (#187 / #189 — CI's browser game 1040, `4392fb1fc2`): the
+    scene took the values mid-settle and cancelled the drain's only ends; `draining` stood 35 s over nothing.
+    `boardBeatPark.spec`: RED without, GREEN with.
+  - **The confirming passes on `983c3b60d0`:** the box's games 113 – 160 — 47 of 48; CI's autopilot 585 – 632 — every
+    bottle lane green, two browser games red. Three games, two classes, all TAKEN BY THE SUPPORT SESSION at the
+    hand-over: the box's 120 — after the sitting (its frame dropped aside, «its phase is over»), the draft's question
+    `cardSelect` stood with no surface and no door, rebuilt at 8 s; CI's 621 and 630 — a `choice` stranded on the board
+    with `foreground: expired lease:mandatory-choice` (621 beside the terraformed scene), the family of #119.
 - **THE CARDS AXIS TO ITS LAST CARD (stage 6, 2026-11-28 — the owner: «довел до 100% покрытия перед передачей»).**
   The deal's `missing` windows took the axis from 512 to 595 of 673 (`autopilotCardsUnplayed.json`); the residue of 78
   was the cards of a REQUIREMENT no dealt game meets — a ruling party or two delegates on its resolution, seven science

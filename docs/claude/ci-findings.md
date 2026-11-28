@@ -152,6 +152,12 @@ issues (needs `GH_TOKEN`, `issues: write`).
   | a verdict and an open `ci-fix` pull request (`Fixes #<issue>`) | the repository's — the fix is being proven and landed |
   | **`for:session`** | **a working session's (§ 5) — nothing automatic will close it** |
   | `triage:infra`, no `for:session` | nobody's — it closes itself when it does not recur |
+
+  **WHICH working session (since 2026-11-28 two of them share the queue):** `taken:fz-program` — the FREEZE ZERO
+  program's session (an architectural class, a stage's own work); `taken:ci-support` — the CI-support session (a
+  pointwise fix of a finding). One session never works an issue the other has labelled; to take one over, a session puts
+  its own label and says why in a comment. An unlabelled `for:session` / `triage:real` finding is the support session's
+  to look at first. The morning agent leaves both labels alone.
 - A run narrowed by hand (`grep`, `only`) may file too when it is the gate or the monkey (a class is a class); the e2e
   suite files only when it ran WHOLE.
 
