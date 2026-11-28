@@ -3146,6 +3146,31 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   ② Games 556 and 566: a workspace standing `committed` / `executing` (a colony from the hand inside the Parliament; the
   standard project's colony) while the server asked the menu — the pass could not be made from the screen. Replayed on
   the box on the head: no door; not fixed blind — watched in the next passes.
+- **STAGE 6 — THE COVERAGE AT 100 % ON EVERY AXIS, AND THE QUEUE OF 2026-11-28 WORKED DOWN (the owner: «оставляю тебе
+  на ночь бокс … довести задачу до стабильного состояния перед тем как отдавать работу другой сессии»).** *The axes:*
+  the kernel's ledger debt 0 over 243 passes (frames 13 of 13), input types **20 of 20 in the browser** (CI on
+  `9db45debcb` — `resources` walked there too, the Philares deal moved to dealt games), cards **672 of 672**. *The
+  night:* the box's 64 whole games on `8395cdaf75` (63 green, game 45 red), the bottle's 24 (two defects), CI's
+  autopilot and the freeze gate — every finding read and cured at its root, each with its red/green:
+  - the finale's offer read by the screen's shadow as the board's (`3e34ede433`, #193 — the gate's `finale-diverted`
+    walks red on fz0, pass on fz0 / fz1 / d20261128);
+  - a held flow beat whose question a workspace on stage serves is acknowledged at the edge (`80f08d4209`, #192 — the
+    bottle's game 11: the cycle before, the same walk clean after);
+  - a claim whose answer the player owes waits on the question; the reveal's `place-standing` / `seal-gone` are the
+    bottle's blindness — the same take in a real browser names neither (`3f9cd36d49`, #194 – #196; a class replay
+    shrunk 65 → 8 steps, red on the old node);
+  - the Hydronetwork commits no move over an answer on the wire (`a3ec39f652`, the bottle's game 18);
+  - the one function holds the sitting's draw while another frame covers its host (#110 — game 545: MISS 6 → 0);
+    #111 not reproduced on the head;
+  - the arbiter judges a taken B by what it did (`backUnmoved` — the picture before its handler against the picture
+    after its render): the box's game 45, «presses-no-effect · deaf» over a colony step whose A / B toggled a pick;
+  - a parked frame of the turn dies once the viewer's turn is over (`f50a9f0721`, #180 / #191 — game 577: the plate
+    restored a parked card action and nested the sitting's colony in it);
+  - the pilots end a second action by «Пропустить ход» (`9db45debcb`), the bottle's applies «X Apply» (the hazard
+    thresholds), the monkey has its reading aid (`TM_BOTTLE_MONKEY_DEBUG`).
+  *Open, watched:* #187 / #189 (`board-beat-drain` 35 s with nothing held — one browser game; the hold's diagnosis now
+  names the drain's step, `8395cdaf75`), #190 (two Greens reactions in one slot — one browser game). The confirming
+  passes on the head: CI's autopilot and freeze gate (dispatched), the box's games 65 – 112.
 - **THE CARDS AXIS TO ITS LAST CARD (stage 6, 2026-11-28 — the owner: «довел до 100% покрытия перед передачей»).**
   The deal's `missing` windows took the axis from 512 to 595 of 673 (`autopilotCardsUnplayed.json`); the residue of 78
   was the cards of a REQUIREMENT no dealt game meets — a ruling party or two delegates on its resolution, seven science
