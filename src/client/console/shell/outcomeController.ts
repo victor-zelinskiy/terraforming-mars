@@ -68,6 +68,7 @@ import {clearAwaitingHandoff, captureSurfaceDeparture, surfaceMotionState} from 
 import {resolveAwaiting} from '@/client/console/surfaceMotion/surfaceMotionModel';
 import {beginBlockadeExecution, consumeBlockadeExecution} from '@/client/console/hydroFlow/deltaBlockadeEntry';
 import {takeUpQuestion} from '@/client/console/setAside';
+import {betweenGenResearchLive} from '@/client/console/draft/consoleDraftFlow';
 
 /** PL-127: the composer's unfold is over by then — the warm mount of a declared hosted step lands in the reading pause. */
 const PARLIAMENT_WARM_SETTLE_MS = 450;
@@ -256,8 +257,12 @@ export function createOutcomeController(shell: OutcomePort) {
     // press raised, and the payment that finishes it (pick-then-pay is one
     // decision). Same kind set the reconciler's play arm reads.
     const task = taskFor(shell.playerView);
+    // …NEVER THE GENERATION's OWN RESEARCH (#204 — CI's autopilot, the bottle's game 661): a press's chain ends with
+    // the generation, and the draft's pick / the research buy are the PHASE's questions. Pluto's colony bonus («draw,
+    // then discard») stood answered in the colonies when the generation turned; its `pick` claim read the draft's
+    // `cardSelect` as its own follow-up, served it on a screen that no longer stood, and outlived its host saying so.
     if (task !== undefined && workspaceClaimsPick() &&
-        PLAY_CLAIMED_TASK_KINDS.has(task.kind)) {
+        PLAY_CLAIMED_TASK_KINDS.has(task.kind) && !betweenGenResearchLive(shell.playerView)) {
       return true;
     }
     // The optional effect the press woke up — structural on both sides.

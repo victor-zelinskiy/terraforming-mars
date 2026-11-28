@@ -64,6 +64,28 @@ describe('workspace outcome claim · its life in time', () => {
       expect(warned).to.deep.eq(['[workspace-outcome] the claim of «card-actions» (Hi-Tech Lab [draw,pick]) outlived its host — released; its question presents on its own surface']);
     });
 
+    /*
+     * #204 (CI's autopilot on `74910b95e2`, the bottle's game 661 — four times in one game): Pluto's colony bonus
+     * («draw, then discard») stood answered in the colonies — its answer in, its beat played, its cards arrived, no
+     * question of its kinds asked — when the generation ended and its scene took the screen into the draft
+     * (`goBoardHome` dropped the colonies). The claim was a FINISHED story; the host leaving orphaned nothing, and the
+     * line «outlived its host — its question presents on its own surface» named a question there was none of.
+     */
+    it('a claim that owes NOTHING ends with its host, in silence — no question is orphaned, none is said', async () => {
+      enterWorkspace('colonies');
+      claimWorkspaceOutcome('colonies', 'Pluto', ['draw', 'pick'], 0, 1);
+      setWorkspaceOutcomeServingProbe(() => false);
+      markWorkspaceOutcomeAnswerIn();
+      markWorkspaceOutcomeBeatDone();
+      markWorkspaceOutcomeArrivalDone();
+      markWorkspaceOutcomePresenting();
+      goBoardHome();
+      clock.advance(CLAIM_HOST_GONE_GRACE_MS);
+      expect(workspaceOutcomeClaimed(), 'released with its host').to.eq(false);
+      expect(lastOutcomeReleaseStack).to.contain('host-left');
+      expect(warned.filter((line) => line.includes('outlived its host')), 'nothing to say').to.deep.eq([]);
+    });
+
     it('…even a SERVING one: a host that is gone has no zone coming back', async () => {
       enterWorkspace('card-actions');
       claimWorkspaceOutcome('card-actions', 'Hi-Tech Lab', ['draw', 'pick']);

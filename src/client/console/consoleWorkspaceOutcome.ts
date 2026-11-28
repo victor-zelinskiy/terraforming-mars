@@ -413,6 +413,14 @@ function startClaim(gated: boolean): void {
 /** The machine reached its end by one of ITS OWN bounds — «claimed and nothing came», or its host stayed gone. */
 function claimEndedItself(reason: string): void {
   if (reason === 'host-gone') {
+    // A CLAIM THAT OWES NOTHING ENDS WITH ITS HOST (#204 — CI's autopilot, the bottle's game 661: Pluto's colony bonus
+    // stood answered in the colonies when the generation's scene took the screen into the draft). Its answer is in,
+    // its beat played, its cards arrived, and no question of its kinds is asked: a FINISHED story whose host left —
+    // nothing is orphaned, so nothing is said. Only a claim still owing something has a question to present elsewhere.
+    if (workspaceOutcomeState.answerIn && workspaceOutcomeState.beatDone && workspaceOutcomeState.arrivalDone && !workspaceOutcomeServing()) {
+      performRelease('host-left, nothing owed');
+      return;
+    }
     const host = workspaceOutcomeState.host;
     const card = workspaceOutcomeState.sourceCard;
     const kinds = workspaceOutcomeState.kinds.join(',');
