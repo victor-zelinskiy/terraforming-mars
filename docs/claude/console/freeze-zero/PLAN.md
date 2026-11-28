@@ -11,31 +11,84 @@
 
 ## 0. Where the work stands (the hand-over)
 
-**THE HAND-OVER OF 2026-11-28 — the program goes to a FRESH-LOOK session; the session that ran stage 6 stays as CI's
+**THE FRESH LOOK — 2026-11-28. The program is the fresh-look session's; the session that ran stages 1 – 6 is CI's
 support.** The goal does not change (the owner): the product reliable like a Swiss watch in every corner case — no
-freeze, no visual defect (a motion that does not play, a flow that goes the wrong way), the warning lines at zero
-because the flow accounts for every case (never because a check was weakened), so that the field sends no tickets.
-What is CLAIMED, and what was not re-measured — **a claim here is a starting point for the fresh look, not a fact**:
+freeze, no visual defect (a motion that does not play, a token that does not land, a flow that goes the wrong way), the
+warning lines at zero because the flow accounts for every case (never because a check was weakened), so that the field
+sends no tickets. The hand-over asked for one thing first: **re-measure what the journal claims, on today's head, and
+say where a metric measured the wrong thing.** That was done on day one — the pin is `74910b95e2` (the branch
+`fz/pin-1128`) — and its evidence is a file of its own: **`AUDIT-2026-11-28.md`** beside this one (thirty read-only
+auditors, then one independent verifier per finding told to refute it: 239 findings — 67 confirmed as worded, 148 in a
+narrower form, 1 refuted; every finding with its evidence at the pin and the command that re-checks it). What follows is
+that audit read against the stages.
 
-| Stage (§8) | Claimed | Not re-measured / still open |
-| --- | --- | --- |
-| 1 · the nets fall silent | exit reached 2026-11-20 (`ab6ad53eba`) | the perturbation matrix not re-run on today's head |
-| 2 · one owner per question | exit reached 2026-11-23; the owner law gated on every pass | #111 (a pad rung named wrong) reopened 2026-11-28 — fixed `983c3b60d0`, awaiting a whole pass |
-| 3 · every wait bounded and owned | the three guards at zero (`kernelCoverage`, `waitGraphLaw`, flags as runs) | — |
-| 4 · the state space walked | the ledger read row by row 2026-11-25 (24 → 6); the owner's bar: a REAL hundred — a flow «declared with a reason» is not covered | the six rows; the transport faults' «served or rebuilt once» over a whole pass |
-| 5 · the server as an equal | the engine fuzz + reload equivalence stand | the nightly volume and its zero not re-read |
-| 6 · whole games and time | the coverage axes at 100 % (the autopilot's ledger debt 0, input types 20/20 in the browser, cards 672/672 played through the console) | **the stage's own exit numbers** — 100 whole games per map set with 0 episodes / 0 rebuilds, the 8-hour soak — not re-measured since step 7; the bottle's INFO tier (jsdom has no layout) not zero |
-| 7 · nets retire · the gate · the field | not started as a stage (the gate runs nightly; the field = the owner's own games once 1 – 6 are at a real 100 %) | the ladder's rungs, the planned / info lines a healthy pass still prints |
-| — · VISUAL DEFECTS | **no stage owns them yet**: the judges see a screen that cannot be answered; a motion that never played, a token that never flew, a flow that went another way while the screen stayed answerable is seen only by specs written for it | the fresh look decides how the architecture sees and closes them |
+**THE VERDICT.** The architecture of stages 1 – 5 is real — the function that names one owner, the kernel with nothing
+waiting outside a scope, the engine fuzz at zero — and the audit confirms it line by line. But **no stage's exit number
+holds on today's head**, the instruments under-count in ways that are now proven, and **three classes of defect have no
+owner at all**: a story that was promised and not told, a flow that went where its contract does not send it, and a
+screen that takes the pad and cannot be answered. The last one is not hypothetical: CI's browser game 632 on
+`983c3b60d0` stood on «Парламент · A Выполняется…» for four generations — no net spoke, the test passed, the gate
+booked «1 capped», nothing was filed (audit A1).
 
-*Today's head:* `4392fb1fc2` (1.2.3631). CI green on it; the confirming passes of 2026-11-28 (CI's autopilot 585 – 632,
-the box's 113 – 160): 3 games red of 96, two classes, taken by the support session (§8, «THE DAY's QUEUE»). *The open queue:* `gh issue list --repo
-victor-zelinskiy/terraforming-mars --label ci-finding`. **Who takes what:** the label `taken:fz-program` — the program's
-session (the support session leaves the issue alone); `taken:ci-support` — the support session (a pointwise fix of a
-CI finding; the program's session takes one over by putting its own label and a comment). An unlabelled finding is
-the support session's to triage first. **Trees:** the support session works in `C:\Projects\Mods\tm-fz-w` (branch
-`fz-next`); the program's session in a worktree of its own. **The box** is the program's for whole passes; the support
-session takes it pointwise only (≤ 3 workers, after `ps` shows no other run), snapshots prefixed by session.
+| Stage (§8) | What HOLDS on the pin | What does NOT (the number) | Re-measure |
+| --- | --- | --- | --- |
+| 1 · the nets fall silent | the 24 cells at 0 defect records on `ab6ad53eba` are real (18 on CI, 6 on the box) | not held since: 0 of 24 cells on the pin, `cpu6` / `net1500` never re-run, 26 tables (632, not 606) never perturbed; «the blind list shrinks only» — it went 6 → 13 rows and two are a real browser's defects (#199, #161); the exit cells carried 361 planned records; the frame witness reads a page blocked by its OWN script as «starved», the arbiter is not suspend-aware (A16) | the 24 cells on `fz/pin-1128`, one at a time (queued behind the Autopilot) |
+| 2 · one owner per question | the function is total (its three specs pass on the pin), the nine prompt surfaces mount by it; pad-MISS 0 on #111's whole pass | «impossible by construction → nets retired»: a question stood unserved 10 s and the page was rebuilt in browser games 621 and 630 while the law read MISS 0 — and again on the pin's code (the box's game 3014); «derived from ONE function» holds for the nine prompt surfaces only — the workspace owners (the hand, the colonies, the Parliament, the standard projects, the Hydronetwork, the awards, the board) open by the task's kind, the bar's order and the finale are its own; half of all looks are «held as said» and unjudged; #111's cure re-named the rung (A2, A17) | every whole pass below, by the page's own rebuild count |
+| 3 · every wait bounded and owned | `kernelCoverage` = 0 literally; the eight guards green; no ceiling constant was raised | «the wait graph sees 100 % of waits» has no denominator; six guards of eight detect by NAME; two unbounded waits behind an import alias (`colonyController.ts:2222`, `:2324`); ≈ 6 polled waits end on a wall clock with no line; a timer-fired `guarantee` leaves no trace; the flag class froze CI 35 s one commit before the pin (A18) | static — a guard with a denominator (stage M) |
+| 4 · the state space walked | the denominators of the machines, the 274-flow universe, the seven by-name submit-fault tests | 45 of 66 moves and 268 of 274 flows walked at most; 27 rows open under the owner's bar, not six; `kernel-walked --gate` runs nowhere and exits 3 over CI's own corpus; the Parliament's frame left its protocol twice on 2026-11-28 (`verdict → configure`), filed info (A3, A19) | per pass, by CI (stage M) |
+| 5 · the server as an equal | the baseline empty; every finding closed with a seed and a card spec; four green nightlies | the nightly is 0.22 – 0.32 M steps, not «N million»; no batch route, no creator defaults (random M & A, the shuffled map), no campaign, no production bot scheduler; reload judges ≈ 21 % of the answers; no shrinker (A20) | the nightly's own report, with a volume floor |
+| 6 · whole games and time | one clean hundred — run 45471563686 on `b724622738`, 131 commits behind, 5 – 15 games a board; input types 20 / 20 per pass; the cards' denominator | never «per map set»; 9 of the last 10 Autopilot runs red, the green one the fifth replay of one range, every FRESH range names new classes; the zero bar is run by nothing — 0 of 10 world-passes pass it; «rebuilds 0» is a field the browser never writes; «672 / 672» and «ledger debt 0» are unions over two weeks (one CI pass: cards 62 %, flows 244 / 274, moves 35 / 66); the twelfth board never dealt in a browser; the pilot types on a keyboard into a 1280×720 handheld page at motion ×0.5; no 8-hour soak ever (the longest 2.5 h), «flat» by eye (A5 – A13, A21) | the box: a hundred fresh games on the pin (`fp-count2`, 3001 – 3100); CI: Autopilot 46154080374 (633 – 680) |
+| 7 · nets retire · the gate · the field | not started, as said; no Sentry flood at today's rate (≈ 35 defect events per 100 h) | the release ships on every push, gated by nothing; acting nets fire 0.081 per 1 000 presses in the browser — no pass at zero; A7 never run; nobody reads the field's ledgers (A14, A22) | — |
+| — · VISUAL DEFECTS | token ENDS are witnessed in every build; the presentation ledger is a real promise book (seven owners) | a story not told is a NOTE — 78 of 127 diagnostic families with no class, no tier, no event; the product's own «not shown as promised» verdicts (21 print sites) are compiled out of every measured build; cards have no end witness; a token that never started is counted nowhere; a ceiling names the wait, never the story; nothing asks where a flow went, whether a cursor stands, whether the painted equals the applied (A23 – A28) | stages 8 and 9 below |
+
+**WHAT THE AUDIT CHANGES — three decisions.**
+
+1. **The instruments first.** Game 632, the two rebuilt pages printed as «rebuilds 0», a crashed bottle shard reading
+   «GATE: pass», a zero measured on a range replayed seven times: each was invisible for a reason of the INSTRUMENT, not
+   of the product. No number of stages 1 – 9 is quoted from now on unless the instrument that produced it has a
+   denominator and a spec of its own. That is **stage M**, and it goes first.
+2. **Three classes get owners.** *The story not told* — **stage 8**. *The flow gone the wrong way, the screen that
+   cannot be answered* — **stage 9**. They are stages with exit numbers like the others (§8, «THE STAGES OF THE FRESH
+   LOOK»), found by the architecture itself and not by a spec written for one case.
+3. **A closure is a law with a replay, or it is not a closure.** Three closures of the last week changed the instrument
+   (a rung re-named, a line re-tiered to «planned», a spec edited — A15); a family reopened four times after three
+   pointwise cures (#119). From now on a class is closed by: the law, a guard that fails without it, and a replay that
+   can be turned red — in the commit, not in its message; a re-tiering closes nothing.
+
+**THE ORDER OF WORK** (each step: red first → the law → the guard → the replay → CI's verdict):
+
+1. **Stage M — the measure is honest** (now): the report's denominators; «stuck» and «rebuilt» read off the page in
+   both worlds; a capped game and a door streak are red; the zero bar as CI's verdict of whole games; fresh ranges by a
+   committed high-water mark; the excuses carry their evidence (the two falsified blind rows go at once).
+2. **The two families handed to the program** — the stranded question (#119 #170 #171 #172 #177, with game 632 and the
+   box's game 3014 beside it) as the first class of stage 9's answerability judge and of stage 4's fault law;
+   `start-bonus:visible-source` (#161) as the first story of stage 8's book.
+3. **Stage 8** — the one book of stories; **stage 9** — the prescriptive protocol and the contract witness.
+4. **Stages 1 – 6 back to their numbers on ONE commit**, read by the honest instruments: the matrix, a hundred fresh
+   games per board, the soak with a slope.
+5. **Stage 7** — nets to observers by evidence, the release candidate's gate (the channel is the owner's decision), the
+   field report; then the owner's own games.
+
+**IN FLIGHT on the pin (2026-11-28).** The box: `fp-count2` — games 3001 – 3100 in a real browser, four lanes of one
+(the first attempt, `fp-count1`, ran 18 games with no Russian locale in the box worktree and is void — audit A30; it
+still named game 3014). CI: Autopilot 46154080374 (games 633 – 680, both worlds); the Freeze gate 46154082798 —
+**green on the pin, three seeds**. Queued: the 24 cells of stage 1's matrix on `fz/pin-1128`, one at a time.
+
+*The open queue:* `gh issue list --repo victor-zelinskiy/terraforming-mars --label ci-finding`. **Who takes what:** the
+label `taken:fz-program` — the program's session (the support session leaves the issue alone); `taken:ci-support` — the
+support session (a pointwise fix of a CI finding; the program's session takes one over by putting its own label and a
+comment). An unlabelled finding is the support session's to triage first. **Trees:** the support session works in
+`C:\Projects\Mods\tm-fz-w` (branch `fz-next`); the program's session in `C:\Projects\Mods\tm-fz-p` (branch
+`fz-program`), its box passes from `C:\Projects\Mods\tm-fp-box`. **The box** is the program's for whole passes; the
+support session takes it pointwise only (≤ 3 workers, after `ps` shows no other run), snapshots prefixed by session
+(`fp-…` the program's, `fz-…` the support's). ⚠ A box worktree needs the three generated directories the build writes
+into the SOURCE tree — `build/`, `src/genfiles/`, `assets/locales/` — or the page boots in English and the pass is void.
+
+*The hand-over of 2026-11-28 as the previous session wrote it* (what it claimed, kept for the record — the table above
+is its re-reading): stage 1 exit reached 2026-11-20 (`ab6ad53eba`) · stage 2 exit reached 2026-11-23, the owner law
+gated on every pass · stage 3 the three guards at zero · stage 4 the ledger read row by row 2026-11-25 (24 → 6) ·
+stage 5 the engine fuzz and reload equivalence stand · stage 6 the coverage axes at 100 % (the autopilot's ledger debt
+0, input types 20 / 20 in the browser, cards 672 / 672) · stage 7 not started · visual defects owned by no stage.
 
 *Phase one's milestones (2026-11-14 / 15), kept for the record:*
 
@@ -499,6 +552,18 @@ submit 25 %, claim 3.7 % of 242 · every perturbed box pass still names 1 – 2 
 | **5 · THE SERVER AS AN EQUAL** (1.5 wk) | an engine fuzz: random legal games over every in-scope expansion and map, with MarsBot, checking after EVERY request — somebody is asked or the bot is on its way or END · no unanswerable question · the deferred queue is drained · save → load → the SAME question (reload equivalence) | N million engine steps nightly, 0 violations; every violation is a shrunk seed + a card fix |
 | **6 · WHOLE GAMES AND TIME** (1.5 wk) | an autopilot that plays WHOLE games through the real UI (first press → final scoring; the monkey walks 60 presses from a fixture and never ends a game), soak runs of hours (leaks, timer drift, the 4K TV profile), frame budgets of the key scenes on the box (R16's native half) | 100 whole games per map set, 0 episodes, 0 rebuilds; an 8-hour soak with flat memory and no long-frame growth |
 | **7 · NETS RETIRE BY EVIDENCE · THE GATE · THE FIELD** (1 wk, then standing) | each net with 0 fires over the matrix AND a law that closes its class is switched to observer, then removed — the end state is ONE arbiter, ONE last line, the pulse; the gate runs on every release (`gate:freeze` in CI + the nightly box matrix); the field's number is read per release (`npm run diag -- trend`: episodes and rebuilds per 100 h of play) with an alarm on a NEW cause class | ladder rungs 12 → the few that still fire for a named reason; a release cannot ship on a new class; the field window: 0 unhealed, rebuilds → 0 |
+
+**THE STAGES OF THE FRESH LOOK (added 2026-11-28 — `AUDIT-2026-11-28.md`; §0 has the audit's reading of stages 1 – 7).**
+The seven stages above asked «can the question be answered, and is every wait owned». The audit found three things
+they do not ask, and one thing under all of them — the measure itself. Each is a stage with an exit number; stage M
+goes first, because every other number is read through it.
+
+| Stage | What becomes true | Exit — a number, never an impression |
+| --- | --- | --- |
+| **M · THE MEASURE IS HONEST** (first) | a pass has a DENOMINATOR — the games / walks asked for are the games / walks counted, a missing, cut or thrown one is red, and a page that did not boot as the product ships (its locale, its profile) voids the pass; the whole games' gate IS the zero bar — a record of any tier, a door answer, a capped game, a line of the log — red with its debt printed per class, never lowered to turn it green; «stuck» and «rebuilt» are read off the PAGE in both worlds, and a door that answers under one unchanged screen is a freeze; a confirming pass is FRESH (a committed high-water mark of spent game numbers), a replay is a regression check and says so; coverage is per commit and per world, «walked» and «declared» are two columns, a card's play has a provenance (the pad · the door · a fixture); an excuse carries its evidence and dies by evidence — a blind / baseline row names the browser run that said «not there», falls the day a browser names its class, and its counts are enforced; the scripted e2e suite gates defect-tier records; the Autopilot runs on a schedule; a lane of whole games plays as a player does (a gamepad, the TV profile, motion ×1); every pilot rule that restricts the thumb names the spec that walks what it avoids | the report's own specs over synthetic passes — an empty directory, a cut file, a thrown game, a capped game, a door streak, a rebuilt page — each RED; CI's Autopilot verdict is `--zero`; 0 blind / baseline rows contradicted by a browser class of the same pass; the three coverage ledgers (kernel, cards, input types) produced BY CI per pass with per-world columns; the pilot-rule ledger with 0 unexplained rows |
+| **8 · THE STORY IS TOLD** | every presentation the product promises — a flight, a wave, a landing, a reveal, a transition — is a STORY of ONE book (the presentation ledger's idea, for every teller): opened where the promise is made, ended exactly once as *told* · *cut by the player* (its end state landed) · *by design* (reduced motion, the performance mode — a closed list) · **UNTOLD** with its reason (no source, not measured, a ceiling, the host gone, superseded, a safety). An untold story on a painted page is a DEFECT of class `story/untold/<story>/<reason>` in EVERY build — no build flag in front of a verdict, no NOTE that states a degradation; a net that ends a wait says which story it cut and what the player was shown instead; a `guarantee` that fires by its timer leaves a trace; a card's flight has the end witness a token's has; the session's ledger carries stories told / untold per class to the field | CONSERVATION — every story opened is ended, per class, over whole passes; `untold` = 0 on a painted page over the perturbation matrix and over a hundred fresh games per board in a real browser; the guard «no NOTE line states a degradation» at zero (≈ 30 sites today); diagnostic print sites behind a build flag = 0 (21 today); silent `guarantee` firings = 0 |
+| **9 · THE FLOW GOES WHERE ITS CONTRACT SAYS, AND THE SCREEN CAN BE ANSWERED** | the frame protocol is PRESCRIPTIVE — the commit boundary's law, and a move it does not hold is a defect, never «info» — and every workspace writes its phase to its frame; ONE witness on the frame machine's edges holds the workspace contract of `CLAUDE.md`: Back is one logical level and the carried object survives it, a finished flow leaves through the one conclusion and lands where it says, the crumb only gains a tail, a stage has one instance; THE ANSWERABILITY JUDGE — while the server asks this seat, the surface that serves offers an enabled answer or stands in a declared beat: «accepting» is not «answerable» (game 632), and a press that was taken and changed nothing is judged for every button; a cursor exists, is painted and stands on a live element; at rest the instruments' painted values are the applied view (invariant 16's runtime reader) | 0 records of `flow-contract/*` · `answerable/*` · `cursor/*` · `truth/*` over whole passes; every contract of «A WORKSPACE IS ONE FLOW» is a row of the witness's table (a guard holds the table to the document); the pilots' own judgments (`backUnmoved`, the door) are product judges, and the door answers 0 because no screen needs it |
+| **7, re-stated as numbers** | — | fires of any ACTING net (a committed list of acting shapes) per 1 000 presses = 0 over a whole pass in a real browser; a release candidate carries its gates' verdicts (the channel is the owner's decision); the per-release field report prints stories untold, nets fired, rebuilds and long frames per hour of play, and the release probe (A7) is run |
 
 **STAGE 1 — EXIT REACHED 2026-11-20 04:19 UTC.** The stage's number is met on ONE commit (`ab6ad53eba`): the
 perturbation matrix — CPU ×4 · ×6, the net at 400 · 1500 ms, a reload, two windows, a hidden tab, plain — × 3 seeds ×
