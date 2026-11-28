@@ -35,8 +35,10 @@ for (const manifest of ALL_MODULE_MANIFESTS) {
     continue;
   }
   for (const [family, cards] of [['project', manifest.projectCards], ['prelude', manifest.preludeCards], ['corporation', manifest.corporationCards]] as const) {
-    for (const name of Object.keys(cards)) {
-      if (inPremiumScope({module: manifest.module, name})) {
+    for (const [name, entry] of Object.entries(cards as Record<string, {instantiate?: boolean}>)) {
+      // (A card no deck holds is no card to deal — `instantiate: false`: the Delta Project prelude names the Hydronetwork
+      // track's own action, offered to every seat of the expansion as a standard action, never dealt nor played.)
+      if (inPremiumScope({module: manifest.module, name}) && entry.instantiate !== false) {
         scope.push({name, module: manifest.module, family});
       }
     }

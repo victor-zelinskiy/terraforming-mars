@@ -85,6 +85,8 @@ const ARROWS: ReadonlyArray<BottleKey> = ['ArrowUp', 'ArrowDown', 'ArrowLeft', '
 const LOOK_KEYS: ReadonlySet<BottleKey> = new Set<BottleKey>(['KeyX', 'KeyR', 'KeyC', 'KeyV']);
 /** The presses one question may spend WAITING a flow's own beat out (a committed frame offering neither A nor RT). */
 const WAIT_PRESSES_MAX = 120;
+/** The least a menu stands with a target playable in the hand: the wheel, the album's walk (16 at most), A, the composer. */
+const TARGET_MENU_PRESSES = 45;
 
 /**
  * The guided pick (`monkeyWalk.guidedPick`, with the pilot's own weights: it is going somewhere — A and RT carry a
@@ -343,7 +345,13 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       }
       // (The opening is the whole start — a corporation, the preludes, a buy, the summary: four steps' presses, never one
       // question's.)
-      const budget = asked.menu ? (g() < passAtOnce ? 0 : menuMin + Math.floor(g() * (menuMax - menuMin + 1))) :
+      // (THE CARD THE GAME IS FOR IS NOT PASSED BY — the cards axis' scenarios, a family of cards whose requirement
+      // the sitting or the generation closes: the menus went by at once or on a budget shorter than the way to the
+      // card, and the window shut on half the hand. A menu with a target playable in the hand stands at least the way
+      // to it — the wheel, the album's walk, A — and its composer's steps.)
+      const owed = asked.menu && targets.size > 0 && (bottle.view()?.cardsInHand ?? []).some((c) => targets.has(c.name) && c.isDisabled !== true);
+      const onMenu = asked.menu ? (g() < passAtOnce ? 0 : menuMin + Math.floor(g() * (menuMax - menuMin + 1))) : 0;
+      const budget = asked.menu ? (owed ? Math.max(TARGET_MENU_PRESSES, onMenu) : onMenu) :
         asked.type === 'initialCards' ? questionBudget * 4 : questionBudget;
       standing = {promptId: asked.promptId, type: asked.type, menu: asked.menu, presses: 0, budget, byApi: false, waited: 0, handVisits: 0, handSteps: 0, startTargetTries: 0};
     }

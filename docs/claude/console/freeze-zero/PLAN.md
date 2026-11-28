@@ -3146,6 +3146,40 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
   ② Games 556 and 566: a workspace standing `committed` / `executing` (a colony from the hand inside the Parliament; the
   standard project's colony) while the server asked the menu — the pass could not be made from the screen. Replayed on
   the box on the head: no door; not fixed blind — watched in the next passes.
+- **THE CARDS AXIS TO ITS LAST CARD (stage 6, 2026-11-28 — the owner: «довел до 100% покрытия перед передачей»).**
+  The deal's `missing` windows took the axis from 512 to 595 of 673 (`autopilotCardsUnplayed.json`); the residue of 78
+  was the cards of a REQUIREMENT no dealt game meets — a ruling party or two delegates on its resolution, seven science
+  tags, Venus at 12 %, a city by an ocean, a removal this generation. Six SCENARIOS of the cards axis stand on those
+  requirements (`generate.ts` · `cardsScenario`, the hands in `autopilotDeal.CARDS_SCENARIO_HANDS`, the dry run proves
+  every card of the hand playable): `scenario-science` (11 science tags in play), `-venus` (Venus 12 %, the planets'
+  tags, −4 °C), `-cities` (three cities, greeneries, a colony, every resource kind, red's removal and the plants removed
+  this generation), `-ares`, `-politics` and `-politics-2` (a ruling party, blue's two delegates on all three
+  resolutions, blue in the chair). Played to the end in the bottle: 13/13, 13/13, 18/18, 5/5, 17/17, 11/11 — no defect.
+  The pilots' rule that made it so: a menu with a target PLAYABLE in the hand is never passed at once and stands the
+  way to it (`TARGET_MENU_PRESSES` · the browser's `handOwed`) — a family whose window the sitting closes was passed by
+  half. The cadence: fourteen scenarios now take three games in eight (`SCENARIO_SLOTS` — `n % 8` ∈ 1 · 3 · 7, never
+  5, the campaign), a CI pass of 48 plays each; the browser's UI opening moved to `n % 8 === 2` and Philares' ledger
+  deal to `n % 6 === 4` — both had fallen on odd games the scenarios now take (the guard `autopilotScenarios.spec`:
+  every scenario's fixture, the hands one list, every ledger card in a DEALT game of 537 – 584 — red with the old
+  offset). Two MEASURES corrected: the axis read the viewer's tableau at the end, and Law Suit lies in the SUED
+  player's (it was played and never counted) — the cards a seat played are its tableau and its logged plays now
+  (`seatPlayed`, the browser's `loggedPlays`); and the Delta Project prelude is no card to deal (`instantiate: false`
+  — it names the Hydronetwork's action) — out of the denominator. And the union of passes collapsed games of one
+  title (`monkey-report` keys a game by its file and title — the scenario's game 32 hid under the u13 pass's): the axis
+  is summed over each pass's own report now (`autopilot-cards.mts <report of each pass …>`). **672 of 672 — 100 %
+  played through the console, not one card declared** (`autopilotCardsUnplayed.json` is `[]`; the `missing` deal falls
+  back to the scope's rotation). The bottle's v4 (201 – 212, the opening taking the dealt corporation and preludes): 12
+  games, no defect, no door.
+- **THE RALLY's NODE WAITS ON THE START's DOOR (the bottle's games 105 / 117 of the cards axis, 2026-11-28):** two
+  campaigns in one opening (Scientists Campaign + Greens Campaign — the deal took both), and at twelve seconds the graph
+  filed `wait-graph/overdue/flow:rally` over a rally the start had not opened. Replayed on the v3 source three times
+  red; the diagnostic read the door's gate: `admits('followUp')` false for the whole spell — the second prelude's hero,
+  the bought cards' flight and the reveal of a draw the PLAYER takes stood in front. The open is the start's FOLLOW-UP
+  door; a held conclusion has delegated to that door's admission node since Э4, the rally's and the walk's nodes
+  called it «the start opens the pose — 12 s». They delegate now (`startHostedHold.ts`, the supervisor's
+  `startHostedStepHold` — the frame above, the question set aside, the admission's node published in the same tick, a
+  card reaction first): that node's bound, a reveal the player's; only an open nothing holds is the orphan's twelve
+  seconds (`neutralRally.spec` — the four edges).
 - **STAGE 6 — WHERE IT STANDS (the hand-over, 2026-11-27 night; the owner: this session goes to CI's bugs, the program
   continues in another).** *Coverage:* the autopilot's ledger at ZERO debt over 223 passes (`tests/client/bottle/
   autopilotUnwalked.json` — flows 252 of 274 opened, frames 13 of 13, every key never walked declared with its reason);

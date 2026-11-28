@@ -252,7 +252,7 @@ import {InvestmentLoan} from '../../../src/server/cards/base/InvestmentLoan';
 import {Parliament} from '../../../src/server/parliament/Parliament';
 import {answerStandingGates, endGenerationThroughParliament, passToParliament, quietResolutionOf, seatResolution, seatEnacted} from '../../parliament/parliamentArrange';
 import {REDUX_PARTIES} from '../../../src/common/parliament/ParliamentTypes';
-import {ResolutionId, resolutionInstanceId} from '../../../src/common/parliament/ParliamentTypes';
+import {ReduxParty, ResolutionId, resolutionInstanceId} from '../../../src/common/parliament/ParliamentTypes';
 import {Space} from '../../../src/server/boards/Space';
 import {ArtificialLake} from '../../../src/server/cards/base/ArtificialLake';
 import {DomedCrater} from '../../../src/server/cards/base/DomedCrater';
@@ -16295,6 +16295,206 @@ for (const opening of ['scenario-opening', 'scenario-banner'] as const) {
   }
   write(name, game);
 }
+
+// ── THE CARDS AXIS' SCENARIOS (stage 6 — the residue of `tests/client/bottle/autopilotCardsUnplayed.json`): the
+//    cards no whole game had played in every pass of the pilots, the deal's `missing` windows included, were the cards
+//    of a REQUIREMENT the pilot's games never meet — a ruling party or two delegates on its resolution, seven science
+//    tags, Venus at 12 %, a city by an ocean, a removal this generation. Each table below stands on the requirements of
+//    a family of them, the family in blue's hand (the hand IS the scenario's targets — `SCENARIO_TARGETS`), Mars two
+//    thirds of the way; the pilot plays them through the console and the game on to its end. The dry run proves every
+//    card of the hand playable at the fixture's first action. Every card the game's own copy (off the deck). ──
+type CardsScenario = {
+  options: Partial<TestGameOptions>,
+  /** Cards for the tableau (the tags, the resource holders the requirements read). */
+  played?: ReadonlyArray<CardName>,
+  /** The family — blue's hand, in the order the pilot plays them (a requirement that closes first stands first). */
+  hand: ReadonlyArray<CardName>,
+  megacredits: number,
+  arrange?: (table: ParliamentTable, own: (name: CardName) => IProjectCard) => void,
+};
+
+function cardsScenario(name: string, spec: CardsScenario): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [spec.megacredits, 60],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], ...spec.options},
+    arrange: (table) => {
+      const {game, p1, p2} = table;
+      const own = (card: CardName): IProjectCard => {
+        moveToDeckTop(game, card);
+        return game.projectDeck.drawPile.pop() as IProjectCard;
+      };
+      halfwayMars(game, p2);
+      for (const card of spec.played ?? []) {
+        p1.playedCards.push(own(card));
+      }
+      for (const card of spec.hand) {
+        p1.cardsInHand.push(own(card));
+      }
+      spec.arrange?.(table, own);
+    },
+    expect: ({game, p1}) => {
+      const unplayable = spec.hand.filter((card) => {
+        const inHand = p1.cardsInHand.find((c) => c.name === card);
+        return inHand === undefined || !p1.canPlay(inHand);
+      });
+      if (game.activePlayer.id !== p1.id || unplayable.length > 0) {
+        throw new Error(`${name}: expected blue on the move with the whole hand playable — active=${game.activePlayer.color} unplayable=${unplayable.join(', ')}`);
+      }
+    },
+  });
+}
+
+/** Blue's colony on the first colony tile that takes one (a requirement of «a colony in play»). */
+function seatColony(game: IGame, player: TestPlayer): void {
+  const colony = game.colonies.find((c) => c.colonies.length < 3 && !c.colonies.includes(player.id));
+  if (colony === undefined) {
+    throw new Error('no colony tile takes a colony');
+  }
+  colony.colonies.push(player.id);
+}
+
+/** A land cell free for blue's city next to one of the oceans on the board. */
+function cityByAnOcean(game: IGame, player: TestPlayer): Space {
+  const oceans = game.board.spaces.filter((s) => s.tile?.tileType === TileType.OCEAN);
+  const cell = game.board.getAvailableSpacesForCity(player).find((s) => game.board.getAdjacentSpaces(s).some((a) => oceans.includes(a)));
+  if (cell === undefined) {
+    throw new Error('no city cell next to an ocean');
+  }
+  return addCity(player, cell.id);
+}
+
+// · scenario-science — the science tags (2 · 3 · 4 · 7) and «ten tags of one type»: eleven science tags in play, energy
+//   production for the cards that take it.
+cardsScenario('scenario-science', {
+  options: {venusNextExtension: true, promoCardsOption: true, deltaProjectExpansion: true},
+  played: [CardName.RESEARCH, CardName.LAGRANGE_OBSERVATORY, CardName.INVENTORS_GUILD, CardName.DEVELOPMENT_CENTER, CardName.PHYSICS_COMPLEX,
+    CardName.HI_TECH_LAB, CardName.SEARCH_FOR_LIFE, CardName.ADVANCED_ALLOYS, CardName.GENE_REPAIR, CardName.MASS_CONVERTER],
+  hand: [CardName.TECTONIC_STRESS_POWER, CardName.AI_CENTRAL, CardName.ANTI_GRAVITY_TECHNOLOGY, CardName.MERCURIAN_ALLOYS, CardName.ATALANTA_PLANITIA_LAB,
+    CardName.ATMOSCOOP, CardName.DAWN_CITY, CardName.EXTREMOPHILES, CardName.STRATOPOLIS, CardName.QUANTUM_RESEARCH, CardName.FORMULA_ZERO,
+    CardName.MECH_SPORTS, CardName.SUPREME_EXPERTISE],
+  megacredits: 240,
+  arrange: ({p1}) => {
+    p1.production.override({...p1.production.asUnits(), energy: 4});
+  },
+});
+
+// · scenario-venus — Venus at 12 % and the tags of the planets (earth 4, venus 3, jovian 2, one of each), the
+//   temperature still at −4 °C (Soil Studies' ceiling — first in the hand), a floater to take (Stratospheric Birds), a
+//   Venus microbe card to feed (Freyja Biodomes), energy production for the cards that take it.
+cardsScenario('scenario-venus', {
+  options: {venusNextExtension: true, prelude2Expansion: true, promoCardsOption: true},
+  played: [CardName.LUNA_GOVERNOR, CardName.EARTH_OFFICE, CardName.CARTEL, CardName.VENUS_GOVERNOR, CardName.DEUTERIUM_EXPORT,
+    CardName.IO_MINING_INDUSTRIES, CardName.COLONIZER_TRAINING_CAMP, CardName.THERMOPHILES],
+  hand: [CardName.SOIL_STUDIES, CardName.SOLARNET, CardName.OMNICOURT, CardName.MINING_QUOTA, CardName.SPONSORING_NATION, CardName.ENVOYS_FROM_VENUS,
+    CardName.JOVIAN_ENVOYS, CardName.VENUS_TRADE_HUB, CardName.FREYJA_BIODOMES, CardName.STRATOSPHERIC_BIRDS, CardName.FLOATING_BIODOMES,
+    CardName.COLONIAL_REPRESENTATION, CardName.MICROGRAVITY_NUTRITION],
+  megacredits: 220,
+  arrange: ({game, p1}) => {
+    setVenusScaleLevel(game, 12);
+    p1.production.override({...p1.production.asUnits(), energy: 3});
+    const deuterium = p1.tableau.get(CardName.DEUTERIUM_EXPORT);
+    if (deuterium !== undefined) {
+      deuterium.resourceCount = 2;
+    }
+    seatColony(game, p1);
+  },
+});
+
+// · scenario-cities — the board's and the generation's: three cities of blue's (one by an ocean), two greeneries, a
+//   colony, energy production 6, every standard resource and three kinds on cards (Diversity Support), a removal of
+//   red's this generation (Law Suit) and plants removed (Crash Site Cleanup — both first: the generation closes them).
+cardsScenario('scenario-cities', {
+  options: {promoCardsOption: true, deltaProjectExpansion: true},
+  played: [CardName.DECOMPOSERS, CardName.PETS, CardName.SEARCH_FOR_LIFE],
+  hand: [CardName.CRASH_SITE_CLEANUP, CardName.LAW_SUIT, CardName.DIVERSITY_SUPPORT, CardName.POTATOES, CardName.SHIPMENT_TO_EARTH,
+    CardName.SOIL_ENRICHMENT, CardName.AQUEDUCT_SYSTEMS, CardName.STORM_SURGE_BARRIER, CardName.CITY_PARKS, CardName.CASINOS, CardName.SOCIAL_HEATING,
+    CardName.URBAN_DECOMPOSERS, CardName.SPACE_PORT, CardName.MARTIAN_LUMBER_CORP, CardName.GREAT_DAM_PROMO, CardName.MAGNETIC_FIELD_GENERATORS_PROMO,
+    CardName.SATURN_SURFING, CardName.SPINOFF_DEPARTMENT],
+  megacredits: 240,
+  arrange: ({game, p1, p2}) => {
+    cityByAnOcean(game, p1);
+    addCity(p1);
+    addCity(p1);
+    addGreenery(p1);
+    addGreenery(p1);
+    seatColony(game, p1);
+    for (const name of [CardName.DECOMPOSERS, CardName.PETS, CardName.SEARCH_FOR_LIFE]) {
+      const card = p1.tableau.get(name);
+      if (card !== undefined) {
+        card.resourceCount = 2;
+      }
+    }
+    p1.production.override({...p1.production.asUnits(), energy: 6});
+    p1.stock.add(Resource.STEEL, 8);
+    p1.stock.add(Resource.TITANIUM, 3);
+    p1.stock.add(Resource.PLANTS, 14);
+    p1.stock.add(Resource.ENERGY, 3);
+    p1.stock.add(Resource.HEAT, 3);
+    p1.removingPlayers.push(p2.id);
+    game.someoneHasRemovedOtherPlayersPlants = true;
+  },
+});
+
+// · scenario-ares — the Ares versions: six oceans (Ocean City), a city of blue's beside steel or titanium cells (Mining
+//   Area's next-to rule — first in the hand), energy production 4 (Magnetic Field Generators).
+cardsScenario('scenario-ares', {
+  options: {aresExtension: true, promoCardsOption: true},
+  hand: [CardName.MINING_AREA_ARES, CardName.INDUSTRIAL_CENTER_ARES, CardName.GREAT_DAM_ARES, CardName.MAGNETIC_FIELD_GENERATORS_ARES, CardName.OCEAN_CITY],
+  megacredits: 160,
+  arrange: ({game, p1, p2}) => {
+    addOcean(p2);
+    addOcean(p2);
+    // (The city with the MOST free mineral cells beside it — first in the hand all the same: another tile of the
+    // family may take one, and the bottle's first pass found Mining Area's cell gone under Industrial Center.)
+    const mineral = (s: Space) => s.bonus.includes(SpaceBonus.STEEL) || s.bonus.includes(SpaceBonus.TITANIUM);
+    const minerals = (s: Space) => game.board.getAdjacentSpaces(s).filter((a) => a.tile === undefined && mineral(a)).length;
+    const cell = game.board.getAvailableSpacesForCity(p1).filter((s) => minerals(s) > 0).sort((a, b) => minerals(b) - minerals(a))[0];
+    if (cell === undefined) {
+      throw new Error('scenario-ares: no city cell beside a mineral one');
+    }
+    addCity(p1, cell.id);
+    p1.production.override({...p1.production.asUnits(), energy: 4});
+  },
+});
+
+// · scenario-politics / scenario-politics-2 — the parties' cards: a ruling party, and blue's two delegates on each of
+//   the voting area's three resolutions (a party requirement met by delegates — rulebook p.14; blue leads all three,
+//   six delegates on resolutions), blue in the chair. The sitting closes the delegates' road: the family plays in
+//   the first generation, the ruling party's in the second too if its resolution wins.
+const politicsScenario = (name: string, ruling: ReduxParty, slots: ReadonlyArray<ResolutionId>, hand: ReadonlyArray<CardName>) => cardsScenario(name, {
+  options: {venusNextExtension: true, prelude2Expansion: true, promoCardsOption: true},
+  hand,
+  megacredits: 220,
+  arrange: ({p1, p2, parliament}) => {
+    // (A city of blue's on Mars to move or stand beside, energy production to lose and energy to pay, red's plants to take.)
+    addCity(p1);
+    p1.production.override({...p1.production.asUnits(), energy: 3});
+    p1.stock.add(Resource.ENERGY, 4);
+    p2.stock.add(Resource.PLANTS, 8);
+    seatEnacted(parliament, quietResolutionOf(ruling));
+    slots.forEach((id, i) => seatResolution(parliament, i, id));
+    parliament.chairman = p1.id;
+    parliament.slots.forEach((slot, i) => {
+      parliament.placeVote(p1, slot, i === 0 && parliament.lobby.has(p1.id) ? 'lobby' : 'reserve');
+      parliament.placeVote(p1, slot, 'reserve');
+    });
+    for (const party of REDUX_PARTIES) {
+      parliament.popularSupport.set(party, 0);
+    }
+  },
+});
+politicsScenario('scenario-politics', PartyName.GREENS, [ARCHITECTURE_AWARD_ID, COLONIZATION_FUNDING_ID, CENTRAL_POWER_GRID_ID], [
+  CardName.SPECIAL_PERMIT, CardName.GMO_CONTRACT, CardName.CANYON_CARVING, CardName.PLASMA_FANS, CardName.GREEN_ALLEGIANCE, CardName.ICHTIOLOGY_GRANT,
+  CardName.COMPOSTING_INITIATIVE, CardName.SPONSORED_MOHOLE_REDUX, CardName.FRONTIER_TOWN, CardName.PARLIAMENT_HALL, CardName.ADMINISTRATION_DISTRICT,
+  CardName.RE_SETTLEMENT, CardName.ARBORETUM, CardName.COLONIAL_ENVOYS, CardName.PUBLIC_CELEBRATIONS, CardName.POLITICAL_SCIENCE,
+  CardName.POLITICAL_ALLIANCE_REDUX,
+]);
+politicsScenario('scenario-politics-2', PartyName.REDS, [quietResolutionOf(PartyName.SCIENTISTS), CENTRAL_POWER_GRID_ID, COLONIZATION_FUNDING_ID], [
+  CardName.SUPPORTED_RESEARCH, CardName.SUPERCOMPUTER, CardName.FRONTIER_LABS, CardName.AERIAL_LENSES_REDUX, CardName.NUCLEAR_WARHEAD_UTILIZATION,
+  CardName.OVERCLOCKED_EQUIPMENT, CardName.ROBOTICS_FACTORY, CardName.MINING_MECHS, CardName.DIASPORA_MOVEMENT, CardName.MARS_ARMY_SHIPS,
+  CardName.BACKROOM_DEAL,
+]);
 
 // ── finale-diverted / finale-diverted-bare: THE FINALE UNDER A LAW THAT REPLACES THE GREENERY (RX35 Diverted Research —
 //    CI's autopilot on `6ba4e117ff`, game 539, and the box's 2921: the placing branch is a plain OPTION, the plants buy a

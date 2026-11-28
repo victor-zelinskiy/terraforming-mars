@@ -23,6 +23,7 @@ import {processRequest} from '../../../../src/server/server/requestProcessor';
 import {setTestGameLoader} from '../../../testing/setup';
 import {IGameLoader} from '../../../../src/server/database/IGameLoader';
 import {GameIdLedger} from '../../../../src/server/database/IDatabase';
+import {LogMessageDataType} from '../../../../src/common/logs/LogMessageDataType';
 import {IGame} from '../../../../src/server/IGame';
 import {Game} from '../../../../src/server/Game';
 import {GameOptions} from '../../../../src/server/game/GameOptions';
@@ -212,18 +213,31 @@ export function onInvalidate(listener: (gameId: string, gameAge: number) => void
   };
 }
 
-/** THE SERVER'S TRUTH about a seat — read straight off the engine (never through the page). */
-/** THE CARDS A SEAT PLAYED (its tableau, by name) — the cards axis of the autopilot's coverage. */
-export function seatTableau(playerId: string): Array<string> {
+/**
+ * THE CARDS A SEAT PLAYED (by name — the cards axis of the autopilot's coverage): its tableau, and every card its plays
+ * LOGGED that left it (`${0} played ${1}`, `Player.playCard`'s own line): Law Suit lies in the sued player's tableau,
+ * Astra Mechanica takes events back to the hand — the axis read off the tableau alone never counted them (the bottle's
+ * scenario of the cities, 2026-11-28).
+ */
+export function seatPlayed(playerId: string): Array<string> {
   for (const game of loader.games.values()) {
     const player = game.players.find((candidate) => candidate.id === playerId);
     if (player !== undefined) {
-      return [...player.tableau].map((card) => card.name);
+      const names = new Set([...player.tableau].map((card) => card.name as string));
+      for (const line of game.gameLog) {
+        const [who, what] = line.data;
+        if (line.message === '${0} played ${1}' && who?.type === LogMessageDataType.PLAYER && who.value === player.color &&
+            what?.type === LogMessageDataType.CARD) {
+          names.add(String(what.value));
+        }
+      }
+      return [...names];
     }
   }
   return [];
 }
 
+/** THE SERVER'S TRUTH about a seat — read straight off the engine (never through the page). */
 export function seatTruth(playerId: string): {waitingFor: string | undefined, promptId: number | undefined, gameAge: number, phase: string, generation: number} {
   for (const game of loader.games.values()) {
     const player = game.players.find((candidate) => candidate.id === playerId);

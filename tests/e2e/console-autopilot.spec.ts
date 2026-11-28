@@ -5,6 +5,7 @@ import {AutopilotScenario, dealFor, LEDGER_CARDS, SCENARIO_TARGETS, scenarioFor,
 import {campaignConfig, campaignModelAs, devCommit, launchMission} from './campaignFixtures';
 import {awayFromConsole, installPageAway} from './pageAway';
 import {TENDER_IDS} from '../../src/common/campaign/tenders';
+import {LogMessageDataType} from '../../src/common/logs/LogMessageDataType';
 
 /**
  * THE AUTOPILOT — A WHOLE GAME THROUGH THE REAL CONSOLE, IN A REAL BROWSER (FREEZE ZERO, stage 6 — «whole games and
@@ -129,10 +130,11 @@ function campaignGame(n: number): boolean {
 
 /**
  * THE SCENARIO TABLES (stage 6, total coverage — the input-type bar's gaps, derived from the code since 2026-11-27:
- * a choice no dealt game reaches in a whole pass). A scenario is a FIXTURE — a real engine state, generated
- * (`tests/e2e/fixtures/generate.ts`) and loaded through the dev door — played from there TO ITS END by the same pilot,
- * its other seats answered over the API like any rival. The list and the cadence are the bottle's too
- * (`autopilotDeal.scenarioFor`). `auto` · `off` · `always`.
+ * a choice no dealt game reaches in a whole pass; and the cards axis' residue — the cards of a requirement no dealt
+ * game meets). A scenario is a FIXTURE — a real engine state, generated (`tests/e2e/fixtures/generate.ts`) and loaded
+ * through the dev door — played from there TO ITS END by the same pilot, its other seats answered over the API like
+ * any rival. The list and the cadence are the bottle's too (`autopilotDeal.scenarioFor`). `auto` · `off` · `always` ·
+ * a scenario's name.
  */
 const SCENARIO = process.env.TM_E2E_AUTOPILOT_SCENARIO ?? 'auto';
 /** Game `n`'s scenario, or undefined (a table of its own). */
@@ -401,6 +403,29 @@ function dealtIntents(options: ReadonlyArray<{type: string, cards?: ReadonlyArra
     ...(offered('projectCard', false) ? [at('hand')] : []), ...(project ? [at('standard-projects')] : []),
     ...(offered('card', true) ? [at('card-actions')] : []), ...(dock ? [at('trading')] : []),
   ];
+}
+
+/**
+ * THE CARDS THE VIEWER's PLAYS LOGGED — `${0} played ${1}` (`Player.playCard`'s own line, its tokens a player and a
+ * card), read generation by generation off the game's log (`/api/game/logs`: the default view is its last fifty lines).
+ */
+async function loggedPlays(request: APIRequestContext, viewer: string, color: string | undefined, generations: number): Promise<Array<string>> {
+  const names: Array<string> = [];
+  if (color === undefined) {
+    return names;
+  }
+  for (let generation = 1; generation <= generations; generation++) {
+    const res = await request.get(`/api/game/logs?id=${viewer}&generation=${generation}`).catch(() => undefined);
+    const lines = res?.ok() === true ? await res.json() as Array<{message?: string, data?: Array<{type?: number, value?: string}>}> : [];
+    for (const line of lines) {
+      const [who, what] = line.data ?? [];
+      if (line.message === '${0} played ${1}' && who?.type === LogMessageDataType.PLAYER && who.value === color &&
+          what?.type === LogMessageDataType.CARD && what.value !== undefined) {
+        names.push(what.value);
+      }
+    }
+  }
+  return names;
 }
 
 async function look(page: Page): Promise<Screen> {
@@ -1065,14 +1090,20 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       // «A Выполнить первое действие», and an intent there minimized the opening on its way to another section — the
       // scenario of Lotus Innovations played its rail's scene nowhere.)
       const opening = wf.startGamePrompt !== undefined;
-      const intentful = PILOT >= 2 && (bonus || (menu && !opening && g() < 0.75));
+      // (THE CARD THE GAME IS FOR IS NOT PASSED BY — the cards axis' scenarios, a family of cards whose requirement the
+      // sitting or the generation closes: a menu with one of the game's cards playable in the hand always has an intent,
+      // is never passed at once and stands at least the way to the card and its composer — the window shut on half the
+      // hand of menus gone by.)
+      const handOwed = PILOT >= 3 && menu && !opening && dealtIntents(wf.options, dealt, []).includes(INTENTS.findIndex((i) => i.name === 'hand'));
+      const intentful = PILOT >= 2 && (bonus || (menu && !opening && (g() < 0.75 || handOwed)));
       // (…each in turn when the game's cards ask several roads — the hand, an action, the dock.)
       const own = intentful ? dealtIntents(wf.options, dealt, (model.thisPlayer?.tableau ?? []).map((c) => c.name)) : [];
       const ownCards = own.length === 0 ? undefined : own[ownTurns++ % own.length];
       const intentAt = ownCards ?? menus++ % INTENTS.length;
       const intent = intentful ? [...INTENTS[intentAt].keys] : [];
       // (…and the start's own menu is never passed at once: its first action is what the opening is for.)
-      const budget = bonus ? 60 : opening ? 30 : menu ? (g() < (intentful ? 0.05 : 0.18) ? 0 : (intentful ? 9 : 4) + Math.floor(g() * 23)) : 45;
+      const budget = bonus ? 60 : opening ? 30 : menu ? (g() < (handOwed ? 0 : intentful ? 0.05 : 0.18) ? 0 :
+        Math.max(handOwed ? 45 : 0, (intentful ? 9 : 4) + Math.floor(g() * 23))) : 45;
       standing = {promptId: wf.promptId, type: wf.type, menu, bonus, presses: 0, budget, byApi: false, intent: budget > 0 ? intent : [], intentful: intentful && budget > 0, still: 0, lastStood: '', heldAway: 0, collapsed: false, startTargetTries: 0,
         shape: questionShape(wf, menu), stdpTarget: undefined, handTarget: undefined, actionTarget: undefined, dockSteps: 0,
         variantTarget: undefined, variantChosen: false};
@@ -1717,10 +1748,10 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       // (…a campaign's mission opens through the screen always: its tenders stand in the start scene.)
       // (…and a SCENARIO's opening is its own — a corporation's first action left owed in the fixture is played through
       // the start's screen, never seeded over the API.)
-      // (…one dealt game in four — `n % 4 === 1`, the residue the scenarios do not take since they went to `n % 4 === 3` —
+      // (…one dealt game in eight — `n % 8 === 2`: the scenarios take 1 · 3 · 7 and the campaign 5 (`SCENARIO_SLOTS`) —
       // and every game the LEDGER's prelude is dealt to: its flow is the start's own.)
       const ledgerPrelude = LEDGER_CARDS.preludes.some((card) => dealt.includes(card));
-      const uiOpening = OPENING === 'ui' || (OPENING === 'auto' && n % 4 === 1) || ledgerPrelude || mission !== undefined || scenario !== undefined;
+      const uiOpening = OPENING === 'ui' || (OPENING === 'auto' && n % 8 === 2) || ledgerPrelude || mission !== undefined || scenario !== undefined;
       await Promise.all([
         ...(uiOpening ? [] : [seedGameOverApi(request, viewer, {
           buy: 4,
@@ -1895,9 +1926,16 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       } finally {
         // THE CARDS THE PILOT PLAYED through the console (the viewer's tableau at the game's end — a corporation, a
         // prelude, every project), and the weather the game met: two axes of the coverage the report sums over games.
-        const tableau = await fetchPlayerModel(request, viewer).then((model) => {
-          const me = (model as unknown as {thisPlayer?: {tableau?: Array<{name: string}>}}).thisPlayer;
-          return (me?.tableau ?? []).map((c) => c.name);
+        // (…and every card the viewer's plays LOGGED that left it — Law Suit lies in the sued player's tableau, Astra
+        // Mechanica takes events back to the hand: read off the tableau alone, the scenario of the cities played Law Suit
+        // and the axis never counted it.)
+        const tableau = await fetchPlayerModel(request, viewer).then(async (model) => {
+          const seen = model as unknown as {thisPlayer?: {color?: string, tableau?: Array<{name: string}>}, game?: {generation?: number}};
+          const names = new Set((seen.thisPlayer?.tableau ?? []).map((c) => c.name));
+          for (const name of await loggedPlays(request, viewer, seen.thisPlayer?.color, seen.game?.generation ?? 0)) {
+            names.add(name);
+          }
+          return [...names];
         }).catch(() => [] as Array<string>);
         causeHarvest.note({
           monkey: {seed, fixture: `game-${n}`, mode: 'autopilot', landing: 'boot', duo: table.duo, reload: false, hidden: false, presses: played?.presses ?? log.filter((l) => !l.startsWith('[')).length,

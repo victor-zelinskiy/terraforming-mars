@@ -49,7 +49,7 @@ const DEAL_MODE = env.TM_BOTTLE_AUTOPILOT_DEAL ?? 'rotate';
 const DEAL = DEAL_MODE === 'rotate' || DEAL_MODE === 'missing';
 /** `missing` — the cards no whole game has played yet first (`UNPLAYED_CARDS`, the cards axis' worklist). */
 const DEAL_SOURCE: DealSource = DEAL_MODE === 'missing' ? 'unplayed' : 'scope';
-/** THE SCENARIO TABLES (`autopilotDeal.scenarioFor` — the browser pilot's own list): `auto` · `off` · `always`. */
+/** THE SCENARIO TABLES (`autopilotDeal.scenarioFor` — the browser pilot's own list): `auto` · `off` · `always` · a scenario's name. */
 const SCENARIO = env.TM_BOTTLE_AUTOPILOT_SCENARIO ?? 'auto';
 
 type Filed = {cls: string, shape: string, tier: string, family: string, page: number, count: number, lines: number, atMs: number, title: string, dims: Record<string, string>};
@@ -263,8 +263,8 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
         autopilot: played === undefined ? undefined : {
           end: played.end, generation: played.generation, phase: played.phase, presses: played.presses, byUi: played.byUi, byApi: played.byApi,
           passes: played.passes, seatMoves: played.seatMoves, tookMs: played.tookMs, rebuilds, table: table?.config, doors: played.doors, soak: played.soak,
-          // (The cards axis — the viewer's tableau at the game's end: what the pilot played through the console.)
-          cards: table === undefined ? [] : bottleServer().seatTableau(table.seats[0].id),
+          // (The cards axis — the viewer's tableau at the game's end and the plays its log names: what the pilot played through the console.)
+          cards: table === undefined ? [] : bottleServer().seatPlayed(table.seats[0].id),
         },
         walk: played?.log.join(' ') ?? '',
       }, null, 1));
