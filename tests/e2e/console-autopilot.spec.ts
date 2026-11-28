@@ -2,6 +2,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import {answerPrompt, cinematicBeat, fetchPlayerModel, loadFixtureSeats, NO_PAYMENT, openConsole, reloadConsole, seedGameOverApi, sendPlayerInput, soloGameConfig, syncClient} from './consoleStart';
 import {AutopilotScenario, dealFor, LEDGER_CARDS, SCENARIO_TARGETS, scenarioFor, ScopeCard, SCOPE_CARDS} from '../testing/autopilotDeal';
+import {createDoorRun} from '../testing/autopilotDoor';
 import {campaignConfig, campaignModelAs, devCommit, launchMission} from './campaignFixtures';
 import {awayFromConsole, installPageAway} from './pageAway';
 import {TENDER_IDS} from '../../src/common/campaign/tenders';
@@ -591,6 +592,8 @@ function pilotPick(screen: Screen, g: () => number, last: string | undefined, to
 
 type Played = {
   end: 'finished' | 'capped' | 'stuck', presses: number, generation: number, phase: string,
+  /** Why the game is `stuck` when it was the SCREEN that stood (a door's run) and not the table. */
+  stuckWhy?: string,
   byUi: Record<string, number>, byApi: Record<string, number>, passes: {ui: number, api: number}, doors: Array<string>, tookMs: number,
   /** The SHAPES of the questions the screen answered (`questionShape`) — an axis of the coverage. */
   shapes: Record<string, number>,
@@ -887,6 +890,21 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
   const bump = (into: Record<string, number>, key: string): void => {
     into[key] = (into[key] ?? 0) + 1;
   };
+  // THE DOOR UNDER ONE SCREEN (`tests/testing/autopilotDoor.ts` — stage M, the audit's A1: game 632 stood on «Парламент ·
+  // A Выполняется…» for four generations behind the door and was a clean game): the run is counted over the door's rows
+  // as they are written and forgotten the moment the screen itself answers. `doorStood()` is asked right after a row
+  // is pushed — true ends the game `stuck`, the screen named, BEFORE the door answers once more for a screen that cannot.
+  const doorRun = createDoorRun();
+  const doorStood = (): boolean => {
+    const why = doorRun.door(played.doors[played.doors.length - 1] ?? '');
+    if (why === undefined) {
+      return false;
+    }
+    played.end = 'stuck';
+    played.stuckWhy = why;
+    log.push(`[STUCK-BY-DOOR ${why}]`);
+    return true;
+  };
   let lastKey: string | undefined;
   // WHAT STOOD when the press was chosen — the frames, the server's question, the bar — written into the walk where it
   // CHANGED (a finding of the box is read press by press, as the bottle's are).
@@ -1057,6 +1075,7 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         bump(standing.byApi ? played.byApi : played.byUi, standing.menu ? 'or:menu' : standing.type);
         if (!standing.byApi) {
           bump(played.shapes, standing.shape);
+          doorRun.answeredOnScreen();
         }
         standing = undefined;
       }
@@ -1080,6 +1099,7 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         bump(standing.byApi ? played.byApi : played.byUi, standing.menu ? 'or:menu' : standing.type);
         if (!standing.byApi) {
           bump(played.shapes, standing.shape);
+          doorRun.answeredOnScreen();
         }
       }
       const menu = wf.type === 'or' && (wf.options ?? []).some((o) => o.type === 'option' && o.warnings?.includes('pass') === true);
@@ -1228,9 +1248,13 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         }
         if (landed) {
           played.passes.ui++;
+          doorRun.answeredOnScreen();
           log.push('[PASS]');
         } else {
           played.doors.push(`pass · gen ${model.game.generation} · ${before} → after the gesture: ${stands(await look(page))} · owner «${(await ownerNow()).split('\n')[0]}»`);
+          if (doorStood()) {
+            break;
+          }
           await byDoor(wf);
           played.passes.api++;
           log.push('[PASS-BY-DOOR]');
@@ -1238,6 +1262,9 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         standing = undefined;
       } else {
         played.doors.push(`${questionWord(wf)} · gen ${model.game.generation} · ${stands(await look(page))} · owner «${(await ownerNow()).replace('\n', ' — ').slice(0, 260)}»`);
+        if (doorStood()) {
+          break;
+        }
         const answered = await byDoor(wf);
         log.push(`[BY-DOOR ${wf.type}${answered ? '' : ' REFUSED'}]`);
         if (answered) {
@@ -1967,7 +1994,7 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       console.log(`[autopilot] game ${n} [${table.word}]: ${played.end} in generation ${played.generation} (${played.phase}) · ${played.presses} presses, ${Math.round(played.tookMs / 60_000)} min · ` +
         `by the screen: ${sum(played.byUi)} · by the door: ${sum(played.byApi)} · passes ${played.passes.ui} by the wheel / ${played.passes.api} by the door`);
       expect(page.isClosed(), 'the page survived the game').toBe(false);
-      expect(played.end, 'a table nobody moves for ten minutes is stuck — the game did not go on').not.toBe('stuck');
+      expect(played.end, played.stuckWhy ?? 'a table nobody moves for ten minutes is stuck — the game did not go on').not.toBe('stuck');
     });
   }
 });

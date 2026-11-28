@@ -606,8 +606,25 @@ through the door at 12 places, 18 classes of line in the log, the opening's meas
 the flow, never by the bar. The bottle's bar is printed and not yet a failure: its debt is the blind list, and that is
 step 3's.
 
-*Open of stage M:* ② the pilots end a game `stuck` at the freeze itself (a door streak under one screen — today the
-report names it after a wasted half hour of runner) and «STUCK» reads the screen in both worlds; ③ the excuses — every
+**STAGE M, STEP 2 — THE PILOTS END A GAME AT THE FREEZE ITSELF (2026-11-28).** The report names a door that answered
+under one screen — after the game was played to its cap behind it (game 632: half an hour of a runner). The law is now
+the pilots' own, one module for both worlds (`tests/testing/autopilotDoor.ts`, held to the report's reading of a row by
+`tests/scripts/autopilotDoor.spec.ts`): **`DOOR_RUN_STUCK` (6) answers through the door IN A ROW at one unchanged
+screen, with not one answer ON the screen in between, end the game `stuck`** — the screen named (`stuckWhy`, filed with
+the game and printed in the report's STUCK row), before the door answers once more for a screen that cannot. An answer
+on the screen (a pass by the wheel included) or another screen starts the count again. *Calibrated on real passes:*
+CI's 585 – 632 and the box's count on the pin — game 632's run is 24, no other game of either world has a run above 1,
+the bottle's 48 games have no door at all: the rule ends the one game that was frozen and no other.
+**PROVEN ON THE FREEZE ITSELF — AND GAME 632 IS A DETERMINISTIC RED.** Game 632 replayed on the box (`fp-m2`, the pin's
+build, the new pilot): the same road to the same screen — «Nationalist Movement» from the hand → `hand:committed >
+parliament:executing`, «Карты в руке · A Выполняется…» → the board's «A Открыть Парламент» → `parliament:browse`,
+«Парламент · A Выполняется…», ten B taking nothing — and the game ended **`stuck` in generation 5 after six answers of
+the door, 11.8 minutes, the test RED with the screen in its message** (CI's pass had played it 39.6 minutes to a
+«capped» green). So the class has its red in a real browser by one command — `TM_E2E_AUTOPILOT=1
+TM_E2E_AUTOPILOT_GAMES=632 TM_E2E_AUTOPILOT_NAME=ap0` over `tests/e2e/console-autopilot.spec.ts` — and its cure is
+judged by that game reaching its final scoring (the family's root and law: stage 9's first class, below).
+
+*Open of stage M:* ③ the excuses — every
 `LAYOUT_BLIND` / baseline row with its browser evidence, the two rows a browser already named (`start:reactor-face`,
 `start-bonus:visible-source`) out, the counts enforced, «gone» that is not a re-tiering; ④ `--expect` for the Monkey
 and the freeze gate (the count of tables from the fixtures); ⑤ fresh ranges by a committed high-water mark; ⑥ coverage

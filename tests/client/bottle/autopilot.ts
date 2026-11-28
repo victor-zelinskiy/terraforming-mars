@@ -22,6 +22,7 @@
 import type {BottleKey, ConsoleBottle} from './consoleBottle';
 import {bottleServer} from './bottleNode';
 import {monkeyPick, monkeyRng} from './monkeyWalk';
+import {createDoorRun} from '../../testing/autopilotDoor';
 
 export type AutopilotOptions = {
   /** The walk's cap of presses — a game left standing at it is `capped`, read by where it stood. */
@@ -59,6 +60,8 @@ export type AutopilotOptions = {
 export type AutopilotResult = {
   /** `finished` — the server reached END and the finale was walked; `capped` — the press cap; `stuck` — nobody asked and nothing moved. */
   end: 'finished' | 'capped' | 'stuck',
+  /** Why the game is `stuck` when it was the SCREEN that stood — the door's run under one screen (`autopilotDoor.ts`) — and not the table. */
+  stuckWhy?: string,
   presses: number,
   generation: number,
   phase: string,
@@ -174,6 +177,20 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
   };
   const bump = (into: Record<string, number>, key: string): void => {
     into[key] = (into[key] ?? 0) + 1;
+  };
+  // THE DOOR UNDER ONE SCREEN (`tests/testing/autopilotDoor.ts` — stage M: a screen the door has to answer for again and
+  // again, with not one answer on the screen in between, cannot be answered — the game ends `stuck` there, the screen
+  // named, instead of playing on behind it). Asked right after a door's row is written.
+  const doorRun = createDoorRun();
+  const doorStood = (): boolean => {
+    const why = doorRun.door(result.doors[result.doors.length - 1] ?? '');
+    if (why === undefined) {
+      return false;
+    }
+    result.end = 'stuck';
+    result.stuckWhy = why;
+    result.log.push(`[STUCK-BY-DOOR ${why}]`);
+    return true;
   };
   let lastKey: BottleKey | undefined;
   const press = async (key: BottleKey, pauseMs: number): Promise<void> => {
@@ -332,6 +349,9 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       // and a press may be owed all the same (a reveal's take, a plate, a result's acknowledge): the pilot looks on.
       if (standing !== undefined) {
         bump(standing.byApi ? result.byApi : result.byUi, standing.menu ? 'or:menu' : standing.type);
+        if (!standing.byApi) {
+          doorRun.answeredOnScreen();
+        }
         standing = undefined;
       }
       if (bottle.clock.now() - quietSince > stuckAfterMs && others.every((seat) => server.seatTruth(seat).waitingFor === undefined)) {
@@ -354,6 +374,9 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
     if (standing === undefined || standing.promptId !== asked.promptId) {
       if (standing !== undefined) {
         bump(standing.byApi ? result.byApi : result.byUi, standing.menu ? 'or:menu' : standing.type);
+        if (!standing.byApi) {
+          doorRun.answeredOnScreen();
+        }
       }
       // (The opening is the whole start — a corporation, the preludes, a buy, the summary: four steps' presses, never one
       // question's.)
@@ -383,6 +406,7 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
         }
         if (landed) {
           result.passes.ui++;
+          doorRun.answeredOnScreen();
           result.log.push('[PASS]');
           // (The menu went by the pilot's own pass, not by an action: it is no row of `byUi`.)
           standing = undefined;
@@ -392,12 +416,18 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
           result.passes.api++;
           result.log.push(`[PASS-BY-DOOR ${moved?.did ?? 'nothing'}]`);
           result.doors.push(`pass · gen ${truth.generation} · ${stood} → after the gesture: ${standsNow()}`);
+          if (doorStood()) {
+            break;
+          }
           standing = undefined;
           await bottle.advance(1_500);
         }
       } else {
         result.doors.push(`${asked.type} · gen ${truth.generation} · ${standsNow()}`);
         options.onDoor?.(`${asked.type} · gen ${truth.generation}`, result.log.slice(-30));
+        if (doorStood()) {
+          break;
+        }
         // (A question that is not the menu is never «passed»: the answer the door gives is a move, as the screen's would be.)
         const moved = await server.seatAnswersRandomly(viewer, seatRng(), 0);
         await bottle.clock.drain();

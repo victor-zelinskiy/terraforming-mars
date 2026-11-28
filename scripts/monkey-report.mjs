@@ -824,7 +824,8 @@ export function aggregateAutopilot(files) {
     if (a.end === 'finished') {
       out.finished++;
     } else if (a.end === 'stuck') {
-      out.stuck.push(where);
+      // (A game the pilot ended because its SCREEN stood — a door's run under one screen — says so: `stuckWhy`.)
+      out.stuck.push(typeof a.stuckWhy === 'string' ? `${where} — ${a.stuckWhy}` : where);
     } else {
       out.capped.push(where);
     }

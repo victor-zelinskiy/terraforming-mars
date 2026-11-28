@@ -245,7 +245,7 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
         }
         // THE PILOT's OWN FINDINGS, as classes of the same report: a game that did not end, a page rebuilt under it.
         if (played.end === 'stuck') {
-          records.push(filed(`autopilot/stuck/${played.phase}`, 'defect', 1, `nobody was asked and nothing moved for minutes — generation ${played.generation}, phase ${played.phase}`));
+          records.push(filed(`autopilot/stuck/${played.phase}`, 'defect', 1, `${played.stuckWhy ?? 'nobody was asked and nothing moved for minutes'} — generation ${played.generation}, phase ${played.phase}`));
         }
         if (rebuilds > 0) {
           records.push(filed('autopilot/rebuilt', 'defect', rebuilds, `the page was rebuilt ${rebuilds}× inside one game (generation ${played.generation})`));
@@ -261,7 +261,7 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
         ...(owner !== undefined ? {owner} : {}),
         monkey: {seed, fixture: `game-${n}`, mode: 'autopilot', layout: LAYOUT, landing: 'boot', duo: false, reload: false, hidden: false, faults: [], presses: played?.presses ?? 0, perturb: {netMs: 0, cpu: 0, motion: ''}, bottle: true, why},
         autopilot: played === undefined ? undefined : {
-          end: played.end, generation: played.generation, phase: played.phase, presses: played.presses, byUi: played.byUi, byApi: played.byApi,
+          end: played.end, stuckWhy: played.stuckWhy, generation: played.generation, phase: played.phase, presses: played.presses, byUi: played.byUi, byApi: played.byApi,
           passes: played.passes, seatMoves: played.seatMoves, tookMs: played.tookMs, rebuilds, table: table?.config, doors: played.doors, soak: played.soak,
           // (The cards axis — the viewer's tableau at the game's end and the plays its log names: what the pilot played through the console.)
           cards: table === undefined ? [] : bottleServer().seatPlayed(table.seats[0].id),
